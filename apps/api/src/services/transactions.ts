@@ -12,6 +12,32 @@ import { decryptOptional } from '../lib/encryption'
 /**
  * Transaction response type
  */
+/**
+ * Parse a search term as an exact amount (e.g. "1,112.52" or "₹33247.9")
+ * Returns null when the term isn't a plain number
+ */
+function parseAmountSearch(search: string): number | null {
+  const cleaned = search.replace(/[₹$€£,\s]/g, '')
+  return /^\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : null
+}
+
+/**
+ * Search condition: description/summary text match, plus an exact amount match
+ * when the term is a number (tolerance covers float storage on SQLite)
+ */
+function buildSearchCondition(search: string) {
+  const searchTerm = `%${search}%`
+  const amount = parseAmountSearch(search)
+  const textMatch = [
+    like(tables.transactions.originalDescription, searchTerm),
+    like(tables.transactions.summary, searchTerm),
+  ]
+  if (amount !== null) {
+    textMatch.push(sql`ABS(${tables.transactions.amount} - ${amount}) < 0.005`)
+  }
+  return or(...textMatch)!
+}
+
 export interface TransactionResponse {
   id: string
   accountId: string
@@ -169,13 +195,7 @@ export async function getTransactions(
   }
 
   if (filters?.search) {
-    const searchTerm = `%${filters.search}%`
-    conditions.push(
-      or(
-        like(tables.transactions.originalDescription, searchTerm),
-        like(tables.transactions.summary, searchTerm)
-      )!
-    )
+    conditions.push(buildSearchCondition(filters.search))
   }
 
   if (filters?.isSubscription !== undefined) {
@@ -517,13 +537,7 @@ export async function getTransactionStats(
   }
 
   if (filters?.search) {
-    const searchTerm = `%${filters.search}%`
-    conditions.push(
-      or(
-        like(tables.transactions.originalDescription, searchTerm),
-        like(tables.transactions.summary, searchTerm)
-      )!
-    )
+    conditions.push(buildSearchCondition(filters.search))
   }
 
   if (filters?.isSubscription !== undefined) {
