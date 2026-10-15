@@ -7,6 +7,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createGateway } from '@ai-sdk/gateway'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { devToolsMiddleware } from '@ai-sdk/devtools'
@@ -130,6 +131,16 @@ export function createLLMClient(config?: Partial<LLMConfig>): LLMClientResult {
       break
     }
 
+    case 'openrouter': {
+      const openrouter = createOpenRouter({
+        apiKey: config?.apiKey || process.env.OPENROUTER_API_KEY,
+        baseURL: apiBaseUrl,
+      })
+      // modelId is in format "provider/model" e.g. "anthropic/claude-sonnet-4.5"
+      llmModel = openrouter(model)
+      break
+    }
+
     default:
       throw new Error(`Unsupported LLM provider: ${provider}`)
   }
@@ -153,6 +164,8 @@ export function isLLMConfigured(): boolean {
       return !!process.env.ANTHROPIC_API_KEY
     case 'google':
       return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+    case 'openrouter':
+      return !!process.env.OPENROUTER_API_KEY
     case 'ollama':
       return true // Ollama doesn't require an API key
     case 'vercel':
@@ -173,6 +186,7 @@ function parseModelOverride(
     anthropicApiKey: string | null
     googleAiApiKey: string | null
     vercelApiKey: string | null
+    openrouterApiKey: string | null
     ollamaBaseUrl: string | null
   }
 ): { provider: LLMProvider; model: string } {
@@ -183,6 +197,8 @@ function parseModelOverride(
       return { provider: 'anthropic', model: getDefaultModel('anthropic') }
     if (settings.googleAiApiKey) return { provider: 'google', model: getDefaultModel('google') }
     if (settings.vercelApiKey) return { provider: 'vercel', model: getDefaultModel('vercel') }
+    if (settings.openrouterApiKey)
+      return { provider: 'openrouter', model: getDefaultModel('openrouter') }
     if (settings.ollamaBaseUrl) return { provider: 'ollama', model: getDefaultModel('ollama') }
     throw new Error('No LLM provider configured')
   }
@@ -253,6 +269,9 @@ export async function createLLMClientFromSettings(
       break
     case 'vercel':
       apiKey = settings.vercelApiKey || undefined
+      break
+    case 'openrouter':
+      apiKey = settings.openrouterApiKey || undefined
       break
     case 'ollama':
       // Ollama doesn't need API key

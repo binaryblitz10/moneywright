@@ -10,10 +10,11 @@ export const PROVIDER_LOGOS: Record<string, string> = {
   google: '/google.svg',
   ollama: '/ollama.svg',
   vercel: '/vercel.svg',
+  openrouter: '/openrouter.svg',
 }
 
 // Logos that need to be inverted in dark mode (they are dark/black icons)
-export const INVERTED_LOGO_PROVIDERS = ['openai', 'anthropic', 'vercel', 'ollama']
+export const INVERTED_LOGO_PROVIDERS = ['openai', 'anthropic', 'vercel', 'openrouter', 'ollama']
 
 /**
  * Check if a provider's logo needs inversion for dark mode

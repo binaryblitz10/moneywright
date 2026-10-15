@@ -84,6 +84,7 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
     if (code === 'anthropic') return !!settings?.hasAnthropicApiKey
     if (code === 'google') return !!settings?.hasGoogleAiApiKey
     if (code === 'vercel') return !!settings?.hasVercelApiKey
+    if (code === 'openrouter') return !!settings?.hasOpenrouterApiKey
     return false
   })()
 
@@ -102,6 +103,7 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
       else if (code === 'anthropic') data.anthropicApiKey = apiKeyInput
       else if (code === 'google') data.googleAiApiKey = apiKeyInput
       else if (code === 'vercel') data.vercelApiKey = apiKeyInput
+      else if (code === 'openrouter') data.openrouterApiKey = apiKeyInput
     }
 
     updateMutation.mutate(data)
@@ -115,6 +117,7 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
     else if (code === 'anthropic') data.anthropicApiKey = null
     else if (code === 'google') data.googleAiApiKey = null
     else if (code === 'vercel') data.vercelApiKey = null
+    else if (code === 'openrouter') data.openrouterApiKey = null
 
     updateMutation.mutate(data)
   }

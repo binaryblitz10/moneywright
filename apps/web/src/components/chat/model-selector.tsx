@@ -91,7 +91,7 @@ export function ModelSelector({
                 )}
               </DropdownMenuSubTrigger>
               {providerConfigured && (
-                <DropdownMenuSubContent>
+                <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
                   {provider.models.map((model) => (
                     <DropdownMenuItem
                       key={model.id}

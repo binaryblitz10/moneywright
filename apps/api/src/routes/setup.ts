@@ -6,6 +6,7 @@ import { SUPPORTED_COUNTRIES } from '../lib/constants'
 import { AI_PROVIDERS } from '../lib/ai'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { getOllamaCustomModels } from '../services/preferences'
+import { getOpenRouterModels } from '../services/openrouter-models'
 
 const setupRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -45,6 +46,7 @@ setupRoutes.get('/', auth(), async (c) => {
 
   // Get custom Ollama models for this user
   const ollamaCustomModels = await getOllamaCustomModels(userId)
+  const openrouterModels = await getOpenRouterModels()
 
   const configuredProviders: Record<string, boolean> = {
     openai: !!llmSettings.openaiApiKey,
@@ -52,10 +54,11 @@ setupRoutes.get('/', auth(), async (c) => {
     google: !!llmSettings.googleAiApiKey,
     ollama: !!llmSettings.ollamaBaseUrl,
     vercel: !!llmSettings.vercelApiKey,
+    openrouter: !!llmSettings.openrouterApiKey,
   }
 
   const providers = AI_PROVIDERS.map((providerConfig) => {
-    // For Ollama, use custom models from preferences
+    // Ollama uses custom models from preferences, OpenRouter uses the live catalog
     const models =
       providerConfig.id === 'ollama'
         ? ollamaCustomModels.map((m) => ({
@@ -64,7 +67,9 @@ setupRoutes.get('/', auth(), async (c) => {
             supportsParsing: true,
             supportsThinking: m.supportsThinking,
           }))
-        : providerConfig.models
+        : providerConfig.id === 'openrouter'
+          ? openrouterModels
+          : providerConfig.models
 
     return {
       id: providerConfig.id,
@@ -98,6 +103,7 @@ setupRoutes.get('/', auth(), async (c) => {
  *     anthropicApiKey?: string | null,
  *     googleAiApiKey?: string | null,
  *     vercelApiKey?: string | null,
+ *     openrouterApiKey?: string | null,
  *   }
  * }
  *
@@ -111,6 +117,7 @@ const patchSetupSchema = z.object({
       anthropicApiKey: z.string().min(1).optional().nullable(),
       googleAiApiKey: z.string().min(1).optional().nullable(),
       vercelApiKey: z.string().min(1).optional().nullable(),
+      openrouterApiKey: z.string().min(1).optional().nullable(),
     })
     .optional(),
 })
@@ -129,6 +136,7 @@ setupRoutes.patch('/', auth(), async (c) => {
         anthropicApiKey: validated.llm.anthropicApiKey,
         googleAiApiKey: validated.llm.googleAiApiKey,
         vercelApiKey: validated.llm.vercelApiKey,
+        openrouterApiKey: validated.llm.openrouterApiKey,
       })
     }
 
@@ -138,6 +146,7 @@ setupRoutes.patch('/', auth(), async (c) => {
 
     // Get custom Ollama models for this user
     const ollamaCustomModels = await getOllamaCustomModels(userId)
+    const openrouterModels = await getOpenRouterModels()
 
     const configuredProviders: Record<string, boolean> = {
       openai: !!llmSettings.openaiApiKey,
@@ -145,10 +154,11 @@ setupRoutes.patch('/', auth(), async (c) => {
       google: !!llmSettings.googleAiApiKey,
       ollama: !!llmSettings.ollamaBaseUrl,
       vercel: !!llmSettings.vercelApiKey,
+      openrouter: !!llmSettings.openrouterApiKey,
     }
 
     const providers = AI_PROVIDERS.map((providerConfig) => {
-      // For Ollama, use custom models from preferences
+      // Ollama uses custom models from preferences, OpenRouter uses the live catalog
       const models =
         providerConfig.id === 'ollama'
           ? ollamaCustomModels.map((m) => ({
@@ -157,7 +167,9 @@ setupRoutes.patch('/', auth(), async (c) => {
               supportsParsing: true,
               supportsThinking: m.supportsThinking,
             }))
-          : providerConfig.models
+          : providerConfig.id === 'openrouter'
+            ? openrouterModels
+            : providerConfig.models
 
       return {
         id: providerConfig.id,

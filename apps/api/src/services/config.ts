@@ -138,7 +138,7 @@ export async function isSetupComplete(): Promise<boolean> {
  * Users select provider/model in the app when needed
  */
 
-export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'vercel'
+export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'vercel' | 'openrouter'
 
 export interface LLMSettings {
   ollamaBaseUrl: string | null
@@ -146,6 +146,7 @@ export interface LLMSettings {
   anthropicApiKey: string | null
   googleAiApiKey: string | null
   vercelApiKey: string | null
+  openrouterApiKey: string | null
   /** True if at least one provider is configured */
   isConfigured: boolean
 }
@@ -182,13 +183,19 @@ export async function getLLMSettings(): Promise<LLMSettings> {
     vercelApiKey = await getConfig('vercel_api_key')
   }
 
+  let openrouterApiKey = process.env.OPENROUTER_API_KEY || null
+  if (!openrouterApiKey) {
+    openrouterApiKey = await getConfig('openrouter_api_key')
+  }
+
   // At least one provider must be configured
   const isConfigured = !!(
     openaiApiKey ||
     anthropicApiKey ||
     googleAiApiKey ||
     ollamaBaseUrl ||
-    vercelApiKey
+    vercelApiKey ||
+    openrouterApiKey
   )
 
   return {
@@ -197,6 +204,7 @@ export async function getLLMSettings(): Promise<LLMSettings> {
     anthropicApiKey,
     googleAiApiKey,
     vercelApiKey,
+    openrouterApiKey,
     isConfigured,
   }
 }
@@ -210,6 +218,7 @@ export async function setLLMSettings(settings: {
   anthropicApiKey?: string | null
   googleAiApiKey?: string | null
   vercelApiKey?: string | null
+  openrouterApiKey?: string | null
 }): Promise<void> {
   if (settings.ollamaBaseUrl !== undefined) {
     if (settings.ollamaBaseUrl) {
@@ -248,6 +257,14 @@ export async function setLLMSettings(settings: {
       await setConfig('vercel_api_key', settings.vercelApiKey)
     } else {
       await deleteConfig('vercel_api_key')
+    }
+  }
+
+  if (settings.openrouterApiKey !== undefined) {
+    if (settings.openrouterApiKey) {
+      await setConfig('openrouter_api_key', settings.openrouterApiKey)
+    } else {
+      await deleteConfig('openrouter_api_key')
     }
   }
 }

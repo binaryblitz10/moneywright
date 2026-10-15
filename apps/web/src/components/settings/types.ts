@@ -20,7 +20,14 @@ export interface ProviderInfo {
   description: string
 }
 
-export const PROVIDER_ORDER = ['openai', 'anthropic', 'google', 'vercel', 'ollama'] as const
+export const PROVIDER_ORDER = [
+  'openai',
+  'anthropic',
+  'google',
+  'vercel',
+  'openrouter',
+  'ollama',
+] as const
 export type ProviderCode = (typeof PROVIDER_ORDER)[number]
 
 export const PROVIDER_INFO: Record<string, ProviderInfo> = {
@@ -43,6 +50,11 @@ export const PROVIDER_INFO: Record<string, ProviderInfo> = {
     name: 'Vercel AI Gateway',
     placeholder: 'Enter API key',
     description: 'Access multiple providers through one API',
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    description: 'Hundreds of models from many providers through one API',
   },
   ollama: {
     name: 'Ollama',

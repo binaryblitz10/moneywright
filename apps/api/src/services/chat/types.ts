@@ -9,7 +9,14 @@ import type { ModelMessage } from 'ai'
 /**
  * AI Provider IDs
  */
-export const AI_PROVIDER_IDS = ['openai', 'anthropic', 'google', 'vercel', 'ollama'] as const
+export const AI_PROVIDER_IDS = [
+  'openai',
+  'anthropic',
+  'google',
+  'vercel',
+  'openrouter',
+  'ollama',
+] as const
 
 /**
  * AI Provider type

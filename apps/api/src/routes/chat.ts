@@ -276,6 +276,9 @@ chat.post('/conversations/:id/messages', async (c) => {
     case 'vercel':
       apiKey = settings.vercelApiKey || undefined
       break
+    case 'openrouter':
+      apiKey = settings.openrouterApiKey || undefined
+      break
     case 'ollama':
       // Ollama doesn't need API key
       break

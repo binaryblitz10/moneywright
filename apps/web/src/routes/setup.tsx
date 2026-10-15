@@ -102,6 +102,7 @@ function SetupPage() {
         anthropic: 'anthropicApiKey',
         google: 'googleAiApiKey',
         vercel: 'vercelApiKey',
+        openrouter: 'openrouterApiKey',
       }
       const keyField = keyMap[expandedProvider!]
       if (keyField) {
@@ -368,7 +369,9 @@ function SetupPage() {
                                   ? 'https://aistudio.google.com/app/apikey'
                                   : expandedProvider === 'vercel'
                                     ? 'https://vercel.com/docs/ai-gateway'
-                                    : '#'
+                                    : expandedProvider === 'openrouter'
+                                      ? 'https://openrouter.ai/settings/keys'
+                                      : '#'
                           }
                           target="_blank"
                           rel="noopener noreferrer"

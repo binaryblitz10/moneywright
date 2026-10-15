@@ -12,13 +12,14 @@ import {
   addOllamaCustomModel,
   removeOllamaCustomModel,
 } from '../services/preferences'
+import { getOpenRouterModels } from '../services/openrouter-models'
 
 const llmRoutes = new Hono<{ Variables: AuthVariables }>()
 
 // Apply auth to all routes
 llmRoutes.use('*', auth())
 
-const LLM_PROVIDERS = ['openai', 'anthropic', 'google', 'vercel', 'ollama'] as const
+const LLM_PROVIDERS = ['openai', 'anthropic', 'google', 'vercel', 'openrouter', 'ollama'] as const
 
 /**
  * Update LLM settings request schema
@@ -30,6 +31,7 @@ const updateSettingsSchema = z.object({
   anthropicApiKey: z.string().min(1).optional().nullable(),
   googleAiApiKey: z.string().min(1).optional().nullable(),
   vercelApiKey: z.string().min(1).optional().nullable(),
+  openrouterApiKey: z.string().min(1).optional().nullable(),
 })
 
 /**
@@ -46,6 +48,7 @@ llmRoutes.get('/settings', async (c) => {
     hasAnthropicApiKey: !!settings.anthropicApiKey,
     hasGoogleAiApiKey: !!settings.googleAiApiKey,
     hasVercelApiKey: !!settings.vercelApiKey,
+    hasOpenrouterApiKey: !!settings.openrouterApiKey,
     isConfigured: settings.isConfigured,
   })
 })
@@ -81,6 +84,7 @@ llmRoutes.put('/settings', async (c) => {
       hasAnthropicApiKey: !!settings.anthropicApiKey,
       hasGoogleAiApiKey: !!settings.googleAiApiKey,
       hasVercelApiKey: !!settings.vercelApiKey,
+      hasOpenrouterApiKey: !!settings.openrouterApiKey,
       isConfigured: settings.isConfigured,
     })
   } catch (error) {
@@ -99,9 +103,10 @@ llmRoutes.get('/providers', async (c) => {
 
   // Get custom Ollama models for this user
   const ollamaCustomModels = await getOllamaCustomModels(userId)
+  const openrouterModels = await getOpenRouterModels()
 
   const providers = AI_PROVIDERS.map((providerConfig) => {
-    // For Ollama, use custom models from preferences
+    // Ollama uses custom models from preferences, OpenRouter uses the live catalog
     const models =
       providerConfig.id === 'ollama'
         ? ollamaCustomModels.map((m) => ({
@@ -110,7 +115,9 @@ llmRoutes.get('/providers', async (c) => {
             supportsParsing: true,
             supportsThinking: m.supportsThinking,
           }))
-        : providerConfig.models
+        : providerConfig.id === 'openrouter'
+          ? openrouterModels
+          : providerConfig.models
 
     return {
       code: providerConfig.id,
@@ -122,7 +129,8 @@ llmRoutes.get('/providers', async (c) => {
         (providerConfig.id === 'anthropic' && !!settings.anthropicApiKey) ||
         (providerConfig.id === 'google' && !!settings.googleAiApiKey) ||
         (providerConfig.id === 'ollama' && !!settings.ollamaBaseUrl) ||
-        (providerConfig.id === 'vercel' && !!settings.vercelApiKey),
+        (providerConfig.id === 'vercel' && !!settings.vercelApiKey) ||
+        (providerConfig.id === 'openrouter' && !!settings.openrouterApiKey),
     }
   })
 
@@ -198,6 +206,12 @@ llmRoutes.post('/test', async (c) => {
         apiKey = providedApiKey || settings.vercelApiKey || undefined
         if (!apiKey) {
           return c.json({ error: 'not_configured', message: 'Vercel API key is required' }, 400)
+        }
+        break
+      case 'openrouter':
+        apiKey = providedApiKey || settings.openrouterApiKey || undefined
+        if (!apiKey) {
+          return c.json({ error: 'not_configured', message: 'OpenRouter API key is required' }, 400)
         }
         break
       case 'ollama':

@@ -56,6 +56,7 @@ export interface ConfiguredProviders {
   google: boolean
   ollama: boolean
   vercel: boolean
+  openrouter: boolean
 }
 
 /**
@@ -111,6 +112,7 @@ export async function updateSetup(data: {
     anthropicApiKey?: string | null
     googleAiApiKey?: string | null
     vercelApiKey?: string | null
+    openrouterApiKey?: string | null
   }
 }): Promise<SetupStatus> {
   const response = await api.patch('/setup', data)
@@ -414,6 +416,7 @@ export interface LLMSettings {
   hasAnthropicApiKey: boolean
   hasGoogleAiApiKey: boolean
   hasVercelApiKey: boolean
+  hasOpenrouterApiKey: boolean
   isConfigured: boolean
 }
 
@@ -474,6 +477,7 @@ export async function updateLLMSettings(data: {
   anthropicApiKey?: string | null
   googleAiApiKey?: string | null
   vercelApiKey?: string | null
+  openrouterApiKey?: string | null
 }): Promise<LLMSettings> {
   const response = await api.put('/llm/settings', data)
   return response.data

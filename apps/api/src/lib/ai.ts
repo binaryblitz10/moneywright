@@ -5,7 +5,14 @@
 /**
  * LLM Providers
  */
-export const LLM_PROVIDERS = ['openai', 'anthropic', 'google', 'vercel', 'ollama'] as const
+export const LLM_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'google',
+  'vercel',
+  'openrouter',
+  'ollama',
+] as const
 export type LLMProvider = (typeof LLM_PROVIDERS)[number]
 
 /**
@@ -212,6 +219,46 @@ export const AI_PROVIDERS: AIProviderConfig[] = [
         supportsThinking: true,
         gatewayProviders: ['minimax', 'deepinfra'],
       },
+    ],
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    models: [
+      // Anthropic models via OpenRouter
+      {
+        id: 'anthropic/claude-opus-4.5',
+        name: 'Claude Opus 4.5',
+        supportsParsing: true,
+      },
+      {
+        id: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        supportsParsing: true,
+        recommendedForChat: true,
+      },
+      {
+        id: 'anthropic/claude-haiku-4.5',
+        name: 'Claude Haiku 4.5',
+        supportsParsing: true,
+      },
+      // OpenAI models via OpenRouter
+      { id: 'openai/gpt-5.2', name: 'GPT-5.2', supportsParsing: true },
+      { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', supportsParsing: true },
+      { id: 'openai/gpt-5-nano', name: 'GPT-5 Nano' },
+      // Google models via OpenRouter
+      { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro', supportsParsing: true },
+      {
+        id: 'google/gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        supportsParsing: true,
+        recommendedForParsing: true,
+        recommendedForCategorization: true,
+      },
+      { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+      // Other models via OpenRouter
+      { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', supportsParsing: true },
+      { id: 'x-ai/grok-4', name: 'Grok 4', supportsParsing: true },
     ],
   },
   {
