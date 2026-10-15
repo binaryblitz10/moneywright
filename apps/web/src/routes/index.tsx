@@ -23,11 +23,13 @@ import type { MonthlyTrendData } from '@/lib/api'
 import {
   type TimeframeKey,
   type ChartTimeframeKey,
+  type DateRange,
   TIMEFRAME_OPTIONS,
   CHART_TIMEFRAME_OPTIONS,
   formatCompact,
   getDateRange,
   getFinancialYearRange,
+  DashboardTimeframePicker,
   IncomeExpensesCard,
   SpendingByCategoryCard,
   SubscriptionsCard,
@@ -49,67 +51,49 @@ function DashboardPage() {
     handleFamilyViewChange,
   } = useProfileSelection()
   const [timeframe] = useState<TimeframeKey>('this_month')
-  const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframeKey>('1y')
   const [selectedMonth, setSelectedMonth] = useState<MonthlyTrendData | null>(null)
-  const [customDateRange, setCustomDateRange] = useState<{
-    startDate: string
-    endDate: string
-  } | null>(null)
+
+  // Dashboard-wide timeframe: one selection drives every date-based widget
+  const [dashboardTimeframe, setDashboardTimeframe] = useState<ChartTimeframeKey>('1y')
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null)
 
   // Spending by Category state
-  const [categoryTimeframe, setCategoryTimeframe] = useState<ChartTimeframeKey>('1y')
-  const [categoryDateRange, setCategoryDateRange] = useState<{
-    startDate: string
-    endDate: string
-  } | null>(null)
   const [showMonthlyAverage, setShowMonthlyAverage] = useState(false)
 
   // Get date range for selected timeframe
   const dateRange = getDateRange(timeframe)
   const selectedTimeframeOption = TIMEFRAME_OPTIONS.find((t) => t.key === timeframe)!
 
-  // Calculate chart date range
+  // Calculate chart date range from the shared timeframe
   const chartDateOptions = useMemo(() => {
-    const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === chartTimeframe)
+    const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === dashboardTimeframe)
 
-    if (chartTimeframe === 'custom' && customDateRange) {
+    if (dashboardTimeframe === 'custom' && customDateRange) {
       return { startDate: customDateRange.startDate, endDate: customDateRange.endDate }
     }
-    if (chartTimeframe === 'current_fy') {
+    if (dashboardTimeframe === 'current_fy') {
       const fy = getFinancialYearRange(user?.country, 0)
       return { startDate: fy.startDate, endDate: fy.endDate }
     }
-    if (chartTimeframe === 'last_fy') {
+    if (dashboardTimeframe === 'last_fy') {
       const fy = getFinancialYearRange(user?.country, -1)
       return { startDate: fy.startDate, endDate: fy.endDate }
     }
     return { months: option?.months || 12 }
-  }, [chartTimeframe, customDateRange, user?.country])
+  }, [dashboardTimeframe, customDateRange, user?.country])
 
-  // Calculate category date range
+  // Calculate category date range from the same shared timeframe
   const categoryDateOptions = useMemo(() => {
-    const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === categoryTimeframe)
+    if ('startDate' in chartDateOptions) return chartDateOptions
 
-    if (categoryTimeframe === 'custom' && categoryDateRange) {
-      return { startDate: categoryDateRange.startDate, endDate: categoryDateRange.endDate }
-    }
-    if (categoryTimeframe === 'current_fy') {
-      const fy = getFinancialYearRange(user?.country, 0)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-    if (categoryTimeframe === 'last_fy') {
-      const fy = getFinancialYearRange(user?.country, -1)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-
-    const months = option?.months || 12
+    const months = chartDateOptions.months
     const now = new Date()
     const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
     return {
       startDate: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`,
       endDate: now.toISOString().split('T')[0],
     }
-  }, [categoryTimeframe, categoryDateRange, user?.country])
+  }, [chartDateOptions])
 
   // Calculate total months for monthly average
   const categoryTotalMonths = useMemo(() => {
@@ -121,9 +105,8 @@ function DashboardPage() {
         (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
       )
     }
-    const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === categoryTimeframe)
-    return option?.months || 12
-  }, [categoryDateOptions, categoryTimeframe])
+    return 12
+  }, [categoryDateOptions])
 
   // Fetch categories (only when authenticated)
   const { data: categoriesData } = useCategories(isAuthenticated)
@@ -355,12 +338,21 @@ function DashboardPage() {
         title="Dashboard"
         description="Your financial overview"
         actions={
-          <ProfileSelector
-            selectedProfileId={selectorProfileId}
-            onProfileChange={handleProfileChange}
-            showFamilyView={showFamilyView}
-            onFamilyViewChange={handleFamilyViewChange}
-          />
+          <div className="flex items-center gap-2">
+            <DashboardTimeframePicker
+              timeframe={dashboardTimeframe}
+              onTimeframeChange={setDashboardTimeframe}
+              customDateRange={customDateRange}
+              onCustomDateRangeChange={setCustomDateRange}
+              userCountry={user?.country}
+            />
+            <ProfileSelector
+              selectedProfileId={selectorProfileId}
+              onProfileChange={handleProfileChange}
+              showFamilyView={showFamilyView}
+              onFamilyViewChange={handleFamilyViewChange}
+            />
+          </div>
         }
       />
 
@@ -436,15 +428,10 @@ function DashboardPage() {
       <IncomeExpensesCard
         trendsData={trendsData}
         isLoading={trendsLoading}
-        chartTimeframe={chartTimeframe}
-        onChartTimeframeChange={setChartTimeframe}
-        customDateRange={customDateRange}
-        onCustomDateRangeChange={setCustomDateRange}
         excludedCategories={incomeExpensesExcluded}
         onToggleExclusion={toggleIncomeExpensesExclusion}
         onClearExclusions={clearIncomeExpensesExclusions}
         categories={categories}
-        userCountry={user?.country}
         onMonthClick={handleMonthClick}
       />
 
@@ -453,10 +440,6 @@ function DashboardPage() {
         <SpendingByCategoryCard
           categoryStats={categoryStats}
           isLoading={categoryStatsLoading}
-          categoryTimeframe={categoryTimeframe}
-          onCategoryTimeframeChange={setCategoryTimeframe}
-          categoryDateRange={categoryDateRange}
-          onCategoryDateRangeChange={setCategoryDateRange}
           showMonthlyAverage={showMonthlyAverage}
           onShowMonthlyAverageChange={setShowMonthlyAverage}
           totalMonths={categoryTotalMonths}
@@ -464,7 +447,6 @@ function DashboardPage() {
           onToggleExclusion={toggleSpendingByCategoryExclusion}
           onClearExclusions={clearSpendingByCategoryExclusions}
           categories={categories}
-          userCountry={user?.country}
           getCategoryLabel={getCategoryLabel}
           getCategoryColor={getCategoryColor}
         />

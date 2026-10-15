@@ -38,6 +38,11 @@ export type ChartTimeframeKey =
   | 'last_fy'
   | 'custom'
 
+export interface DateRange {
+  startDate: string
+  endDate: string
+}
+
 export interface ChartTimeframeOption {
   key: ChartTimeframeKey
   label: string

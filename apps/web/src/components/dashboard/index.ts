@@ -21,6 +21,7 @@ export { SubscriptionsList } from './subscriptions-list'
 export { CategoryBreakdown } from './category-breakdown'
 export { AccountBalanceCard } from './account-balance-card'
 export { MonthDetailModal } from './month-detail-modal'
+export { DashboardTimeframePicker } from './dashboard-timeframe-picker'
 
 // Card components
 export { IncomeExpensesCard } from './income-expenses-card'
