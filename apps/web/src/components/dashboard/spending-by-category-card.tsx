@@ -36,6 +36,8 @@ interface SpendingByCategoryCardProps {
   categories: Category[]
   getCategoryLabel: (code: string) => string
   getCategoryColor: (code: string) => string
+  startDate?: string
+  endDate?: string
 }
 
 export function SpendingByCategoryCard({
@@ -50,6 +52,8 @@ export function SpendingByCategoryCard({
   categories,
   getCategoryLabel,
   getCategoryColor,
+  startDate,
+  endDate,
 }: SpendingByCategoryCardProps) {
   return (
     <Card className="border-border-subtle hover:border-border-hover transition-colors">
@@ -154,6 +158,8 @@ export function SpendingByCategoryCard({
             getCategoryColor={getCategoryColor}
             showMonthlyAverage={showMonthlyAverage}
             totalMonths={totalMonths}
+            startDate={startDate}
+            endDate={endDate}
           />
         ) : (
           <InlineEmptyState

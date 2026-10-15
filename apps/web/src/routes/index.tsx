@@ -21,19 +21,17 @@ import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from 
 import type { MonthlyTrendData } from '@/lib/api'
 
 import {
-  type TimeframeKey,
   type DashboardTimeframeSelection,
   DEFAULT_TIMEFRAME_SELECTION,
-  TIMEFRAME_OPTIONS,
   CHART_TIMEFRAME_OPTIONS,
   formatCompact,
-  getDateRange,
   getFinancialYearRange,
   getCalendarMonthRange,
   parseSavedTimeframe,
   DashboardTimeframePicker,
   IncomeExpensesCard,
   SpendingByCategoryCard,
+  IncomeByCategoryCard,
   SubscriptionsCard,
   AccountBalancesCard,
   MonthDetailModal,
@@ -52,7 +50,6 @@ function DashboardPage() {
     handleProfileChange,
     handleFamilyViewChange,
   } = useProfileSelection()
-  const [timeframe] = useState<TimeframeKey>('this_month')
   const [selectedMonth, setSelectedMonth] = useState<MonthlyTrendData | null>(null)
 
   // Fetch user-wide preferences (not profile-specific)
@@ -88,9 +85,8 @@ function DashboardPage() {
   // Spending by Category state
   const [showMonthlyAverage, setShowMonthlyAverage] = useState(false)
 
-  // Get date range for selected timeframe
-  const dateRange = getDateRange(timeframe)
-  const selectedTimeframeOption = TIMEFRAME_OPTIONS.find((t) => t.key === timeframe)!
+  const selectedTimeframeLabel =
+    CHART_TIMEFRAME_OPTIONS.find((t) => t.key === dashboardTimeframe)?.label ?? ''
 
   // Calculate chart date range from the shared timeframe
   const chartDateOptions = useMemo(() => {
@@ -235,9 +231,18 @@ function DashboardPage() {
 
   // Fetch summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['summary', profileId ?? 'family', timeframe],
-    queryFn: () => getSummary(profileId, dateRange),
-    enabled: queryEnabled,
+    queryKey: [
+      'summary',
+      profileId ?? 'family',
+      categoryDateOptions.startDate,
+      categoryDateOptions.endDate,
+    ],
+    queryFn: () =>
+      getSummary(profileId, {
+        startDate: categoryDateOptions.startDate,
+        endDate: categoryDateOptions.endDate,
+      }),
+    enabled: timeframeQueriesEnabled,
   })
 
   // Fetch accounts
@@ -399,7 +404,7 @@ function DashboardPage() {
           trend={summary?.netWorth.total ? (summary.netWorth.total > 0 ? 'up' : 'down') : undefined}
         />
         <StatCard
-          label="Monthly Expenses"
+          label="Expenses"
           value={
             summary?.transactions.totalExpenses && summary.transactions.totalExpenses > 0
               ? summary.transactions.totalExpenses
@@ -409,11 +414,11 @@ function DashboardPage() {
           subtitle={
             summary?.transactions.totalExpenses && summary.transactions.totalExpenses > 0
               ? summary.transactions.expenseCount
-                ? `${summary.transactions.expenseCount} transactions`
-                : selectedTimeframeOption.shortLabel
+                ? `${summary.transactions.expenseCount} transactions · ${selectedTimeframeLabel}`
+                : selectedTimeframeLabel
               : threeMonthAvgExpenses
                 ? `${threeMonthAvgExpenses.monthCount}-month average`
-                : selectedTimeframeOption.shortLabel
+                : selectedTimeframeLabel
           }
           icon={CreditCard}
           loading={summaryLoading || trendsLoading}
@@ -476,8 +481,27 @@ function DashboardPage() {
           categories={categories}
           getCategoryLabel={getCategoryLabel}
           getCategoryColor={getCategoryColor}
+          startDate={categoryDateOptions.startDate}
+          endDate={categoryDateOptions.endDate}
         />
 
+        <IncomeByCategoryCard
+          incomeBreakdown={categoryStatsRaw?.incomeBreakdown}
+          totalIncome={categoryStatsRaw?.totalIncome ?? 0}
+          currency={categoryStatsRaw?.currency ?? 'INR'}
+          isLoading={categoryStatsLoading}
+          showMonthlyAverage={showMonthlyAverage}
+          onShowMonthlyAverageChange={setShowMonthlyAverage}
+          totalMonths={categoryTotalMonths}
+          getCategoryLabel={getCategoryLabel}
+          getCategoryColor={getCategoryColor}
+          startDate={categoryDateOptions.startDate}
+          endDate={categoryDateOptions.endDate}
+        />
+      </div>
+
+      {/* Subscriptions */}
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <SubscriptionsCard
           subscriptions={subscriptionsData?.subscriptions || []}
           totalMonthly={subscriptionsData?.totalMonthly || 0}

@@ -483,6 +483,8 @@ export async function getTransactionStats(
   netAmount: number
   currency: string
   categoryBreakdown: { category: string; total: number; count: number }[]
+  incomeBreakdown: { category: string; total: number; count: number }[]
+  totalIncome: number
 }> {
   const conditions = [eq(tables.transactions.userId, userId)]
 
@@ -593,6 +595,18 @@ export async function getTransactionStats(
     .filter((c) => c.total > 0) // Only show categories with positive net spending
     .sort((a, b) => b.total - a.total)
 
+  // Net income (credits - debits) per category, mirroring the spending breakdown
+  const incomeBreakdown = Array.from(categoryMap.entries())
+    .filter(([category]) => !NETTED_CATEGORIES.includes(category))
+    .map(([category, data]) => ({
+      category,
+      total: data.credits - data.debits,
+      count: data.count,
+    }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total)
+  const totalIncome = incomeBreakdown.reduce((sum, c) => sum + c.total, 0)
+
   // Get currency from transactions (default to INR if no transactions)
   const currency = transactions[0]?.currency || 'INR'
 
@@ -604,6 +618,8 @@ export async function getTransactionStats(
     netAmount: totalCredits - totalDebits,
     currency,
     categoryBreakdown,
+    incomeBreakdown,
+    totalIncome,
   }
 }
 

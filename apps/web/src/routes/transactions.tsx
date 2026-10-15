@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
@@ -34,8 +34,19 @@ import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Receipt, Upload } from 'lucide-react'
 
+interface TransactionsSearchParams {
+  category?: string
+  startDate?: string
+  endDate?: string
+}
+
 export const Route = createFileRoute('/transactions')({
   component: TransactionsPage,
+  validateSearch: (search: Record<string, unknown>): TransactionsSearchParams => ({
+    category: typeof search.category === 'string' ? search.category : undefined,
+    startDate: typeof search.startDate === 'string' ? search.startDate : undefined,
+    endDate: typeof search.endDate === 'string' ? search.endDate : undefined,
+  }),
 })
 
 function TransactionsPage() {
@@ -52,7 +63,12 @@ function TransactionsPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
   // Filter state
-  const [filters, setFilters] = useState<TransactionFilters>({})
+  const searchParams = useSearch({ from: '/transactions' })
+  const [filters, setFilters] = useState<TransactionFilters>(() => ({
+    ...(searchParams.category && { category: [searchParams.category] }),
+    ...(searchParams.startDate && { startDate: searchParams.startDate }),
+    ...(searchParams.endDate && { endDate: searchParams.endDate }),
+  }))
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<SortBy>('date')

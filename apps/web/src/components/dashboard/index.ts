@@ -28,5 +28,6 @@ export { DashboardTimeframePicker } from './dashboard-timeframe-picker'
 // Card components
 export { IncomeExpensesCard } from './income-expenses-card'
 export { SpendingByCategoryCard } from './spending-by-category-card'
+export { IncomeByCategoryCard } from './income-by-category-card'
 export { SubscriptionsCard } from './subscriptions-card'
 export { AccountBalancesCard } from './account-balances-card'

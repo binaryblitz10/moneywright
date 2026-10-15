@@ -2,6 +2,7 @@
  * Category Breakdown component for spending analysis
  */
 
+import { Link } from '@tanstack/react-router'
 import { PieChart } from 'lucide-react'
 import { InlineEmptyState } from '@/components/ui/empty-state'
 import { getCategoryColorClasses } from '@/lib/category-colors'
@@ -16,6 +17,12 @@ interface CategoryBreakdownProps {
   getCategoryColor: (code: string) => string
   showMonthlyAverage?: boolean
   totalMonths?: number
+  /** Date range applied to the transactions page when a category is clicked */
+  startDate?: string
+  endDate?: string
+  totalLabel?: string
+  averageLabel?: string
+  emptyTitle?: string
 }
 
 export function CategoryBreakdown({
@@ -26,6 +33,11 @@ export function CategoryBreakdown({
   getCategoryColor,
   showMonthlyAverage = false,
   totalMonths = 1,
+  startDate,
+  endDate,
+  totalLabel = 'Total Spent',
+  averageLabel = 'Avg. Monthly',
+  emptyTitle = 'No spending data',
 }: CategoryBreakdownProps) {
   // Sort by total and take top 6 to match subscriptions card
   const topCategories = [...categoryBreakdown]
@@ -39,7 +51,7 @@ export function CategoryBreakdown({
     return (
       <InlineEmptyState
         icon={PieChart}
-        title="No spending data"
+        title={emptyTitle}
         description="Categories appear after importing transactions"
       />
     )
@@ -59,7 +71,7 @@ export function CategoryBreakdown({
       {/* Total header - matches subscriptions EST. MONTHLY COST */}
       <div className="flex items-center justify-between pb-3 mb-1 border-b border-border-subtle">
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-          {showMonthlyAverage ? 'Avg. Monthly' : 'Total Spent'}
+          {showMonthlyAverage ? averageLabel : totalLabel}
         </span>
         <span className="text-base font-bold text-foreground tabular-nums">
           {formatCurrency(displayTotal, currency)}
@@ -75,8 +87,10 @@ export function CategoryBreakdown({
           const percentage = maxAmount > 0 ? (cat.displayAmount / maxAmount) * 100 : 0
 
           return (
-            <div
+            <Link
               key={cat.category}
+              to="/transactions"
+              search={{ category: cat.category, startDate, endDate }}
               className="flex items-center justify-between py-2.5 px-2 -mx-2 rounded-lg hover:bg-surface-elevated transition-colors"
             >
               {/* Left: Category name and progress bar */}
@@ -106,7 +120,7 @@ export function CategoryBreakdown({
                   <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
                 )}
               </p>
-            </div>
+            </Link>
           )
         })}
       </div>

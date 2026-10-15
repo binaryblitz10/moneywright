@@ -863,6 +863,8 @@ export interface TransactionStats {
   netAmount: number
   currency: string
   categoryBreakdown: { category: string; total: number; count: number }[]
+  incomeBreakdown: { category: string; total: number; count: number }[]
+  totalIncome: number
 }
 
 /**
