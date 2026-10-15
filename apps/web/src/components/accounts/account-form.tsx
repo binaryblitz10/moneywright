@@ -4,6 +4,7 @@ import { Loader2, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -58,6 +59,7 @@ export function AccountForm({
   const [institution, setInstitution] = useState(account?.institution || '')
   const [accountName, setAccountName] = useState(account?.accountName || '')
   const [productName, setProductName] = useState(account?.productName || '')
+  const [categorizationHints, setCategorizationHints] = useState(account?.categorizationHints || '')
   const [accountNumber, setAccountNumber] = useState('')
   const [currency, setCurrency] = useState(account?.currency || 'INR')
   const [isActive, setIsActive] = useState(account?.isActive ?? true)
@@ -112,6 +114,7 @@ export function AccountForm({
         accountName: accountName || undefined,
         productName: productName || null,
         institution: institution || null,
+        categorizationHints: categorizationHints.trim() || null,
         isActive,
       })
     } else {
@@ -278,6 +281,24 @@ export function AccountForm({
             />
             <p className="text-xs text-muted-foreground">The specific product or card variant</p>
           </div>
+
+          {/* Categorization Hints - only when editing */}
+          {isEditMode && (
+            <div className="space-y-2">
+              <Label htmlFor="categorizationHints">Categorization Hints</Label>
+              <Textarea
+                id="categorizationHints"
+                placeholder="E.g., Transfers to Rahul are rent, FX transactions are investments"
+                value={categorizationHints}
+                onChange={(e) => setCategorizationHints(e.target.value.slice(0, 1000))}
+                className="min-h-[80px] resize-none"
+                maxLength={1000}
+              />
+              <p className="text-xs text-muted-foreground">
+                Applied automatically whenever transactions from this account are categorized.
+              </p>
+            </div>
+          )}
 
           {/* Account Number - only when creating */}
           {!isEditMode && (

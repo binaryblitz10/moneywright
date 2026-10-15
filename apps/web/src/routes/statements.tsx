@@ -278,6 +278,7 @@ function StatementsPage() {
             onOpenChange={(open) => !open && setRecategorizeStatement(null)}
             profileId={activeProfileId}
             statementId={recategorizeStatement.id}
+            hintsAccountId={recategorizeStatement.accountId ?? undefined}
             targetName={recategorizeStatement.originalFilename || 'Statement'}
             _targetType="statement"
             onSuccess={() => {

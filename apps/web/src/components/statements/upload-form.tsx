@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { SavedHintsNote } from '@/components/accounts/saved-hints-note'
 import {
   Select,
   SelectContent,
@@ -858,6 +859,7 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
                 <p className="text-xs text-muted-foreground">
                   Help the AI categorize your transactions better with custom rules.
                 </p>
+                <SavedHintsNote hints={selectedAccount?.categorizationHints} />
               </div>
             )}
           </div>

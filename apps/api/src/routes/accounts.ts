@@ -36,6 +36,7 @@ const updateAccountSchema = z.object({
   accountName: z.string().min(1).optional(),
   productName: z.string().optional().nullable(),
   institution: z.string().optional().nullable(),
+  categorizationHints: z.string().max(1000).optional().nullable(),
   statementPassword: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 })

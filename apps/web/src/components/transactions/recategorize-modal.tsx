@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { SavedHintsNote } from '@/components/accounts/saved-hints-note'
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
 import { Loader2, RefreshCw, Check, AlertCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  getAccounts,
   getLLMProviders,
   recategorizeTransactions,
   getRecategorizeJobStatus,
@@ -41,6 +43,8 @@ interface RecategorizeModalProps {
   accountId?: string
   /** Statement ID to recategorize (transactions from this statement) */
   statementId?: string
+  /** Account whose saved hints to show (defaults to accountId) */
+  hintsAccountId?: string
   /** Display name for the target (account or statement name) */
   targetName: string
   /** Callback when recategorization completes */
@@ -53,6 +57,7 @@ export function RecategorizeModal({
   profileId,
   accountId,
   statementId,
+  hintsAccountId,
   targetName,
   onSuccess,
 }: RecategorizeModalProps) {
@@ -68,6 +73,14 @@ export function RecategorizeModal({
   >(null)
   const [jobProgress, setJobProgress] = useState<{ processed: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const { data: accounts } = useQuery({
+    queryKey: ['accounts', profileId],
+    queryFn: () => getAccounts(profileId),
+  })
+  const savedHints = accounts?.find(
+    (a) => a.id === (hintsAccountId ?? accountId)
+  )?.categorizationHints
 
   const { data: providers } = useQuery({
     queryKey: ['llm-providers'],
@@ -389,6 +402,7 @@ export function RecategorizeModal({
               <p className="text-xs text-muted-foreground">
                 Help the AI categorize your transactions better with custom rules.
               </p>
+              <SavedHintsNote hints={savedHints} />
             </div>
           )}
 

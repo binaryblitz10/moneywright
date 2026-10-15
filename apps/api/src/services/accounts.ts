@@ -23,6 +23,7 @@ export interface AccountResponse {
   accountNumber: string | null // decrypted
   accountName: string | null
   productName: string | null // account product/variant name (e.g., "Regalia", "Savings Max", "Imperia")
+  categorizationHints: string | null // saved hints applied to every categorization of this account
   currency: string
   isActive: boolean
   hasStatementPassword: boolean // don't expose actual password
@@ -43,6 +44,7 @@ function toAccountResponse(account: Account): AccountResponse {
     accountNumber: decryptOptional(account.accountNumber),
     accountName: account.accountName,
     productName: account.productName ?? null,
+    categorizationHints: account.categorizationHints ?? null,
     currency: account.currency,
     isActive: account.isActive,
     hasStatementPassword: !!account.statementPassword,
@@ -281,6 +283,7 @@ export async function updateAccount(
     accountName?: string
     productName?: string | null
     institution?: string | null
+    categorizationHints?: string | null
     statementPassword?: string | null
     isActive?: boolean
   }
@@ -308,6 +311,10 @@ export async function updateAccount(
 
   if (data.institution !== undefined) {
     updateData.institution = data.institution
+  }
+
+  if (data.categorizationHints !== undefined) {
+    updateData.categorizationHints = data.categorizationHints?.trim() || null
   }
 
   if (data.statementPassword !== undefined) {

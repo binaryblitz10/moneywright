@@ -22,6 +22,13 @@
       "when": 1769707155910,
       "tag": "0002_omniscient_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792084368564,
+      "tag": "0003_account_categorization_hints",
+      "breakpoints": true
     }
   ]
 }

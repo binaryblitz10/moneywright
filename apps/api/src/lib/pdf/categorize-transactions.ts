@@ -977,16 +977,29 @@ export async function categorizeStatements(
   // Group transactions by account to get the most common account type
   const accountIds = [...new Set(transactions.map((t) => t.accountId).filter(Boolean))] as string[]
   let accountType: string | undefined
+  let savedAccountHints: string | null = null
 
   if (accountIds.length > 0) {
     const accounts = await db
-      .select({ id: tables.accounts.id, type: tables.accounts.type })
+      .select({
+        id: tables.accounts.id,
+        type: tables.accounts.type,
+        categorizationHints: tables.accounts.categorizationHints,
+      })
       .from(tables.accounts)
       .where(inArray(tables.accounts.id, accountIds))
 
-    // Use the first account's type (most statements will be from same account type)
+    // Use the first account's type and hints (callers categorize one account at a time)
     accountType = accounts[0]?.type
+    savedAccountHints = accounts[0]?.categorizationHints ?? null
   }
+
+  // Saved account hints always apply; hints given for this run are added after them
+  const combinedHints =
+    [savedAccountHints, userCategorizationHints]
+      .map((h) => h?.trim())
+      .filter(Boolean)
+      .join('\n') || undefined
 
   // Fetch profile summary for context if profileId is provided
   let profileSummary: string | null = null
@@ -1014,7 +1027,7 @@ export async function categorizeStatements(
     onProgress,
     accountType,
     profileSummary,
-    userCategorizationHints
+    combinedHints
   )
 
   logger.debug(

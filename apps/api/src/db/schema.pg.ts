@@ -135,6 +135,9 @@ export const accounts = pgTable(
     accountName: text('account_name'), // user-friendly name
     productName: text('product_name'), // account product/variant name (e.g., "Regalia", "Savings Max", "Imperia")
 
+    // Saved hints appended to the categorization prompt for every statement of this account
+    categorizationHints: text('categorization_hints'),
+
     // Statement password (for password-protected PDFs)
     statementPassword: text('statement_password'), // encrypted
 

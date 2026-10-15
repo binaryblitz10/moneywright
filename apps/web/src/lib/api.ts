@@ -554,6 +554,8 @@ export interface Account {
   accountName: string | null
   /** Account product/variant name (e.g., "Regalia", "Savings Max", "Imperia") */
   productName: string | null
+  /** Saved hints applied to every categorization of this account */
+  categorizationHints: string | null
   currency: string
   isActive: boolean
   hasStatementPassword: boolean
@@ -623,6 +625,7 @@ export async function updateAccount(
     accountName?: string
     productName?: string | null
     institution?: string | null
+    categorizationHints?: string | null
     statementPassword?: string | null
     isActive?: boolean
   }
