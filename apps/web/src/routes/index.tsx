@@ -22,13 +22,15 @@ import type { MonthlyTrendData } from '@/lib/api'
 
 import {
   type TimeframeKey,
-  type ChartTimeframeKey,
-  type DateRange,
+  type DashboardTimeframeSelection,
+  DEFAULT_TIMEFRAME_SELECTION,
   TIMEFRAME_OPTIONS,
   CHART_TIMEFRAME_OPTIONS,
   formatCompact,
   getDateRange,
   getFinancialYearRange,
+  getCalendarMonthRange,
+  parseSavedTimeframe,
   DashboardTimeframePicker,
   IncomeExpensesCard,
   SpendingByCategoryCard,
@@ -53,9 +55,35 @@ function DashboardPage() {
   const [timeframe] = useState<TimeframeKey>('this_month')
   const [selectedMonth, setSelectedMonth] = useState<MonthlyTrendData | null>(null)
 
-  // Dashboard-wide timeframe: one selection drives every date-based widget
-  const [dashboardTimeframe, setDashboardTimeframe] = useState<ChartTimeframeKey>('1y')
-  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null)
+  // Fetch user-wide preferences (not profile-specific)
+  const { data: preferences, isLoading: preferencesLoading } = usePreferences(
+    undefined,
+    isAuthenticated
+  )
+  const setPreferenceMutation = useSetPreference()
+
+  // Dashboard-wide timeframe: one selection drives every date-based widget.
+  // The last selection is remembered as a user preference.
+  const [timeframeOverride, setTimeframeOverride] = useState<DashboardTimeframeSelection | null>(
+    null
+  )
+  const savedTimeframe = useMemo(
+    () => parseSavedTimeframe(preferences?.[PREFERENCE_KEYS.DASHBOARD_CHART_TIMEFRAME]),
+    [preferences]
+  )
+  const timeframeSelection = timeframeOverride ?? savedTimeframe ?? DEFAULT_TIMEFRAME_SELECTION
+  const { timeframe: dashboardTimeframe, customDateRange } = timeframeSelection
+
+  const handleTimeframeChange = useCallback(
+    (selection: DashboardTimeframeSelection) => {
+      setTimeframeOverride(selection)
+      setPreferenceMutation.mutate({
+        key: PREFERENCE_KEYS.DASHBOARD_CHART_TIMEFRAME,
+        value: JSON.stringify(selection),
+      })
+    },
+    [setPreferenceMutation]
+  )
 
   // Spending by Category state
   const [showMonthlyAverage, setShowMonthlyAverage] = useState(false)
@@ -70,6 +98,9 @@ function DashboardPage() {
 
     if (dashboardTimeframe === 'custom' && customDateRange) {
       return { startDate: customDateRange.startDate, endDate: customDateRange.endDate }
+    }
+    if (option?.monthOffset !== undefined) {
+      return getCalendarMonthRange(option.monthOffset)
     }
     if (dashboardTimeframe === 'current_fy') {
       const fy = getFinancialYearRange(user?.country, 0)
@@ -114,10 +145,8 @@ function DashboardPage() {
 
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = isAuthenticated && (!!profileId || showFamilyView)
-
-  // Fetch user-wide preferences (not profile-specific)
-  const { data: preferences } = usePreferences(undefined, isAuthenticated)
-  const setPreferenceMutation = useSetPreference()
+  // Date-based widgets wait for the saved timeframe so they don't fetch the default range first
+  const timeframeQueriesEnabled = queryEnabled && !preferencesLoading
 
   // Category helpers
   const getCategoryLabel = useCallback(
@@ -223,9 +252,9 @@ function DashboardPage() {
     () => ({
       ...chartDateOptions,
       excludeCategories: incomeExpensesExcluded.length > 0 ? incomeExpensesExcluded : undefined,
-      enabled: queryEnabled,
+      enabled: timeframeQueriesEnabled,
     }),
-    [chartDateOptions, incomeExpensesExcluded, queryEnabled]
+    [chartDateOptions, incomeExpensesExcluded, timeframeQueriesEnabled]
   )
   const { data: trendsData, isLoading: trendsLoading } = useMonthlyTrends(profileId, trendsOptions)
 
@@ -287,9 +316,9 @@ function DashboardPage() {
       profileId: profileId,
       startDate: categoryDateOptions.startDate,
       endDate: categoryDateOptions.endDate,
-      enabled: queryEnabled,
+      enabled: timeframeQueriesEnabled,
     }),
-    [profileId, categoryDateOptions, queryEnabled]
+    [profileId, categoryDateOptions, timeframeQueriesEnabled]
   )
   const { data: categoryStatsRaw, isLoading: categoryStatsLoading } =
     useTransactionStats(categoryStatsFilters)
@@ -340,10 +369,8 @@ function DashboardPage() {
         actions={
           <div className="flex items-center gap-2">
             <DashboardTimeframePicker
-              timeframe={dashboardTimeframe}
-              onTimeframeChange={setDashboardTimeframe}
-              customDateRange={customDateRange}
-              onCustomDateRangeChange={setCustomDateRange}
+              selection={timeframeSelection}
+              onChange={handleTimeframeChange}
               userCountry={user?.country}
             />
             <ProfileSelector

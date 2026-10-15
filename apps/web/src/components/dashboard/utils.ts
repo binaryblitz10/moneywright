@@ -2,7 +2,11 @@
  * Dashboard utility functions
  */
 
-import type { TimeframeKey } from './types'
+import {
+  CHART_TIMEFRAME_OPTIONS,
+  type DashboardTimeframeSelection,
+  type TimeframeKey,
+} from './types'
 
 /**
  * Currency formatter
@@ -88,6 +92,48 @@ export function getDateRange(timeframe: TimeframeKey): { startDate?: string; end
     }
     case 'all_time':
       return {} // No date filter
+  }
+}
+
+/**
+ * Format a date as YYYY-MM-DD using local time
+ * (toISOString converts to UTC, which shifts the date back a day in timezones ahead of UTC)
+ */
+function toLocalDateString(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * Get the first and last day of a calendar month relative to the current one
+ * (0 = this month, -1 = last month)
+ */
+export function getCalendarMonthRange(offset: number): { startDate: string; endDate: string } {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0)
+  return { startDate: toLocalDateString(start), endDate: toLocalDateString(end) }
+}
+
+/**
+ * Parse a saved dashboard timeframe preference
+ * Returns null when the value is missing or no longer valid
+ */
+export function parseSavedTimeframe(value: string | undefined): DashboardTimeframeSelection | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as Partial<DashboardTimeframeSelection>
+    const timeframe = parsed.timeframe
+    if (!CHART_TIMEFRAME_OPTIONS.some((o) => o.key === timeframe)) return null
+    if (timeframe === 'custom') {
+      const range = parsed.customDateRange
+      if (!range?.startDate || !range.endDate) return null
+      return { timeframe, customDateRange: range }
+    }
+    return { timeframe: timeframe!, customDateRange: null }
+  } catch {
+    return null
   }
 }
 

@@ -28,6 +28,9 @@ export const TIMEFRAME_OPTIONS: { key: TimeframeKey; label: string; shortLabel: 
 
 // Chart timeframe options
 export type ChartTimeframeKey =
+  | 'this_month'
+  | 'last_month'
+  | '3m'
   | '6m'
   | '1y'
   | '2y'
@@ -47,10 +50,15 @@ export interface ChartTimeframeOption {
   key: ChartTimeframeKey
   label: string
   months?: number
+  /** Calendar month relative to the current one (0 = this month, -1 = last month) */
+  monthOffset?: number
   isFiscal?: boolean
 }
 
 export const CHART_TIMEFRAME_OPTIONS: ChartTimeframeOption[] = [
+  { key: 'this_month', label: 'This month', monthOffset: 0 },
+  { key: 'last_month', label: 'Last month', monthOffset: -1 },
+  { key: '3m', label: 'Last 3 months', months: 3 },
   { key: '6m', label: 'Last 6 months', months: 6 },
   { key: '1y', label: 'Last 1 year', months: 12 },
   { key: '2y', label: 'Last 2 years', months: 24 },
@@ -61,6 +69,17 @@ export const CHART_TIMEFRAME_OPTIONS: ChartTimeframeOption[] = [
   { key: 'last_fy', label: 'Last FY', isFiscal: true },
   { key: 'custom', label: 'Custom range' },
 ]
+
+/** The dashboard-wide timeframe selection, saved as a user preference */
+export interface DashboardTimeframeSelection {
+  timeframe: ChartTimeframeKey
+  customDateRange: DateRange | null
+}
+
+export const DEFAULT_TIMEFRAME_SELECTION: DashboardTimeframeSelection = {
+  timeframe: '1y',
+  customDateRange: null,
+}
 
 // Sort options for month transactions
 export type SortOption = 'latest' | 'oldest' | 'highest' | 'lowest'

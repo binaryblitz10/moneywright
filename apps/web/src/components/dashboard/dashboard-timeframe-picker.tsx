@@ -11,13 +11,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getFinancialYearRange } from './utils'
-import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframeKey, type DateRange } from './types'
+import {
+  CHART_TIMEFRAME_OPTIONS,
+  DEFAULT_TIMEFRAME_SELECTION,
+  type ChartTimeframeKey,
+  type DashboardTimeframeSelection,
+} from './types'
 
 interface DashboardTimeframePickerProps {
-  timeframe: ChartTimeframeKey
-  onTimeframeChange: (timeframe: ChartTimeframeKey) => void
-  customDateRange: DateRange | null
-  onCustomDateRangeChange: (range: DateRange | null) => void
+  selection: DashboardTimeframeSelection
+  onChange: (selection: DashboardTimeframeSelection) => void
   userCountry: string | null | undefined
 }
 
@@ -33,12 +36,11 @@ function optionClass(active: boolean): string {
 }
 
 export function DashboardTimeframePicker({
-  timeframe,
-  onTimeframeChange,
-  customDateRange,
-  onCustomDateRangeChange,
+  selection,
+  onChange,
   userCountry,
 }: DashboardTimeframePickerProps) {
+  const { timeframe, customDateRange } = selection
   const label = useMemo(() => {
     if (timeframe === 'custom' && customDateRange) {
       const format = (date: string) =>
@@ -55,8 +57,7 @@ export function DashboardTimeframePicker({
   }, [timeframe, customDateRange, userCountry])
 
   const selectPreset = (key: ChartTimeframeKey) => {
-    onTimeframeChange(key)
-    onCustomDateRangeChange(null)
+    onChange({ timeframe: key, customDateRange: null })
   }
 
   return (
@@ -72,15 +73,17 @@ export function DashboardTimeframePicker({
         <div className="space-y-3">
           {/* Standard time ranges */}
           <div className="grid grid-cols-2 gap-1.5">
-            {CHART_TIMEFRAME_OPTIONS.filter((o) => o.months).map((option) => (
-              <button
-                key={option.key}
-                onClick={() => selectPreset(option.key)}
-                className={optionClass(timeframe === option.key)}
-              >
-                {option.label}
-              </button>
-            ))}
+            {CHART_TIMEFRAME_OPTIONS.filter((o) => o.months || o.monthOffset !== undefined).map(
+              (option) => (
+                <button
+                  key={option.key}
+                  onClick={() => selectPreset(option.key)}
+                  className={optionClass(timeframe === option.key)}
+                >
+                  {option.label}
+                </button>
+              )
+            )}
           </div>
 
           <div className="h-px bg-border-subtle" />
@@ -121,12 +124,14 @@ export function DashboardTimeframePicker({
                   value={customDateRange?.startDate || ''}
                   onChange={(e) => {
                     if (e.target.value) {
-                      onCustomDateRangeChange({
-                        startDate: e.target.value,
-                        endDate:
-                          customDateRange?.endDate || new Date().toISOString().split('T')[0]!,
+                      onChange({
+                        timeframe: 'custom',
+                        customDateRange: {
+                          startDate: e.target.value,
+                          endDate:
+                            customDateRange?.endDate || new Date().toISOString().split('T')[0]!,
+                        },
                       })
-                      onTimeframeChange('custom')
                     }
                   }}
                   className="h-8 rounded-lg text-sm"
@@ -139,11 +144,13 @@ export function DashboardTimeframePicker({
                   value={customDateRange?.endDate || ''}
                   onChange={(e) => {
                     if (e.target.value) {
-                      onCustomDateRangeChange({
-                        startDate: customDateRange?.startDate || '2020-01-01',
-                        endDate: e.target.value,
+                      onChange({
+                        timeframe: 'custom',
+                        customDateRange: {
+                          startDate: customDateRange?.startDate || '2020-01-01',
+                          endDate: e.target.value,
+                        },
                       })
-                      onTimeframeChange('custom')
                     }
                   }}
                   className="h-8 rounded-lg text-sm"
@@ -155,10 +162,7 @@ export function DashboardTimeframePicker({
                 variant="ghost"
                 size="sm"
                 className="w-full text-muted-foreground h-7 text-xs"
-                onClick={() => {
-                  onCustomDateRangeChange(null)
-                  onTimeframeChange('1y')
-                }}
+                onClick={() => onChange(DEFAULT_TIMEFRAME_SELECTION)}
               >
                 <X className="mr-1.5 h-3 w-3" />
                 Clear custom range
