@@ -23,6 +23,9 @@ import { cn } from '@/lib/utils'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
 
+// Roomier box with a smaller tick so there's padding between the tick and the circle
+const CHECKBOX_CLASS = 'size-5 [&_svg]:size-3'
+
 export type SortBy = 'date' | 'amount'
 export type SortOrder = 'asc' | 'desc'
 
@@ -160,6 +163,7 @@ export function TransactionTable({
             {selectable && (
               <TableHead className="w-11">
                 <Checkbox
+                  className={CHECKBOX_CLASS}
                   aria-label="Select all transactions on this page"
                   checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
                   onCheckedChange={(checked) => togglePage(checked === true)}
@@ -222,6 +226,7 @@ export function TransactionTable({
                 {selectable && (
                   <TableCell className="py-3">
                     <Checkbox
+                      className={CHECKBOX_CLASS}
                       aria-label="Select transaction"
                       checked={selectedIds.has(txn.id)}
                       onCheckedChange={(checked) => toggleOne(txn.id, checked === true)}
