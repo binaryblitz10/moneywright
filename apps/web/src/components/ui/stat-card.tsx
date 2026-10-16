@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { Link } from '@tanstack/react-router'
 import { Card, CardContent } from './card'
 import { Skeleton } from './skeleton'
 import { ArrowUpRight, ArrowDownRight, type LucideIcon } from 'lucide-react'
@@ -80,6 +81,8 @@ export interface StatCardProps {
   formatValue?: (value: number, currency: string) => string
   /** Additional class name for the card */
   className?: string
+  /** Makes the card a link to the transactions page with these filters applied */
+  transactionsLink?: { category?: string; startDate?: string; endDate?: string }
 }
 
 /**
@@ -108,6 +111,7 @@ export function StatCard({
   suffix,
   formatValue,
   className,
+  transactionsLink,
 }: StatCardProps) {
   const [showFull, setShowFull] = React.useState(false)
 
@@ -162,11 +166,12 @@ export function StatCard({
     }
   }
 
-  return (
+  const card = (
     <Card
       className={cn(
         'relative overflow-hidden hover:border-border-hover transition-all duration-200 animate-fade-in',
         needsAbbreviation && !loading && 'cursor-pointer',
+        transactionsLink && 'h-full cursor-pointer',
         className
       )}
       onClick={handleClick}
@@ -212,18 +217,15 @@ export function StatCard({
               </div>
             )}
 
-            {/* Subtitle or tap hint */}
-            <p className="text-xs text-muted-foreground mt-1.5 truncate">
-              {needsAbbreviation && !loading ? (
-                <span className="flex items-center gap-1">
-                  <span>{subtitle}</span>
-                  <span className="opacity-50">·</span>
-                  <span className="opacity-50">{showFull ? 'tap for short' : 'tap for full'}</span>
-                </span>
-              ) : (
-                subtitle
-              )}
-            </p>
+            {/* Subtitle */}
+            {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
+
+            {/* Tap hint */}
+            {needsAbbreviation && !loading && (
+              <p className="text-xs text-muted-foreground/50 mt-0.5">
+                {showFull ? 'tap for short' : 'tap for full'}
+              </p>
+            )}
           </div>
 
           {/* Icon */}
@@ -240,6 +242,14 @@ export function StatCard({
         </div>
       </CardContent>
     </Card>
+  )
+
+  if (!transactionsLink) return card
+
+  return (
+    <Link to="/transactions" search={transactionsLink} className="block">
+      {card}
+    </Link>
   )
 }
 

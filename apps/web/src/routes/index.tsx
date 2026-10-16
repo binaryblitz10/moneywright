@@ -331,7 +331,6 @@ function DashboardPage() {
   // Filter category stats
   const categoryStats = useMemo(() => {
     if (!categoryStatsRaw) return undefined
-    if (!spendingByCategoryExcluded.length) return categoryStatsRaw
 
     const filteredBreakdown = categoryStatsRaw.categoryBreakdown.filter(
       (cat) => !spendingByCategoryExcluded.includes(cat.category)
@@ -425,26 +424,16 @@ function DashboardPage() {
         />
         <StatCard
           label="Investments"
-          value={summary?.netWorth.breakdown.investments.total}
-          currency={summary?.netWorth.currency}
-          subtitle={
-            summary?.netWorth.breakdown.investments.invested &&
-            summary.netWorth.breakdown.investments.invested > 0 &&
-            summary.netWorth.breakdown.investments.gainLossPercent !== undefined
-              ? `${summary.netWorth.breakdown.investments.gainLossPercent > 0 ? '+' : ''}${summary.netWorth.breakdown.investments.gainLossPercent.toFixed(1)}% returns`
-              : 'Total portfolio'
-          }
+          value={summary?.transactions.investedAmount}
+          currency={summary?.transactions.currency}
+          subtitle={`Invested · ${selectedTimeframeLabel}`}
           icon={TrendingUp}
           loading={summaryLoading}
-          trend={
-            summary?.netWorth.breakdown.investments.invested &&
-            summary.netWorth.breakdown.investments.invested > 0 &&
-            summary?.netWorth.breakdown.investments.gainLoss
-              ? summary.netWorth.breakdown.investments.gainLoss > 0
-                ? 'up'
-                : 'down'
-              : undefined
-          }
+          transactionsLink={{
+            category: 'investment',
+            startDate: categoryDateOptions.startDate,
+            endDate: categoryDateOptions.endDate,
+          }}
         />
         <StatCard
           label="Accounts"

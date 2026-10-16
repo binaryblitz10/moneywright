@@ -485,6 +485,8 @@ export async function getTransactionStats(
   categoryBreakdown: { category: string; total: number; count: number }[]
   incomeBreakdown: { category: string; total: number; count: number }[]
   totalIncome: number
+  investedAmount: number
+  spendingCount: number
 }> {
   const conditions = [eq(tables.transactions.userId, userId)]
 
@@ -557,6 +559,8 @@ export async function getTransactionStats(
   let totalDebits = 0
   let creditCount = 0
   let debitCount = 0
+  // Debits that count as spending (excludes transfers, card payments, investments)
+  let spendingCount = 0
   // Track both debits and credits per category to calculate net spending
   const categoryMap = new Map<string, { debits: number; credits: number; count: number }>()
 
@@ -569,6 +573,9 @@ export async function getTransactionStats(
     } else {
       totalDebits += amount
       debitCount++
+      if (!NETTED_CATEGORIES.includes(txn.category) && txn.category !== INVESTMENT_CATEGORY) {
+        spendingCount++
+      }
     }
 
     // Track both debits and credits per category
@@ -585,8 +592,11 @@ export async function getTransactionStats(
   // Calculate net spending (debits - credits) per category
   // Only include categories where net spending is positive
   // Exclude NETTED_CATEGORIES (like credit_card_payment) as they are internal transfers
+  // Investments are tracked separately (investedAmount), not as spending
   const categoryBreakdown = Array.from(categoryMap.entries())
-    .filter(([category]) => !NETTED_CATEGORIES.includes(category))
+    .filter(
+      ([category]) => !NETTED_CATEGORIES.includes(category) && category !== INVESTMENT_CATEGORY
+    )
     .map(([category, data]) => ({
       category,
       total: data.debits - data.credits, // Net spending
@@ -607,6 +617,10 @@ export async function getTransactionStats(
     .sort((a, b) => b.total - a.total)
   const totalIncome = incomeBreakdown.reduce((sum, c) => sum + c.total, 0)
 
+  // Net amount put into investments (debits - credits)
+  const investment = categoryMap.get(INVESTMENT_CATEGORY)
+  const investedAmount = investment ? Math.max(investment.debits - investment.credits, 0) : 0
+
   // Get currency from transactions (default to INR if no transactions)
   const currency = transactions[0]?.currency || 'INR'
 
@@ -620,6 +634,8 @@ export async function getTransactionStats(
     categoryBreakdown,
     incomeBreakdown,
     totalIncome,
+    investedAmount,
+    spendingCount,
   }
 }
 
@@ -773,6 +789,7 @@ export interface MonthlyTrendData {
 // Categories that should be netted (debits - credits) instead of counted separately
 // These are typically internal transfers that shouldn't inflate income/expenses
 const NETTED_CATEGORIES = ['credit_card_payment', 'transfer']
+const INVESTMENT_CATEGORY = 'investment'
 
 /**
  * Month transactions response for the modal

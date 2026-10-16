@@ -106,12 +106,15 @@ summaryRoutes.get('/', async (c) => {
         endDate: effectiveEndDate,
       },
       totalIncome: transactionStats.totalCredits,
-      totalExpenses: transactionStats.totalDebits,
+      // Spending only: excludes transfers, card payments and investments
+      totalExpenses: transactionStats.categoryBreakdown.reduce((sum, c) => sum + c.total, 0),
       incomeCount: transactionStats.creditCount,
-      expenseCount: transactionStats.debitCount,
+      expenseCount: transactionStats.spendingCount,
       netCashFlow: transactionStats.netAmount,
       currency: transactionStats.currency,
       categoryBreakdown: transactionStats.categoryBreakdown,
+      // Net amount put into investments during the period
+      investedAmount: transactionStats.investedAmount,
     },
   })
 })
