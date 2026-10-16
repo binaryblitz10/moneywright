@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -137,11 +137,24 @@ export function TransactionTable({
   const selectedOnPage = selectable ? transactions.filter((t) => selectedIds.has(t.id)).length : 0
   const allOnPageSelected = transactions.length > 0 && selectedOnPage === transactions.length
 
-  const toggleOne = (id: string, checked: boolean) => {
+  // ID of the last row clicked, used as the anchor for shift-click range selection
+  const anchorIdRef = useRef<string | null>(null)
+
+  const handleRowClick = (e: MouseEvent, index: number) => {
     if (!selectedIds || !onSelectionChange) return
+    const id = transactions[index]!.id
+    const checked = !selectedIds.has(id)
+    const anchorIndex = e.shiftKey
+      ? transactions.findIndex((t) => t.id === anchorIdRef.current)
+      : -1
+    const [from, to] =
+      anchorIndex >= 0 ? [anchorIndex, index].sort((a, b) => a - b) : [index, index]
     const next = new Set(selectedIds)
-    if (checked) next.add(id)
-    else next.delete(id)
+    for (const txn of transactions.slice(from, to! + 1)) {
+      if (checked) next.add(txn.id)
+      else next.delete(txn.id)
+    }
+    anchorIdRef.current = id
     onSelectionChange(next)
   }
 
@@ -219,8 +232,12 @@ export function TransactionTable({
                   'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
                   'hover:bg-surface-hover',
                   'animate-fade-in',
+                  selectable && 'cursor-pointer',
                   selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                 )}
+                onClick={selectable ? (e) => handleRowClick(e, index) : undefined}
+                // Stop shift-click from highlighting text while range selecting
+                onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
                 style={{ animationDelay: `${Math.min(index * 20, 200)}ms` }}
               >
                 {selectable && (
@@ -229,7 +246,6 @@ export function TransactionTable({
                       className={CHECKBOX_CLASS}
                       aria-label="Select transaction"
                       checked={selectedIds.has(txn.id)}
-                      onCheckedChange={(checked) => toggleOne(txn.id, checked === true)}
                     />
                   </TableCell>
                 )}
@@ -327,7 +343,10 @@ export function TransactionTable({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
-                    onClick={() => onEditTransaction(txn)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onEditTransaction(txn)
+                    }}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
