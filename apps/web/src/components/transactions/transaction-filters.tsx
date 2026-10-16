@@ -247,17 +247,6 @@ export function TransactionFiltersBar({
               />
             </button>
           </div>
-
-          {/* Clear All */}
-          {hasActiveFilters && (
-            <button
-              onClick={onClearFilters}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-              <span>Clear</span>
-            </button>
-          )}
         </div>
 
         {/* Advanced Filters Panel */}
@@ -568,6 +557,15 @@ export function TransactionFiltersBar({
               }}
             />
           ))}
+
+          {/* Clear All */}
+          <button
+            onClick={onClearFilters}
+            className="ml-auto flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Clear all</span>
+          </button>
         </div>
       )}
     </div>
