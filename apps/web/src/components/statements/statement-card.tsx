@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +61,7 @@ export function StatementCard({
   profiles,
   showProfileBadge,
 }: StatementCardProps) {
+  const navigate = useNavigate()
   const [logoError, setLogoError] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
@@ -117,6 +119,10 @@ export function StatementCard({
 
   const statusConfig = getStatusIcon()
 
+  const canViewTransactions = !isInvestment && isCompleted
+  const viewTransactions = () =>
+    navigate({ to: '/transactions', search: { statementId: statement.id } })
+
   return (
     <>
       <div
@@ -124,8 +130,10 @@ export function StatementCard({
           'group relative rounded-xl overflow-hidden transition-all',
           'bg-card border border-border-subtle',
           'hover:border-border-hover',
-          isFailed && 'border-negative/30'
+          isFailed && 'border-negative/30',
+          canViewTransactions && 'cursor-pointer'
         )}
+        onClick={canViewTransactions ? viewTransactions : undefined}
       >
         <div className="p-4">
           {/* Header: Logo + Info + Menu */}
@@ -164,32 +172,34 @@ export function StatementCard({
             </div>
 
             {/* Three-dot Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground/50 hover:text-muted-foreground hover:bg-surface-elevated transition-colors">
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {/* Only show recategorize for bank/credit card statements that are completed */}
-                {!isInvestment && isCompleted && onRecategorize && (
-                  <>
-                    <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Recategorize
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="text-destructive focus:text-destructive cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground/50 hover:text-muted-foreground hover:bg-surface-elevated transition-colors">
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {/* Only show recategorize for bank/credit card statements that are completed */}
+                  {!isInvestment && isCompleted && onRecategorize && (
+                    <>
+                      <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Recategorize
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           {/* Stats Row */}

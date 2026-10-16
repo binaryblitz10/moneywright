@@ -40,6 +40,7 @@ interface TransactionsSearchParams {
   category?: string
   startDate?: string
   endDate?: string
+  statementId?: string
 }
 
 export const Route = createFileRoute('/transactions')({
@@ -48,6 +49,7 @@ export const Route = createFileRoute('/transactions')({
     category: typeof search.category === 'string' ? search.category : undefined,
     startDate: typeof search.startDate === 'string' ? search.startDate : undefined,
     endDate: typeof search.endDate === 'string' ? search.endDate : undefined,
+    statementId: typeof search.statementId === 'string' ? search.statementId : undefined,
   }),
 })
 
@@ -72,6 +74,7 @@ function TransactionsPage() {
     ...(searchParams.category && { category: [searchParams.category] }),
     ...(searchParams.startDate && { startDate: searchParams.startDate }),
     ...(searchParams.endDate && { endDate: searchParams.endDate }),
+    ...(searchParams.statementId && { statementId: [searchParams.statementId] }),
   }))
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
