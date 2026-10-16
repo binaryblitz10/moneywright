@@ -5,36 +5,6 @@ import { Card, CardContent } from './card'
 import { Skeleton } from './skeleton'
 import { ArrowUpRight, ArrowDownRight, type LucideIcon } from 'lucide-react'
 
-// Format large numbers compactly (lakhs/crores for INR)
-function formatCompact(amount: number, currency: string = 'INR'): string {
-  const symbol = currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency === 'EUR' ? '€' : ''
-  const absAmount = Math.abs(amount)
-  const sign = amount < 0 ? '-' : ''
-
-  // Crores (10M+)
-  if (absAmount >= 10000000) {
-    const value = absAmount / 10000000
-    return `${sign}${symbol}${value.toFixed(value >= 100 ? 1 : 2)}Cr`
-  }
-  // Lakhs (100K+)
-  if (absAmount >= 100000) {
-    const value = absAmount / 100000
-    return `${sign}${symbol}${value.toFixed(value >= 100 ? 1 : 2)}L`
-  }
-  // Thousands (10K+)
-  if (absAmount >= 10000) {
-    const value = absAmount / 1000
-    return `${sign}${symbol}${value.toFixed(value >= 100 ? 0 : 1)}K`
-  }
-  // Below 10K - show full number
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 // Format full number with currency
 function formatFull(amount: number, currency: string = 'INR'): string {
   return new Intl.NumberFormat('en-IN', {
@@ -82,7 +52,11 @@ export interface StatCardProps {
   /** Additional class name for the card */
   className?: string
   /** Makes the card a link to the transactions page with these filters applied */
-  transactionsLink?: { category?: string; startDate?: string; endDate?: string }
+  transactionsLink?: {
+    category?: string
+    startDate?: string
+    endDate?: string
+  }
 }
 
 /**
@@ -113,14 +87,6 @@ export function StatCard({
   className,
   transactionsLink,
 }: StatCardProps) {
-  const [showFull, setShowFull] = React.useState(false)
-
-  // Check if value is large enough to need abbreviation
-  const needsAbbreviation = React.useMemo(() => {
-    if (value === undefined || value === null || isCount || isPercentage) return false
-    return Math.abs(value) >= 10000
-  }, [value, isCount, isPercentage])
-
   // Format the display value
   const { displayValue, fontSize } = React.useMemo(() => {
     if (value === undefined || value === null) {
@@ -138,43 +104,17 @@ export function StatCard({
       return { displayValue: formatted, fontSize: getValueFontSize(formatted) }
     }
 
-    // Toggle between compact and full format
-    if (showFull && needsAbbreviation) {
-      const fullValue = formatFull(value, currency)
-      const formatted = `${prefix || ''}${fullValue}${suffix || ''}`
-      return { displayValue: formatted, fontSize: getValueFontSize(formatted) }
-    }
-
-    const compactValue = formatCompact(value, currency)
-    const formatted = `${prefix || ''}${compactValue}${suffix || ''}`
-    return { displayValue: formatted, fontSize: 'text-xl sm:text-2xl' }
-  }, [
-    value,
-    currency,
-    isCount,
-    isPercentage,
-    prefix,
-    suffix,
-    formatValue,
-    showFull,
-    needsAbbreviation,
-  ])
-
-  const handleClick = () => {
-    if (needsAbbreviation && !loading) {
-      setShowFull(!showFull)
-    }
-  }
+    const formatted = `${prefix || ''}${formatFull(value, currency)}${suffix || ''}`
+    return { displayValue: formatted, fontSize: getValueFontSize(formatted) }
+  }, [value, currency, isCount, isPercentage, prefix, suffix, formatValue])
 
   const card = (
     <Card
       className={cn(
         'relative overflow-hidden hover:border-border-hover transition-all duration-200 animate-fade-in',
-        needsAbbreviation && !loading && 'cursor-pointer',
         transactionsLink && 'h-full cursor-pointer',
         className
       )}
-      onClick={handleClick}
     >
       <CardContent className="pt-5 pb-5">
         <div className="flex items-start justify-between gap-3">
@@ -219,13 +159,6 @@ export function StatCard({
 
             {/* Subtitle */}
             {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
-
-            {/* Tap hint */}
-            {needsAbbreviation && !loading && (
-              <p className="text-xs text-muted-foreground/50 mt-0.5">
-                {showFull ? 'tap for short' : 'tap for full'}
-              </p>
-            )}
           </div>
 
           {/* Icon */}
