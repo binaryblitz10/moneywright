@@ -23,6 +23,8 @@ interface CategoryBreakdownProps {
   totalLabel?: string
   averageLabel?: string
   emptyTitle?: string
+  /** Max categories to list (default 6); pass Infinity to list them all */
+  limit?: number
 }
 
 export function CategoryBreakdown({
@@ -38,14 +40,15 @@ export function CategoryBreakdown({
   totalLabel = 'Total Spent',
   averageLabel = 'Avg. Monthly',
   emptyTitle = 'No spending data',
+  limit = 6,
 }: CategoryBreakdownProps) {
-  // Sort by total and take top 6 to match subscriptions card
+  // Sort by total and take the top categories (6 by default, to match subscriptions card)
   const topCategories = [...categoryBreakdown]
     .filter((c) => c.total > 0)
     .sort((a, b) => b.total - a.total)
-    .slice(0, 6)
+    .slice(0, limit)
 
-  const remainingCount = categoryBreakdown.filter((c) => c.total > 0).length - 6
+  const remainingCount = categoryBreakdown.filter((c) => c.total > 0).length - topCategories.length
 
   if (topCategories.length === 0) {
     return (
@@ -91,6 +94,7 @@ export function CategoryBreakdown({
               key={cat.category}
               to="/transactions"
               search={{ category: cat.category, startDate, endDate }}
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center justify-between py-2.5 px-2 -mx-2 rounded-lg hover:bg-surface-elevated transition-colors"
             >
               {/* Left: Category name and progress bar */}
