@@ -14,9 +14,9 @@ export function AppLayout({ children, title, description, hideHeader }: AppLayou
   const showHeader = !hideHeader && (title || description)
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh min-h-0">
       <AppSidebar />
-      <SidebarInset className="bg-background">
+      <SidebarInset className="min-h-0 bg-background">
         {showHeader && (
           <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border-subtle bg-background/95 backdrop-blur-sm px-4">
             <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />

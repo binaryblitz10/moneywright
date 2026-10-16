@@ -51,6 +51,7 @@ function ChatPage() {
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isSendingRef = useRef(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
@@ -157,8 +158,7 @@ function ChatPage() {
 
   // Handle scroll to detect if user has scrolled up
   useEffect(() => {
-    // Find the main scroll container (the <main> element in AppLayout)
-    const container = document.querySelector('main')
+    const container = scrollContainerRef.current
     if (!container) return
 
     const handleScroll = () => {
@@ -416,41 +416,46 @@ function ChatPage() {
 
   return (
     <AppLayout>
-      <div className="relative min-h-[calc(100vh-4rem)]">
-        {/* Header - only show when not in welcome state */}
+      <div className="flex h-full min-h-0 flex-col">
         {!showWelcome && (
-          <div className="flex flex-col gap-6 pb-48">
-            <PageHeader
-              title="Ask Penny"
-              description="Your wise financial companion"
-              actions={
-                <>
-                  {!isNewChat && (
-                    <Button variant="outline" onClick={handleNewChat}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      New Chat
-                    </Button>
-                  )}
-                  <ConversationHistory
-                    open={historyOpen}
-                    onOpenChange={setHistoryOpen}
-                    conversations={conversations}
-                    isLoading={conversationsLoading}
-                    currentConversationId={urlConversationId}
-                    onSelectConversation={handleSelectConversation}
-                    onDeleteConversation={handleDeleteConversation}
-                  />
-                  <ProfileSelector
-                    selectedProfileId={selectorProfileId}
-                    onProfileChange={handleProfileChangeWithReset}
-                    showFamilyView={showFamilyView}
-                    onFamilyViewChange={handleFamilyViewChangeWithReset}
-                  />
-                </>
-              }
-            />
+          <>
+            <div className="shrink-0 pb-4">
+              <PageHeader
+                title="Ask Penny"
+                description="Your wise financial companion"
+                actions={
+                  <>
+                    {!isNewChat && (
+                      <Button variant="outline" onClick={handleNewChat}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Chat
+                      </Button>
+                    )}
+                    <ConversationHistory
+                      open={historyOpen}
+                      onOpenChange={setHistoryOpen}
+                      conversations={conversations}
+                      isLoading={conversationsLoading}
+                      currentConversationId={urlConversationId}
+                      onSelectConversation={handleSelectConversation}
+                      onDeleteConversation={handleDeleteConversation}
+                    />
+                    <ProfileSelector
+                      selectedProfileId={selectorProfileId}
+                      onProfileChange={handleProfileChangeWithReset}
+                      showFamilyView={showFamilyView}
+                      onFamilyViewChange={handleFamilyViewChangeWithReset}
+                    />
+                  </>
+                }
+              />
+            </div>
+          </>
+        )}
 
-            {/* Messages */}
+        {/* Only this area scrolls */}
+        <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto">
+          {!showWelcome && (
             <div className="space-y-6 w-full">
               <ChatMessageList
                 ref={messagesEndRef}
@@ -460,33 +465,33 @@ function ChatPage() {
                 onToolCallClick={handleToolCallClick}
               />
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Welcome screen for empty state */}
-        {showWelcome && (
-          <div className="pb-48">
-            {/* Minimal header for welcome state */}
-            <div className="flex items-center justify-end gap-2 mb-4">
-              <ConversationHistory
-                open={historyOpen}
-                onOpenChange={setHistoryOpen}
-                conversations={conversations}
-                isLoading={conversationsLoading}
-                currentConversationId={urlConversationId}
-                onSelectConversation={handleSelectConversation}
-                onDeleteConversation={handleDeleteConversation}
-              />
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChangeWithReset}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChangeWithReset}
-              />
+          {/* Welcome screen for empty state */}
+          {showWelcome && (
+            <div>
+              {/* Minimal header for welcome state */}
+              <div className="flex items-center justify-end gap-2 mb-4">
+                <ConversationHistory
+                  open={historyOpen}
+                  onOpenChange={setHistoryOpen}
+                  conversations={conversations}
+                  isLoading={conversationsLoading}
+                  currentConversationId={urlConversationId}
+                  onSelectConversation={handleSelectConversation}
+                  onDeleteConversation={handleDeleteConversation}
+                />
+                <ProfileSelector
+                  selectedProfileId={selectorProfileId}
+                  onProfileChange={handleProfileChangeWithReset}
+                  showFamilyView={showFamilyView}
+                  onFamilyViewChange={handleFamilyViewChangeWithReset}
+                />
+              </div>
+              <ChatWelcome onSelectPrompt={handleSelectPrompt} />
             </div>
-            <ChatWelcome onSelectPrompt={handleSelectPrompt} />
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Input */}
         <ChatInput

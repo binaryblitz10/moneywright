@@ -57,11 +57,9 @@ export function ChatInput({
   onThinkingLevelChange,
 }: ChatInputProps) {
   return (
-    <div className="fixed bottom-0 left-64 right-0 z-10">
-      {/* Fade gradient */}
-      <div className="h-24 bg-linear-to-t from-background to-transparent pointer-events-none" />
+    <div className="shrink-0">
       {/* Input container */}
-      <div className="pb-6 px-4 lg:px-12 bg-background">
+      <div className="pt-2 pb-2 bg-background">
         <div className="w-full lg:w-3xl lg:mx-auto">
           <PromptInput onSubmit={onSubmit} className="rounded-xl border-border-subtle bg-card">
             <PromptInputTextarea
