@@ -176,7 +176,7 @@ export function TransactionTable({
         <TableHeader>
           <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
             {selectable && (
-              <TableHead className="w-11">
+              <TableHead className="w-14 pl-5">
                 <Checkbox
                   className={CHECKBOX_CLASS}
                   aria-label="Select all transactions on this page"
@@ -244,7 +244,7 @@ export function TransactionTable({
               >
                 {selectable && (
                   <TableCell
-                    className="py-3 cursor-pointer"
+                    className="py-3 pl-5 cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleRowClick(e, index)
