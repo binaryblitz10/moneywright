@@ -185,7 +185,7 @@ export function TransactionTable({
                 />
               </TableHead>
             )}
-            <TableHead className="w-27.5">
+            <TableHead className={cn('w-27.5', !selectable && 'w-32 pl-5')}>
               <button
                 onClick={() => handleSort('date')}
                 className={cn(
@@ -257,7 +257,12 @@ export function TransactionTable({
                     />
                   </TableCell>
                 )}
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap py-3">
+                <TableCell
+                  className={cn(
+                    'text-sm text-muted-foreground whitespace-nowrap py-3',
+                    !selectable && 'pl-5'
+                  )}
+                >
                   {new Date(txn.date).toLocaleDateString('en-GB', {
                     day: '2-digit',
                     month: 'short',
