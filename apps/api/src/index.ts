@@ -35,6 +35,7 @@ import llmRoutes from './routes/llm'
 import summaryRoutes from './routes/summary'
 import constantsRoutes from './routes/constants'
 import preferencesRoutes from './routes/preferences'
+import { migrateExcludedCategoryPreferences } from './services/preferences'
 import chatRoutes from './routes/chat'
 import { insuranceRoutes } from './routes/insurance'
 import { loanRoutes } from './routes/loans'
@@ -60,6 +61,7 @@ validateEnv()
 if (!isDevelopment()) {
   await runMigrations()
 }
+await migrateExcludedCategoryPreferences()
 
 // Handle CLI arguments
 const args = process.argv.slice(2)

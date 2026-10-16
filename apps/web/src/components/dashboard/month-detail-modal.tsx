@@ -3,7 +3,8 @@
  */
 
 import { useState, useMemo } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -31,6 +32,43 @@ interface MonthDetailModalProps {
   isLoading: boolean
   getCategoryLabel: (code: string) => string
   onClose: () => void
+  /** Dashboard range start (YYYY-MM-DD); the transactions link never starts before it */
+  startDate?: string
+  /** Dashboard range end (YYYY-MM-DD); the transactions link never ends after it */
+  endDate?: string
+}
+
+/** Row direction: income/expense columns can contain reversals, other flows are neutral */
+type RowFlow = 'income' | 'expense' | 'other'
+
+const EMPTY_TOTALS = { income: 0, expenses: 0, invested: 0, net: 0 }
+
+function sortTransactions(transactions: Transaction[], sortBy: SortOption): Transaction[] {
+  return [...transactions].sort((a, b) => {
+    switch (sortBy) {
+      case 'latest':
+        return new Date(b.date).getTime() - new Date(a.date).getTime()
+      case 'oldest':
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
+      case 'highest':
+        return b.amount - a.amount
+      case 'lowest':
+        return a.amount - b.amount
+      default:
+        return 0
+    }
+  })
+}
+
+/** First and last day of a YYYY-MM month as YYYY-MM-DD strings */
+function getMonthBounds(month: string): { first: string; last: string } {
+  const [year = 0, monthNumber = 1] = month.split('-').map(Number)
+  // Day 0 of the following month is the last day of this month
+  const lastDay = new Date(year, monthNumber, 0).getDate()
+  return {
+    first: `${month}-01`,
+    last: `${month}-${String(lastDay).padStart(2, '0')}`,
+  }
 }
 
 export function MonthDetailModal({
@@ -39,74 +77,43 @@ export function MonthDetailModal({
   isLoading,
   getCategoryLabel,
   onClose,
+  startDate,
+  endDate,
 }: MonthDetailModalProps) {
   const [sortBy, setSortBy] = useState<SortOption>('highest')
   const [viewMode, setViewMode] = useState<ViewMode>('transactions')
+  const [showOtherFlows, setShowOtherFlows] = useState(false)
 
   // Use data from the API response (already has netting and exclusions applied)
-  const totals = data?.totals || { income: 0, expenses: 0, net: 0 }
+  const totals = data?.totals ?? EMPTY_TOTALS
   const currency = data?.currency || 'INR'
 
-  // Sort transactions based on selected option
-  const credits = useMemo(() => {
-    const raw = data?.credits || []
-    return [...raw].sort((a, b) => {
-      switch (sortBy) {
-        case 'latest':
-          return new Date(b.date).getTime() - new Date(a.date).getTime()
-        case 'oldest':
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
-        case 'highest':
-          return b.amount - a.amount
-        case 'lowest':
-          return a.amount - b.amount
-        default:
-          return 0
-      }
-    })
-  }, [data?.credits, sortBy])
+  const income = useMemo(() => sortTransactions(data?.income ?? [], sortBy), [data?.income, sortBy])
+  const expenses = useMemo(
+    () => sortTransactions(data?.expenses ?? [], sortBy),
+    [data?.expenses, sortBy]
+  )
+  const investments = useMemo(
+    () => sortTransactions(data?.investments ?? [], sortBy),
+    [data?.investments, sortBy]
+  )
+  const transfers = useMemo(
+    () => sortTransactions(data?.transfers ?? [], sortBy),
+    [data?.transfers, sortBy]
+  )
 
-  const debits = useMemo(() => {
-    const raw = data?.debits || []
-    return [...raw].sort((a, b) => {
-      switch (sortBy) {
-        case 'latest':
-          return new Date(b.date).getTime() - new Date(a.date).getTime()
-        case 'oldest':
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
-        case 'highest':
-          return b.amount - a.amount
-        case 'lowest':
-          return a.amount - b.amount
-        default:
-          return 0
-      }
-    })
-  }, [data?.debits, sortBy])
+  // Categories the transactions page should show for this month
+  const categoryCodes = Array.from(
+    new Set(
+      [...(data?.incomeBreakdown ?? []), ...(data?.categoryBreakdown ?? [])].map((c) => c.category)
+    )
+  )
 
-  // Calculate category breakdown
-  const categoryBreakdown = useMemo(() => {
-    const incomeByCategory = new Map<string, number>()
-    const expensesByCategory = new Map<string, number>()
-
-    for (const txn of data?.credits || []) {
-      incomeByCategory.set(txn.category, (incomeByCategory.get(txn.category) || 0) + txn.amount)
-    }
-    for (const txn of data?.debits || []) {
-      expensesByCategory.set(txn.category, (expensesByCategory.get(txn.category) || 0) + txn.amount)
-    }
-
-    // Sort by amount descending
-    const income = Array.from(incomeByCategory.entries())
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount)
-
-    const expenses = Array.from(expensesByCategory.entries())
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount)
-
-    return { income, expenses }
-  }, [data?.credits, data?.debits])
+  const monthBounds = data ? getMonthBounds(data.month) : null
+  // Clip the month to the dashboard range (ISO dates compare correctly as strings)
+  const linkStart =
+    monthBounds && startDate && startDate > monthBounds.first ? startDate : monthBounds?.first
+  const linkEnd = monthBounds && endDate && endDate < monthBounds.last ? endDate : monthBounds?.last
 
   return (
     <Dialog open={!!month} onOpenChange={(open) => !open && onClose()}>
@@ -125,7 +132,7 @@ export function MonthDetailModal({
 
         {/* Summary Stats */}
         <div className="px-6 pb-5">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                 Income
@@ -133,9 +140,7 @@ export function MonthDetailModal({
               <p className="text-lg font-semibold text-foreground tabular-nums tracking-tight">
                 {formatCurrency(totals.income, currency)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {credits.length} transactions
-              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">{income.length} transactions</p>
             </div>
             <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -144,7 +149,9 @@ export function MonthDetailModal({
               <p className="text-lg font-semibold text-foreground tabular-nums tracking-tight">
                 {formatCurrency(totals.expenses, currency)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">{debits.length} transactions</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {expenses.length} transactions
+              </p>
             </div>
             <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -158,6 +165,17 @@ export function MonthDetailModal({
               >
                 {totals.net >= 0 ? '+' : ''}
                 {formatCurrency(totals.net, currency)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                Invested
+              </p>
+              <p className="text-lg font-semibold text-foreground tabular-nums tracking-tight">
+                {formatCurrency(totals.invested, currency)}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {investments.length} transactions
               </p>
             </div>
           </div>
@@ -253,23 +271,24 @@ export function MonthDetailModal({
               </>
             ) : viewMode === 'transactions' ? (
               <>
-                {/* Credits Column */}
+                {/* Income Column */}
                 <div className="flex flex-col h-full">
                   <div className="flex items-center gap-2 pb-2.5 mb-1">
                     <div className="h-1.5 w-1.5 rounded-full bg-positive" />
                     <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                       Income
                     </h3>
-                    <span className="text-[10px] text-muted-foreground/60">{credits.length}</span>
+                    <span className="text-[10px] text-muted-foreground/60">{income.length}</span>
                   </div>
                   <ScrollArea className="h-75">
                     <div className="space-y-0.5 pr-4">
-                      {credits.length > 0 ? (
-                        credits.map((txn) => (
+                      {income.length > 0 ? (
+                        income.map((txn) => (
                           <MonthTransactionRow
                             key={txn.id}
                             transaction={txn}
                             getCategoryLabel={getCategoryLabel}
+                            flow="income"
                           />
                         ))
                       ) : (
@@ -281,23 +300,24 @@ export function MonthDetailModal({
                   </ScrollArea>
                 </div>
 
-                {/* Debits Column */}
+                {/* Expenses Column */}
                 <div className="flex flex-col h-full">
                   <div className="flex items-center gap-2 pb-2.5 mb-1">
                     <div className="h-1.5 w-1.5 rounded-full bg-negative" />
                     <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                       Expenses
                     </h3>
-                    <span className="text-[10px] text-muted-foreground/60">{debits.length}</span>
+                    <span className="text-[10px] text-muted-foreground/60">{expenses.length}</span>
                   </div>
                   <ScrollArea className="h-75">
                     <div className="space-y-0.5 pr-4">
-                      {debits.length > 0 ? (
-                        debits.map((txn) => (
+                      {expenses.length > 0 ? (
+                        expenses.map((txn) => (
                           <MonthTransactionRow
                             key={txn.id}
                             transaction={txn}
                             getCategoryLabel={getCategoryLabel}
+                            flow="expense"
                           />
                         ))
                       ) : (
@@ -321,12 +341,12 @@ export function MonthDetailModal({
                   </div>
                   <ScrollArea className="h-75">
                     <div className="space-y-1 pr-4">
-                      {categoryBreakdown.income.length > 0 ? (
-                        categoryBreakdown.income.map((cat) => (
+                      {data && data.incomeBreakdown.length > 0 ? (
+                        data.incomeBreakdown.map((cat) => (
                           <CategoryRow
                             key={cat.category}
                             category={cat.category}
-                            amount={cat.amount}
+                            amount={cat.total}
                             total={totals.income}
                             currency={currency}
                             getCategoryLabel={getCategoryLabel}
@@ -352,12 +372,12 @@ export function MonthDetailModal({
                   </div>
                   <ScrollArea className="h-75">
                     <div className="space-y-1 pr-4">
-                      {categoryBreakdown.expenses.length > 0 ? (
-                        categoryBreakdown.expenses.map((cat) => (
+                      {data && data.categoryBreakdown.length > 0 ? (
+                        data.categoryBreakdown.map((cat) => (
                           <CategoryRow
                             key={cat.category}
                             category={cat.category}
-                            amount={cat.amount}
+                            amount={cat.total}
                             total={totals.expenses}
                             currency={currency}
                             getCategoryLabel={getCategoryLabel}
@@ -375,6 +395,72 @@ export function MonthDetailModal({
               </>
             )}
           </div>
+
+          {/* Investments & transfers (collapsed by default) */}
+          {viewMode === 'transactions' &&
+            !isLoading &&
+            (investments.length > 0 || transfers.length > 0) && (
+              <div className="pt-4 border-t border-border-subtle mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowOtherFlows((open) => !open)}
+                  aria-expanded={showOtherFlows}
+                  className="flex w-full items-center justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                >
+                  Investments & transfers (not counted as expenses)
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 transition-transform',
+                      showOtherFlows && 'rotate-180'
+                    )}
+                  />
+                </button>
+                {showOtherFlows && (
+                  <ScrollArea className="h-48 mt-2">
+                    <div className="space-y-0.5 pr-4">
+                      {investments.map((txn) => (
+                        <MonthTransactionRow
+                          key={txn.id}
+                          transaction={txn}
+                          getCategoryLabel={getCategoryLabel}
+                          flow="other"
+                        />
+                      ))}
+                      {transfers.map((txn) => (
+                        <MonthTransactionRow
+                          key={txn.id}
+                          transaction={txn}
+                          getCategoryLabel={getCategoryLabel}
+                          flow="other"
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            )}
+
+          {/* Link to the matching transactions */}
+          {viewMode === 'categories' &&
+            !isLoading &&
+            categoryCodes.length > 0 &&
+            linkStart &&
+            linkEnd && (
+              <div className="flex justify-end pt-4">
+                <Link
+                  to="/transactions"
+                  search={{
+                    category: categoryCodes.join(','),
+                    startDate: linkStart,
+                    endDate: linkEnd,
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  View transactions
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
         </div>
       </DialogContent>
     </Dialog>
@@ -397,7 +483,8 @@ function CategoryRow({
   getCategoryLabel: (code: string) => string
   type: 'income' | 'expense'
 }) {
-  const percentage = total > 0 ? (amount / total) * 100 : 0
+  const isNetRefund = amount < 0
+  const percentage = total > 0 && !isNetRefund ? (amount / total) * 100 : 0
   const barColor = type === 'income' ? 'bg-positive' : 'bg-negative'
   const label = getCategoryLabel(category)
   const truncatedLabel = label.length > 20 ? label.slice(0, 20) + '…' : label
@@ -408,15 +495,24 @@ function CategoryRow({
         <span className="text-xs font-medium text-foreground" title={label}>
           {truncatedLabel}
         </span>
-        <span className="text-xs font-semibold tabular-nums text-foreground ml-2 whitespace-nowrap">
-          {formatCurrency(amount, currency)}
+        <span
+          className={cn(
+            'text-xs font-semibold tabular-nums ml-2 whitespace-nowrap',
+            isNetRefund ? 'text-positive' : 'text-foreground'
+          )}
+        >
+          {isNetRefund && '−'}
+          {formatCurrency(Math.abs(amount), currency)}
+          {isNetRefund && (
+            <span className="ml-1 text-[10px] font-normal text-muted-foreground">net refund</span>
+          )}
         </span>
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1 bg-surface-elevated rounded-full overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all', barColor)}
-            style={{ width: `${Math.max(percentage, 2)}%` }}
+            style={{ width: isNetRefund ? '0%' : `${Math.max(percentage, 2)}%` }}
           />
         </div>
         <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">
@@ -431,15 +527,22 @@ function CategoryRow({
 function MonthTransactionRow({
   transaction,
   getCategoryLabel,
+  flow,
 }: {
   transaction: Transaction
   getCategoryLabel: (code: string) => string
+  flow: RowFlow
 }) {
-  const isCredit = transaction.type === 'credit'
   const description = transaction.summary || transaction.originalDescription
   // Limit description to 26 characters to prevent overflow
   const truncatedDescription =
     description.length > 26 ? description.slice(0, 26) + '…' : description
+
+  // A debit in Income is a reversal; a credit in Expenses is a refund
+  const isReversal =
+    (flow === 'income' && transaction.type === 'debit') ||
+    (flow === 'expense' && transaction.type === 'credit')
+  const isCredit = transaction.type === 'credit'
 
   return (
     <div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-surface-hover transition-colors">
@@ -454,10 +557,14 @@ function MonthTransactionRow({
       <p
         className={cn(
           'text-xs font-semibold tabular-nums whitespace-nowrap',
-          isCredit ? 'text-positive' : 'text-foreground'
+          isReversal && flow === 'income' && 'text-negative',
+          isReversal && flow === 'expense' && 'text-positive',
+          !isReversal && isCredit && 'text-positive',
+          !isReversal && !isCredit && 'text-foreground'
         )}
       >
-        {formatCurrency(transaction.amount, transaction.currency)}
+        {isReversal && '−'}
+        {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
       </p>
     </div>
   )

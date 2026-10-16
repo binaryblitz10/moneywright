@@ -13,8 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { updateTransaction, type Transaction, type Category } from '@/lib/api'
+import { updateTransaction, type Transaction, type Category, type CategoryKind } from '@/lib/api'
 import { useLoans, useInsurancePolicies, useAccounts } from '@/hooks'
+import {
+  CATEGORY_KIND_LABELS,
+  CATEGORY_KIND_ORDER,
+  categoriesOfKind,
+  getKindOf,
+} from '@/lib/category-kinds'
 
 // Categories that support entity linking
 const LINKABLE_CATEGORIES = {
@@ -24,6 +30,13 @@ const LINKABLE_CATEGORIES = {
 } as const
 
 type LinkableCategory = keyof typeof LINKABLE_CATEGORIES
+
+const KIND_HINTS: Record<CategoryKind, string> = {
+  income: 'Counts as income in dashboard totals.',
+  expense: 'Counts as an expense in dashboard totals.',
+  investment: 'Tracked separately from income and expenses.',
+  transfer: 'Not counted; moves money between your own accounts.',
+}
 
 interface TransactionEditFormProps {
   transaction: Transaction
@@ -39,6 +52,7 @@ export function TransactionEditForm({
   onSuccess,
 }: TransactionEditFormProps) {
   const [category, setCategory] = useState(transaction.category)
+  const [kind, setKind] = useState<CategoryKind>(() => getKindOf(categories, transaction.category))
   const [summary, setSummary] = useState(transaction.summary || '')
   const [isHidden, setIsHidden] = useState(transaction.isHidden)
   const [linkedEntityId, setLinkedEntityId] = useState<string | null>(transaction.linkedEntityId)
@@ -120,6 +134,16 @@ export function TransactionEditForm({
     }
   }
 
+  const kindCategories = useMemo(() => categoriesOfKind(categories, kind), [categories, kind])
+
+  // Changing the label clears the category when it no longer belongs to that label
+  const handleKindChange = (newKind: CategoryKind) => {
+    setKind(newKind)
+    if (!categoriesOfKind(categories, newKind).some((cat) => cat.code === category)) {
+      handleCategoryChange('')
+    }
+  }
+
   const updateMutation = useMutation({
     mutationFn: () =>
       updateTransaction(transaction.id, {
@@ -151,13 +175,30 @@ export function TransactionEditForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="category">Category</Label>
-        <Select value={category} onValueChange={handleCategoryChange}>
-          <SelectTrigger id="category">
+        <Label htmlFor="label">Label</Label>
+        <Select value={kind} onValueChange={(value) => handleKindChange(value as CategoryKind)}>
+          <SelectTrigger id="label">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {categories.map((cat) => (
+            {CATEGORY_KIND_ORDER.map((option) => (
+              <SelectItem key={option} value={option}>
+                {CATEGORY_KIND_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">{KIND_HINTS[kind]}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="category">Category</Label>
+        <Select value={category} onValueChange={handleCategoryChange}>
+          <SelectTrigger id="category">
+            <SelectValue placeholder="Select a category" />
+          </SelectTrigger>
+          <SelectContent>
+            {kindCategories.map((cat) => (
               <SelectItem key={cat.code} value={cat.code}>
                 {cat.label}
               </SelectItem>
@@ -227,7 +268,10 @@ export function TransactionEditForm({
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+        <Button
+          onClick={() => updateMutation.mutate()}
+          disabled={!category || updateMutation.isPending}
+        >
           {updateMutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

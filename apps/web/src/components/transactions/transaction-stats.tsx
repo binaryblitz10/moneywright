@@ -11,6 +11,8 @@ interface TransactionStatsProps {
   statsLabel: string
   isLoading?: boolean
   formatAmount?: (amount: number, currency: string) => string
+  /** How the net card is worded: plain net, net spent (expense categories) or net income */
+  netLabel?: 'net' | 'spent' | 'earned'
 }
 
 export function TransactionStats({
@@ -22,8 +24,31 @@ export function TransactionStats({
   currency,
   statsLabel,
   isLoading,
+  netLabel = 'net',
 }: TransactionStatsProps) {
   const totalCount = creditCount + debitCount
+
+  const netCard =
+    netLabel === 'spent'
+      ? {
+          label: 'Net spent',
+          value: -netAmount,
+          subtitle: 'Expenses after refunds',
+          trend: 'down' as const,
+        }
+      : netLabel === 'earned'
+        ? {
+            label: 'Net income',
+            value: netAmount,
+            subtitle: 'Income after reversals',
+            trend: netAmount >= 0 ? ('up' as const) : ('down' as const),
+          }
+        : {
+            label: 'Net Amount',
+            value: netAmount,
+            subtitle: netAmount >= 0 ? 'Surplus' : 'Deficit',
+            trend: netAmount >= 0 ? ('up' as const) : ('down' as const),
+          }
 
   return (
     <StatCardGrid>
@@ -51,13 +76,13 @@ export function TransactionStats({
 
       {/* Net Amount */}
       <StatCard
-        label="Net Amount"
-        value={netAmount}
+        label={netCard.label}
+        value={netCard.value}
         currency={currency}
-        subtitle={netAmount >= 0 ? 'Surplus' : 'Deficit'}
+        subtitle={netCard.subtitle}
         icon={Wallet}
         loading={isLoading}
-        trend={netAmount >= 0 ? 'up' : 'down'}
+        trend={netCard.trend}
       />
 
       {/* Total Transactions */}

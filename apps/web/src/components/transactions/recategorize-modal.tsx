@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, RefreshCw, Check, AlertCircle, Pencil } from 'lucide-react'
+import { Loader2, RefreshCw, Check, AlertCircle, Pencil, ArrowLeftRight } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   getAccounts,
@@ -66,6 +66,7 @@ export function RecategorizeModal({
   const [modelValue, setModelValue] = useState<string>('')
   const [categorizationHints, setCategorizationHints] = useState<string>('')
   const [includeManual, setIncludeManual] = useState(false)
+  const [onlyTransfer, setOnlyTransfer] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<
@@ -226,6 +227,7 @@ export function RecategorizeModal({
         categorizationModel: model,
         categorizationHints: categorizationHints.trim() || undefined,
         includeManual,
+        categories: onlyTransfer ? ['transfer'] : undefined,
       })
 
       setJobId(result.jobId)
@@ -425,6 +427,25 @@ export function RecategorizeModal({
                 checked={includeManual}
                 onCheckedChange={setIncludeManual}
               />
+            </div>
+          )}
+
+          {/* Only re-check transfers - only show when not processing */}
+          {!isProcessing && !isCompleted && (
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="only-transfer" className="text-sm font-medium">
+                    Only re-check transactions tagged Transfer
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Useful after the transfer rules changed: payments to other people get a real
+                  category.
+                </p>
+              </div>
+              <Switch id="only-transfer" checked={onlyTransfer} onCheckedChange={setOnlyTransfer} />
             </div>
           )}
         </div>

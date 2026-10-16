@@ -96,13 +96,9 @@ export function useSetPreference() {
     onSuccess: (_, variables) => {
       // Invalidate preferences queries
       queryClient.invalidateQueries({ queryKey: preferencesKeys.all })
-      // If it's an excluded categories preference, invalidate relevant queries
-      const excludedCategoryKeys = [
-        PREFERENCE_KEYS.INCOME_EXPENSES_EXCLUDED_CATEGORIES,
-        PREFERENCE_KEYS.SPENDING_BY_CATEGORY_EXCLUDED_CATEGORIES,
-      ]
-      if (excludedCategoryKeys.includes(variables.key as (typeof excludedCategoryKeys)[number])) {
-        queryClient.invalidateQueries({ queryKey: ['summary', 'monthlyTrends'] })
+      // Exclusions affect every summary query (cards, trends, month popup)
+      if (variables.key === PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES) {
+        queryClient.invalidateQueries({ queryKey: summaryKeys.all })
       }
     },
   })

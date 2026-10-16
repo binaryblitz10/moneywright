@@ -23,7 +23,7 @@ export {
 export { createTools, isTavilyConfigured } from './tools'
 
 // Prompt
-export { buildSystemPrompt, TRANSACTION_CATEGORIES, getCategoryDisplayName } from './prompt'
+export { buildSystemPrompt } from './prompt'
 
 // Agent
 export { createChatAgent, streamAgentResponse, generateAgentResponse } from './agent'

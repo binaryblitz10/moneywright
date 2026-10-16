@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useBulkUpdateTransactions } from '@/hooks'
-import type { Category } from '@/lib/api'
+import type { Category, CategoryKind } from '@/lib/api'
+import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 
 const NO_CHANGE = '__no_change__'
 
@@ -28,10 +29,20 @@ export function TransactionBulkEditForm({
   onClose,
   onSuccess,
 }: TransactionBulkEditFormProps) {
+  const [kind, setKind] = useState<string>(NO_CHANGE)
   const [category, setCategory] = useState(NO_CHANGE)
   const [summary, setSummary] = useState('')
   const [visibility, setVisibility] = useState(NO_CHANGE)
   const mutation = useBulkUpdateTransactions()
+
+  const kindCategories =
+    kind === NO_CHANGE ? [] : categoriesOfKind(categories, kind as CategoryKind)
+
+  // Picking a label starts a fresh category choice
+  const handleKindChange = (newKind: string) => {
+    setKind(newKind)
+    setCategory(NO_CHANGE)
+  }
 
   const hasChanges = category !== NO_CHANGE || summary.trim() !== '' || visibility !== NO_CHANGE
 
@@ -60,20 +71,46 @@ export function TransactionBulkEditForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="bulk-category">Category</Label>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger id="bulk-category">
+        <Label htmlFor="bulk-label">Label</Label>
+        <Select value={kind} onValueChange={handleKindChange}>
+          <SelectTrigger id="bulk-label">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NO_CHANGE}>
-              <span className="text-muted-foreground">Keep existing</span>
+              <span className="text-muted-foreground">No change</span>
             </SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.code} value={cat.code}>
-                {cat.label}
+            {CATEGORY_KIND_ORDER.map((option) => (
+              <SelectItem key={option} value={option}>
+                {CATEGORY_KIND_LABELS[option]}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="bulk-category">Category</Label>
+        <Select
+          value={kind !== NO_CHANGE && category === NO_CHANGE ? '' : category}
+          onValueChange={setCategory}
+          disabled={kind === NO_CHANGE}
+        >
+          <SelectTrigger id="bulk-category">
+            <SelectValue placeholder="Select a category" />
+          </SelectTrigger>
+          <SelectContent>
+            {kind === NO_CHANGE ? (
+              <SelectItem value={NO_CHANGE}>
+                <span className="text-muted-foreground">Keep existing</span>
+              </SelectItem>
+            ) : (
+              kindCategories.map((cat) => (
+                <SelectItem key={cat.code} value={cat.code}>
+                  {cat.label}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
         {category !== NO_CHANGE && (

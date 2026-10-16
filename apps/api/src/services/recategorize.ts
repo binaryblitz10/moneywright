@@ -37,6 +37,8 @@ export interface RecategorizeOptions {
   categorizationHints?: string
   /** If true, include manually categorized transactions (default: false) */
   includeManual?: boolean
+  /** Only recategorize transactions currently in these categories (all if empty or omitted) */
+  categories?: string[]
 }
 
 /**
@@ -56,6 +58,7 @@ export async function recategorizeTransactions(
     onProgress,
     categorizationHints,
     includeManual,
+    categories,
   } = options
 
   if (!accountId && !statementId) {
@@ -99,6 +102,11 @@ export async function recategorizeTransactions(
   // By default, skip manually categorized transactions unless includeManual is true
   if (!includeManual) {
     selectConditions.push(eq(tables.transactions.isManuallyCategorized, false))
+  }
+
+  // Optionally limit to transactions currently in the given categories
+  if (categories && categories.length > 0) {
+    selectConditions.push(inArray(tables.transactions.category, categories))
   }
 
   // Get transaction IDs for these statements to reset their categories

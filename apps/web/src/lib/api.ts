@@ -862,10 +862,12 @@ export interface TransactionStats {
   debitCount: number
   netAmount: number
   currency: string
-  categoryBreakdown: { category: string; total: number; count: number }[]
-  incomeBreakdown: { category: string; total: number; count: number }[]
-  totalIncome: number
 }
+
+/**
+ * Category kind: how a category is treated in cash flow
+ */
+export type CategoryKind = 'income' | 'expense' | 'investment' | 'transfer'
 
 /**
  * Category type
@@ -874,6 +876,7 @@ export interface Category {
   code: string
   label: string
   color: string
+  kind: CategoryKind
 }
 
 /**
@@ -959,6 +962,8 @@ export async function getTransactionStats(filters?: {
   type?: 'credit' | 'debit'
   search?: string
   isSubscription?: boolean
+  includeHidden?: boolean
+  onlyHidden?: boolean
 }): Promise<TransactionStats> {
   const params = new URLSearchParams()
   if (filters?.profileId) params.set('profileId', filters.profileId)
@@ -971,6 +976,8 @@ export async function getTransactionStats(filters?: {
   if (filters?.search) params.set('search', filters.search)
   if (filters?.isSubscription !== undefined)
     params.set('isSubscription', String(filters.isSubscription))
+  if (filters?.includeHidden) params.set('includeHidden', 'true')
+  if (filters?.onlyHidden) params.set('onlyHidden', 'true')
 
   const queryString = params.toString() ? `?${params.toString()}` : ''
   const response = await api.get(`/transactions/stats${queryString}`)
@@ -980,7 +987,11 @@ export async function getTransactionStats(filters?: {
 /**
  * Get categories for user's country
  */
-export async function getCategories(): Promise<{ categories: Category[]; countryCode: string }> {
+export async function getCategories(): Promise<{
+  categories: Category[]
+  countryCode: string
+  kinds: Record<CategoryKind, string>
+}> {
   const response = await api.get('/categories')
   return response.data
 }
@@ -1039,6 +1050,7 @@ export async function recategorizeTransactions(data: {
   categorizationModel: string
   categorizationHints?: string
   includeManual?: boolean
+  categories?: string[]
 }): Promise<{ success: boolean; jobId: string; message: string }> {
   // Combine provider and model in format "provider:model" for backend
   const categorizationModel = `${data.categorizationProvider}:${data.categorizationModel}`
@@ -1049,6 +1061,7 @@ export async function recategorizeTransactions(data: {
     categorizationModel,
     categorizationHints: data.categorizationHints,
     includeManual: data.includeManual,
+    categories: data.categories,
   })
   return response.data
 }
@@ -1474,13 +1487,15 @@ export interface FinancialSummary {
     }
     totalIncome: number
     totalExpenses: number
+    investedAmount: number
+    transferNet: number
     incomeCount: number
     expenseCount: number
-    netCashFlow: number
     currency: string
-    categoryBreakdown: { category: string; total: number; count: number }[]
     incomeBreakdown: { category: string; total: number; count: number }[]
-    investedAmount: number
+    /** Totals can be negative (net refund) */
+    categoryBreakdown: { category: string; total: number; count: number }[]
+    excludedCategories: string[]
   }
 }
 
@@ -1509,7 +1524,6 @@ export interface MonthlyTrendData {
   income: number
   expenses: number
   net: number
-  hasFullData: boolean // true if there's at least one transaction in the last 5 days of the month
 }
 
 /**
@@ -1531,8 +1545,6 @@ export interface MonthlyTrendsOptions {
   startDate?: string
   /** End date in YYYY-MM-DD format - takes precedence over months */
   endDate?: string
-  /** Categories to exclude from calculations */
-  excludeCategories?: string[]
 }
 
 /**
@@ -1542,7 +1554,7 @@ export async function getMonthlyTrends(
   profileId: string | undefined,
   options: MonthlyTrendsOptions = {}
 ): Promise<MonthlyTrendsResponse> {
-  const { months = 12, startDate, endDate, excludeCategories } = options
+  const { months = 12, startDate, endDate } = options
 
   const params = new URLSearchParams()
   if (profileId) params.set('profileId', profileId)
@@ -1556,10 +1568,6 @@ export async function getMonthlyTrends(
     params.set('months', months.toString())
   }
 
-  if (excludeCategories?.length) {
-    params.set('excludeCategories', excludeCategories.join(','))
-  }
-
   const response = await api.get(`/summary/monthly-trends?${params.toString()}`)
   return response.data
 }
@@ -1570,31 +1578,36 @@ export async function getMonthlyTrends(
 export interface MonthTransactionsResponse {
   month: string
   monthLabel: string
-  credits: Transaction[]
-  debits: Transaction[]
+  income: Transaction[]
+  expenses: Transaction[]
+  investments: Transaction[]
+  transfers: Transaction[]
   totals: {
     income: number
     expenses: number
+    invested: number
+    transferNet: number
     net: number
   }
-  currency: string
+  incomeBreakdown: { category: string; total: number; count: number }[]
+  categoryBreakdown: { category: string; total: number; count: number }[]
   excludedCategories: string[]
+  currency: string
 }
 
 /**
- * Get transactions for a specific month with netting and exclusions applied
+ * Get transactions for a specific month, grouped by kind, with exclusions applied
  */
 export async function getMonthTransactions(
   profileId: string | undefined,
   month: string,
-  excludeCategories?: string[]
+  range?: { startDate?: string; endDate?: string }
 ): Promise<MonthTransactionsResponse> {
   const params = new URLSearchParams()
   if (profileId) params.set('profileId', profileId)
   params.set('month', month)
-  if (excludeCategories?.length) {
-    params.set('excludeCategories', excludeCategories.join(','))
-  }
+  if (range?.startDate) params.set('startDate', range.startDate)
+  if (range?.endDate) params.set('endDate', range.endDate)
 
   const response = await api.get(`/summary/month-transactions?${params.toString()}`)
   return response.data
@@ -1609,8 +1622,7 @@ export async function getMonthTransactions(
  */
 export const PREFERENCE_KEYS = {
   // Per-card category exclusions
-  INCOME_EXPENSES_EXCLUDED_CATEGORIES: 'dashboard.income_expenses.excluded_categories',
-  SPENDING_BY_CATEGORY_EXCLUDED_CATEGORIES: 'dashboard.spending_by_category.excluded_categories',
+  CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   // Other preferences
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   // Profile selection

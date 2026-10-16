@@ -1,16 +1,29 @@
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
+import { logger } from '../lib/logger'
 
 /**
  * Preference keys used in the app
  */
 export const PREFERENCE_KEYS = {
-  DASHBOARD_EXCLUDED_CATEGORIES: 'dashboard.excluded_categories',
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
-  INCOME_EXPENSES_EXCLUDED_CATEGORIES: 'dashboard.income_expenses.excluded_categories',
-  SPENDING_BY_CATEGORY_EXCLUDED_CATEGORIES: 'dashboard.spending_by_category.excluded_categories',
+  CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
 } as const
+
+/**
+ * Legacy per-widget exclusion keys, only read by migrateExcludedCategoryPreferences
+ */
+const OLD_EXCLUSION_KEYS = [
+  'dashboard.excluded_categories',
+  'dashboard.income_expenses.excluded_categories',
+  'dashboard.spending_by_category.excluded_categories',
+]
+
+/**
+ * Categories that never count toward income/expenses, so they are dropped during migration
+ */
+const NEVER_EXCLUDED_CATEGORIES = ['investment', 'transfer', 'credit_card_payment']
 
 /**
  * Ollama custom model definition
@@ -182,40 +195,102 @@ export async function getAllPreferences(
 }
 
 /**
- * Helper: Get excluded categories for dashboard chart
+ * Parse a stored JSON value into a string array, returning [] if it is not an array of strings
  */
-export async function getDashboardExcludedCategories(
-  userId: string,
-  profileId?: string | null
-): Promise<string[]> {
-  const value = await getPreference(
-    userId,
-    PREFERENCE_KEYS.DASHBOARD_EXCLUDED_CATEGORIES,
-    profileId
-  )
-  if (!value) return []
-
+function parseCategoryList(value: string): string[] {
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string')) return []
+    return parsed
   } catch {
     return []
   }
 }
 
 /**
- * Helper: Set excluded categories for dashboard chart
+ * Helper: Get categories excluded from income/expense calculations (user-wide)
  */
-export async function setDashboardExcludedCategories(
-  userId: string,
-  categories: string[],
-  profileId?: string | null
-): Promise<void> {
-  await setPreference(
-    userId,
-    PREFERENCE_KEYS.DASHBOARD_EXCLUDED_CATEGORIES,
-    JSON.stringify(categories),
-    profileId
-  )
+export async function getCashflowExcludedCategories(userId: string): Promise<string[]> {
+  const value = await getPreference(userId, PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES, null)
+  if (!value) return []
+
+  return parseCategoryList(value)
+}
+
+/**
+ * One-time migration: merge the old per-widget exclusion preferences into
+ * cashflow.excluded_categories and delete the old keys. Safe to run on every startup.
+ */
+export async function migrateExcludedCategoryPreferences(): Promise<void> {
+  try {
+    const rows = await db
+      .select()
+      .from(tables.userPreferences)
+      .where(inArray(tables.userPreferences.key, OLD_EXCLUSION_KEYS))
+
+    if (rows.length === 0) return
+
+    // Group rows by user so each user's merge succeeds or fails independently
+    const rowsByUser = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const userRows = rowsByUser.get(row.userId) ?? []
+      userRows.push(row)
+      rowsByUser.set(row.userId, userRows)
+    }
+
+    let migratedCount = 0
+    for (const [userId, userRows] of rowsByUser) {
+      try {
+        const merged = new Set<string>()
+        for (const row of userRows) {
+          for (const code of parseCategoryList(row.value)) {
+            merged.add(code)
+          }
+        }
+        for (const code of NEVER_EXCLUDED_CATEGORIES) {
+          merged.delete(code)
+        }
+        const list = [...merged]
+
+        // An existing user-level value wins; only fill in when none is saved
+        const existing = await getPreference(
+          userId,
+          PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES,
+          null
+        )
+        if (!existing && list.length > 0) {
+          await setPreference(
+            userId,
+            PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES,
+            JSON.stringify(list),
+            null
+          )
+        }
+
+        await db
+          .delete(tables.userPreferences)
+          .where(
+            and(
+              eq(tables.userPreferences.userId, userId),
+              inArray(tables.userPreferences.key, OLD_EXCLUSION_KEYS)
+            )
+          )
+
+        migratedCount++
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('[Preferences] Failed to migrate excluded categories', {
+          userId,
+          error: message,
+        })
+      }
+    }
+
+    logger.debug(`[Preferences] Migrated excluded categories for ${migratedCount} user(s)`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logger.error('[Preferences] Excluded category migration failed', { error: message })
+  }
 }
 
 /**

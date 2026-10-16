@@ -551,6 +551,7 @@ export interface RecategorizeJob {
   categorizationModel: string
   categorizationHints?: string
   includeManual?: boolean // If true, include manually categorized transactions
+  categories?: string[] // If set, only recategorize transactions in these categories
   status: 'pending' | 'processing' | 'completed' | 'failed'
   transactionCount?: number
   processedCount?: number
@@ -571,6 +572,7 @@ export function queueRecategorizeJob(data: {
   categorizationModel: string
   categorizationHints?: string
   includeManual?: boolean
+  categories?: string[]
 }): string {
   const jobId = nanoid()
 
@@ -610,6 +612,7 @@ async function processNextRecategorizeJob(): Promise<void> {
       categorizationModel: job.categorizationModel,
       categorizationHints: job.categorizationHints,
       includeManual: job.includeManual,
+      categories: job.categories,
       onProgress: (processed, total) => {
         job.processedCount = processed
         job.transactionCount = total

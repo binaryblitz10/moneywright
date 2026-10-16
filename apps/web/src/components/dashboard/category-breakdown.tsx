@@ -42,15 +42,14 @@ export function CategoryBreakdown({
   emptyTitle = 'No spending data',
   limit = 6,
 }: CategoryBreakdownProps) {
-  // Sort by total and take the top categories (6 by default, to match subscriptions card)
-  const topCategories = [...categoryBreakdown]
-    .filter((c) => c.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, limit)
+  // Sort by total (net refunds sink to the bottom) and take the top categories
+  // (6 by default, to match subscriptions card)
+  const sortedCategories = [...categoryBreakdown].sort((a, b) => b.total - a.total)
+  const topCategories = sortedCategories.slice(0, limit)
 
-  const remainingCount = categoryBreakdown.filter((c) => c.total > 0).length - topCategories.length
+  const remainingCount = sortedCategories.length - topCategories.length
 
-  if (topCategories.length === 0) {
+  if (sortedCategories.length === 0) {
     return (
       <InlineEmptyState
         icon={PieChart}
@@ -67,7 +66,8 @@ export function CategoryBreakdown({
   }))
 
   const displayTotal = showMonthlyAverage ? Math.round(total / totalMonths) : total
-  const maxAmount = Math.max(...displayValues.map((c) => c.displayAmount))
+  // Bars are scaled to the largest positive amount; net refunds have no bar
+  const maxAmount = Math.max(0, ...displayValues.map((c) => c.displayAmount))
 
   return (
     <div>
@@ -86,8 +86,10 @@ export function CategoryBreakdown({
         {displayValues.map((cat, index) => {
           const colorName = getCategoryColor(cat.category)
           const colors = getCategoryColorClasses(colorName)
+          const isNetRefund = cat.displayAmount < 0
           // Normalize percentage relative to max (top category = 100%)
-          const percentage = maxAmount > 0 ? (cat.displayAmount / maxAmount) * 100 : 0
+          const percentage =
+            !isNetRefund && maxAmount > 0 ? (cat.displayAmount / maxAmount) * 100 : 0
 
           return (
             <Link
@@ -118,10 +120,21 @@ export function CategoryBreakdown({
               </div>
 
               {/* Right: Amount */}
-              <p className="text-sm font-semibold tabular-nums text-foreground shrink-0 text-right min-w-20">
-                {formatCurrency(cat.displayAmount, currency)}
+              <p
+                className={cn(
+                  'text-sm font-semibold tabular-nums shrink-0 text-right min-w-20',
+                  isNetRefund ? 'text-positive' : 'text-foreground'
+                )}
+              >
+                {isNetRefund && '−'}
+                {formatCurrency(Math.abs(cat.displayAmount), currency)}
                 {showMonthlyAverage && (
                   <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+                )}
+                {isNetRefund && (
+                  <span className="block text-[10px] text-muted-foreground font-normal">
+                    net refund
+                  </span>
                 )}
               </p>
             </Link>

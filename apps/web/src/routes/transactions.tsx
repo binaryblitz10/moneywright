@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import type { Transaction, TransactionFilters } from '@/lib/api'
+import { getKindOf } from '@/lib/category-kinds'
 import {
   useAuth,
   useTransactions,
@@ -101,6 +102,7 @@ function TransactionsPage() {
     activeFilters,
     { page, limit, sortBy, sortOrder }
   )
+  // activeFilters carries includeHidden / onlyHidden from `filters`, so stats match the list
   const { data: stats, isLoading: statsLoading } = useTransactionStats(activeFilters)
   const { data: categoriesData } = useCategories()
   const { data: accounts } = useAccounts(activeProfileId, { enabled: queryEnabled })
@@ -119,10 +121,18 @@ function TransactionsPage() {
     debitCount: 0,
     netAmount: 0,
     currency: 'INR',
-    categoryBreakdown: [],
   }
 
   const currency = stats?.currency || 'INR'
+
+  // Net card wording: "spent" / "earned" only when the selected categories share one kind
+  const selectedKinds = (filters.category ?? []).map((code) => getKindOf(categories, code))
+  const netLabel: 'net' | 'spent' | 'earned' =
+    selectedKinds.length > 0 && selectedKinds.every((kind) => kind === 'expense')
+      ? 'spent'
+      : selectedKinds.length > 0 && selectedKinds.every((kind) => kind === 'income')
+        ? 'earned'
+        : 'net'
 
   // Format amount with proper currency
   const formatAmount = (amount: number, curr: string) => {
@@ -249,6 +259,7 @@ function TransactionsPage() {
           statsLabel={getStatsLabel()}
           isLoading={statsLoading}
           formatAmount={formatAmount}
+          netLabel={netLabel}
         />
 
         {/* Filters */}
@@ -284,7 +295,6 @@ function TransactionsPage() {
                 onSuccess={() => {
                   setEditingTransaction(null)
                   queryClient.invalidateQueries({ queryKey: ['transactions'] })
-                  queryClient.invalidateQueries({ queryKey: ['transaction-stats'] })
                   // Invalidate entity payment histories in case linking changed
                   queryClient.invalidateQueries({ queryKey: ['loans'] })
                   queryClient.invalidateQueries({ queryKey: ['insurance'] })

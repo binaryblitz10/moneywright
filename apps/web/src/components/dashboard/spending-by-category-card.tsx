@@ -5,20 +5,12 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { InlineEmptyState } from '@/components/ui/empty-state'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { PieChart, SlidersHorizontal } from 'lucide-react'
+import { PieChart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CategoryBreakdown } from './category-breakdown'
 import { CategoryBreakdownDialog } from './category-breakdown-dialog'
-
-interface Category {
-  code: string
-  label: string
-  color?: string
-}
 
 interface CategoryStats {
   categoryBreakdown: { category: string; total: number; count: number }[]
@@ -32,10 +24,6 @@ interface SpendingByCategoryCardProps {
   showMonthlyAverage: boolean
   onShowMonthlyAverageChange: (show: boolean) => void
   totalMonths: number
-  excludedCategories: string[]
-  onToggleExclusion: (categoryCode: string) => void
-  onClearExclusions: () => void
-  categories: Category[]
   getCategoryLabel: (code: string) => string
   getCategoryColor: (code: string) => string
   startDate?: string
@@ -48,10 +36,6 @@ export function SpendingByCategoryCard({
   showMonthlyAverage,
   onShowMonthlyAverageChange,
   totalMonths,
-  excludedCategories,
-  onToggleExclusion,
-  onClearExclusions,
-  categories,
   getCategoryLabel,
   getCategoryColor,
   startDate,
@@ -90,62 +74,6 @@ export function SpendingByCategoryCard({
               >
                 {showMonthlyAverage ? '/mo' : 'Total'}
               </Button>
-              {/* Category Filter */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      'h-7 text-xs text-muted-foreground hover:text-foreground',
-                      excludedCategories.length > 0 && 'text-primary'
-                    )}
-                  >
-                    <SlidersHorizontal className="h-3 w-3" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-64 p-3">
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Exclude Categories</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Hide these categories from the chart
-                      </p>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto space-y-2">
-                      {categories.map((cat) => (
-                        <label
-                          key={cat.code}
-                          className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground"
-                        >
-                          <Checkbox
-                            checked={excludedCategories.includes(cat.code)}
-                            onCheckedChange={() => onToggleExclusion(cat.code)}
-                          />
-                          <span
-                            className={cn(
-                              excludedCategories.includes(cat.code) &&
-                                'line-through text-muted-foreground'
-                            )}
-                          >
-                            {cat.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    {excludedCategories.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full h-7 text-xs"
-                        onClick={onClearExclusions}
-                      >
-                        Clear all
-                      </Button>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
             </div>
           </div>
         </CardHeader>

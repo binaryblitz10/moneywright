@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { findUserById } from '../services/user'
-import { getCategoriesForCountry, type CountryCode } from '../lib/constants'
+import { CATEGORY_KIND_LABELS, getCategoriesForCountry, type CountryCode } from '../lib/constants'
 
 const categoryRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -24,7 +24,7 @@ categoryRoutes.get('/', async (c) => {
   const countryCode = (user.country || 'US') as CountryCode
   const categories = getCategoriesForCountry(countryCode)
 
-  return c.json({ categories, countryCode })
+  return c.json({ categories, countryCode, kinds: CATEGORY_KIND_LABELS })
 })
 
 export default categoryRoutes

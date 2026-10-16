@@ -2,14 +2,9 @@ import { Hono } from 'hono'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { calculateNetWorth } from '../services/accounts'
 import { getInvestmentSummary } from '../services/investment-holdings'
-import {
-  getTransactionStats,
-  getMonthlyTrends,
-  getMonthTransactions,
-  getDetectedSubscriptions,
-} from '../services/transactions'
+import { getDetectedSubscriptions } from '../services/transactions'
 import { fetchFxRates, getConversionRate } from '../services/fx-rates'
-import { getDashboardExcludedCategories } from '../services/preferences'
+import { getCashFlow, getMonthCashFlow, getMonthsRange, toBreakdown } from '../services/cashflow'
 
 const summaryRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -36,10 +31,10 @@ summaryRoutes.get('/', async (c) => {
   const effectiveEndDate = endDate || undefined
 
   // Fetch all summaries in parallel
-  const [netWorth, investments, transactionStats] = await Promise.all([
+  const [netWorth, investments, cf] = await Promise.all([
     calculateNetWorth(userId, profileId),
     getInvestmentSummary(userId, profileId),
-    getTransactionStats(userId, {
+    getCashFlow(userId, {
       profileId,
       startDate: effectiveStartDate,
       endDate: effectiveEndDate,
@@ -99,24 +94,22 @@ summaryRoutes.get('/', async (c) => {
       },
     },
 
-    // Transaction stats for the period (cash flow, separate from net worth)
+    // Cash flow for the period (separate from net worth)
     transactions: {
       period: {
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
       },
-      // Net income by category: matches the income-by-category breakdown
-      totalIncome: transactionStats.totalIncome,
-      // Spending only: excludes transfers, card payments and investments
-      totalExpenses: transactionStats.categoryBreakdown.reduce((sum, c) => sum + c.total, 0),
-      incomeCount: transactionStats.incomeCount,
-      expenseCount: transactionStats.spendingCount,
-      netCashFlow: transactionStats.netAmount,
-      currency: transactionStats.currency,
-      categoryBreakdown: transactionStats.categoryBreakdown,
-      incomeBreakdown: transactionStats.incomeBreakdown,
-      // Net amount put into investments during the period
-      investedAmount: transactionStats.investedAmount,
+      totalIncome: cf.income,
+      totalExpenses: cf.expenses,
+      investedAmount: cf.invested,
+      transferNet: cf.transferNet,
+      incomeCount: cf.incomeCount,
+      expenseCount: cf.expenseCount,
+      currency: cf.currency,
+      incomeBreakdown: toBreakdown(cf.byCategory, 'income'),
+      categoryBreakdown: toBreakdown(cf.byCategory, 'expense'),
+      excludedCategories: cf.excludedCategories,
     },
   })
 })
@@ -129,8 +122,6 @@ summaryRoutes.get('/', async (c) => {
  *   - months (optional): Number of months to fetch (default: 12, max: 120)
  *   - startDate (optional): Start date in YYYY-MM-DD format (takes precedence over months)
  *   - endDate (optional): End date in YYYY-MM-DD format
- *   - excludeCategories (optional): Comma-separated list of category codes to exclude
- *     If not provided, uses user's saved preferences
  */
 summaryRoutes.get('/monthly-trends', async (c) => {
   const userId = c.get('userId')
@@ -138,50 +129,40 @@ summaryRoutes.get('/monthly-trends', async (c) => {
   const monthsParam = c.req.query('months')
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
-  const excludeCategoriesParam = c.req.query('excludeCategories')
 
   // Support up to 10 years (120 months) for "all time" view
   const months = Math.min(Math.max(parseInt(monthsParam || '12', 10) || 12, 1), 120)
 
-  // Get excluded categories from query param or user preferences
-  let excludeCategories: string[] | undefined
-  if (excludeCategoriesParam) {
-    excludeCategories = excludeCategoriesParam
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  } else {
-    // Use saved preferences
-    excludeCategories = await getDashboardExcludedCategories(userId, profileId)
-    if (excludeCategories.length === 0) {
-      excludeCategories = undefined
-    }
-  }
+  const range = startDate ? { startDate, endDate: endDate || undefined } : getMonthsRange(months)
 
-  const result = await getMonthlyTrends(userId, profileId, {
-    months,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-    excludeCategories,
+  const cf = await getCashFlow(userId, { profileId, ...range, groupByMonth: true })
+
+  return c.json({
+    trends: cf.months.map((m) => ({
+      month: m.month,
+      monthLabel: m.monthLabel,
+      income: m.income,
+      expenses: m.expenses,
+      net: m.income - m.expenses,
+    })),
+    currency: cf.currency,
+    excludedCategories: cf.excludedCategories,
   })
-
-  return c.json({ ...result, excludedCategories: excludeCategories || [] })
 })
 
 /**
  * GET /summary/month-transactions
- * Get transactions for a specific month with netting and exclusions applied
+ * Get transactions for a specific month grouped by kind, with exclusions applied
  * Query params:
  *   - profileId (optional): Profile to get transactions for. If not provided, aggregates all profiles.
  *   - month (required): Month in YYYY-MM format
- *   - excludeCategories (optional): Comma-separated list of category codes to exclude
- *     If not provided, uses user's saved preferences
+ *   - startDate (optional): Clip the month to this start date (YYYY-MM-DD)
+ *   - endDate (optional): Clip the month to this end date (YYYY-MM-DD)
  */
 summaryRoutes.get('/month-transactions', async (c) => {
   const userId = c.get('userId')
   const profileId = c.req.query('profileId') || undefined
   const month = c.req.query('month')
-  const excludeCategoriesParam = c.req.query('excludeCategories')
 
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return c.json(
@@ -190,23 +171,14 @@ summaryRoutes.get('/month-transactions', async (c) => {
     )
   }
 
-  // Get excluded categories from query param or user preferences
-  let excludeCategories: string[] | undefined
-  if (excludeCategoriesParam) {
-    excludeCategories = excludeCategoriesParam
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  } else {
-    excludeCategories = await getDashboardExcludedCategories(userId, profileId)
-    if (excludeCategories.length === 0) {
-      excludeCategories = undefined
-    }
-  }
+  const result = await getMonthCashFlow(userId, {
+    profileId,
+    month,
+    startDate: c.req.query('startDate') || undefined,
+    endDate: c.req.query('endDate') || undefined,
+  })
 
-  const result = await getMonthTransactions(userId, profileId, month, excludeCategories)
-
-  return c.json({ ...result, excludedCategories: excludeCategories || [] })
+  return c.json(result)
 })
 
 /**

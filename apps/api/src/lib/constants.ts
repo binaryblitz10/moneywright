@@ -936,76 +936,85 @@ export type AccountTypeCode = (typeof ACCOUNT_TYPES)[CountryCode][number]['code'
 // TRANSACTION CATEGORIES
 // ============================================================================
 
+export type CategoryKind = 'income' | 'expense' | 'investment' | 'transfer'
+
 /**
  * Transaction categories by country
  */
 export const TRANSACTION_CATEGORIES = {
   IN: [
-    { code: 'food_dining', label: 'Food & Dining', color: 'orange' },
-    { code: 'groceries', label: 'Groceries', color: 'lime' },
-    { code: 'shopping', label: 'Shopping', color: 'blue' },
-    { code: 'utilities', label: 'Utilities (Electricity, Water, Gas)', color: 'cyan' },
-    { code: 'mobile_internet', label: 'Mobile & Internet', color: 'cyan' },
-    { code: 'emi', label: 'EMI / Loan Payment', color: 'rose' },
-    { code: 'rent', label: 'Rent', color: 'purple' },
-    { code: 'fuel', label: 'Fuel', color: 'amber' },
-    { code: 'entertainment', label: 'Entertainment', color: 'pink' },
-    { code: 'travel', label: 'Travel', color: 'sky' },
-    { code: 'healthcare', label: 'Healthcare', color: 'red' },
-    { code: 'personal_care', label: 'Personal Care & Fitness', color: 'pink' },
-    { code: 'gifts', label: 'Gifts & Flowers', color: 'fuchsia' },
-    { code: 'education', label: 'Education', color: 'indigo' },
-    { code: 'insurance', label: 'Insurance', color: 'slate' },
-    { code: 'investment', label: 'Investment', color: 'amber' },
-    { code: 'software', label: 'Software & Services', color: 'violet' },
-    { code: 'transfer', label: 'Transfer', color: 'sky' },
-    { code: 'atm_withdrawal', label: 'ATM Withdrawal', color: 'zinc' },
-    { code: 'salary', label: 'Salary / Income', color: 'emerald' },
-    { code: 'refund', label: 'Refund', color: 'emerald' },
-    { code: 'cashback', label: 'Cashback / Rewards', color: 'emerald' },
-    { code: 'tax', label: 'Tax Payment', color: 'red' },
-    { code: 'government', label: 'Government Services', color: 'slate' },
-    { code: 'charity', label: 'Charity / Donations', color: 'teal' },
-    { code: 'dividend', label: 'Dividend', color: 'emerald' },
-    { code: 'interest', label: 'Interest', color: 'emerald' },
-    { code: 'credit_card_payment', label: 'Credit Card Payment', color: 'sky' },
-    { code: 'bank_charges', label: 'Bank Charges / Fees', color: 'rose' },
-    { code: 'forex', label: 'Foreign Exchange', color: 'indigo' },
-    { code: 'other', label: 'Other', color: 'zinc' },
+    { code: 'food_dining', label: 'Food & Dining', color: 'orange', kind: 'expense' },
+    { code: 'groceries', label: 'Groceries', color: 'lime', kind: 'expense' },
+    { code: 'shopping', label: 'Shopping', color: 'blue', kind: 'expense' },
+    {
+      code: 'utilities',
+      label: 'Utilities (Electricity, Water, Gas)',
+      color: 'cyan',
+      kind: 'expense',
+    },
+    { code: 'mobile_internet', label: 'Mobile & Internet', color: 'cyan', kind: 'expense' },
+    { code: 'emi', label: 'EMI / Loan Payment', color: 'rose', kind: 'expense' },
+    { code: 'rent', label: 'Rent', color: 'purple', kind: 'expense' },
+    { code: 'fuel', label: 'Fuel', color: 'amber', kind: 'expense' },
+    { code: 'entertainment', label: 'Entertainment', color: 'pink', kind: 'expense' },
+    { code: 'travel', label: 'Travel', color: 'sky', kind: 'expense' },
+    { code: 'healthcare', label: 'Healthcare', color: 'red', kind: 'expense' },
+    { code: 'personal_care', label: 'Personal Care & Fitness', color: 'pink', kind: 'expense' },
+    { code: 'gifts', label: 'Gifts & Flowers', color: 'fuchsia', kind: 'expense' },
+    { code: 'education', label: 'Education', color: 'indigo', kind: 'expense' },
+    { code: 'insurance', label: 'Insurance', color: 'slate', kind: 'expense' },
+    { code: 'investment', label: 'Investment', color: 'amber', kind: 'investment' },
+    { code: 'software', label: 'Software & Services', color: 'violet', kind: 'expense' },
+    { code: 'transfer', label: 'Transfer', color: 'sky', kind: 'transfer' },
+    { code: 'atm_withdrawal', label: 'ATM Withdrawal', color: 'zinc', kind: 'expense' },
+    { code: 'salary', label: 'Salary', color: 'emerald', kind: 'income' },
+    { code: 'refund', label: 'Refund', color: 'emerald', kind: 'expense' },
+    { code: 'cashback', label: 'Cashback / Rewards', color: 'emerald', kind: 'income' },
+    { code: 'other_income', label: 'Other Income', color: 'emerald', kind: 'income' },
+    { code: 'tax', label: 'Tax Payment', color: 'red', kind: 'expense' },
+    { code: 'government', label: 'Government Services', color: 'slate', kind: 'expense' },
+    { code: 'charity', label: 'Charity / Donations', color: 'teal', kind: 'expense' },
+    { code: 'dividend', label: 'Dividend', color: 'emerald', kind: 'income' },
+    { code: 'interest', label: 'Interest', color: 'emerald', kind: 'income' },
+    { code: 'credit_card_payment', label: 'Credit Card Payment', color: 'sky', kind: 'transfer' },
+    { code: 'bank_charges', label: 'Bank Charges / Fees', color: 'rose', kind: 'expense' },
+    { code: 'forex', label: 'Foreign Exchange', color: 'indigo', kind: 'expense' },
+    { code: 'other', label: 'Other', color: 'zinc', kind: 'expense' },
   ],
   US: [
-    { code: 'food_dining', label: 'Food & Dining', color: 'orange' },
-    { code: 'groceries', label: 'Groceries', color: 'lime' },
-    { code: 'shopping', label: 'Shopping', color: 'blue' },
-    { code: 'utilities', label: 'Utilities', color: 'cyan' },
-    { code: 'phone_internet', label: 'Phone & Internet', color: 'cyan' },
-    { code: 'mortgage', label: 'Mortgage', color: 'purple' },
-    { code: 'rent', label: 'Rent', color: 'purple' },
-    { code: 'gas', label: 'Gas / Fuel', color: 'amber' },
-    { code: 'entertainment', label: 'Entertainment', color: 'pink' },
-    { code: 'travel', label: 'Travel', color: 'sky' },
-    { code: 'healthcare', label: 'Healthcare', color: 'red' },
-    { code: 'personal_care', label: 'Personal Care & Fitness', color: 'pink' },
-    { code: 'gifts', label: 'Gifts & Flowers', color: 'fuchsia' },
-    { code: 'education', label: 'Education', color: 'indigo' },
-    { code: 'insurance', label: 'Insurance', color: 'slate' },
-    { code: 'investment', label: 'Investment', color: 'amber' },
-    { code: 'software', label: 'Software & Services', color: 'violet' },
-    { code: 'transfer', label: 'Transfer', color: 'sky' },
-    { code: 'atm_withdrawal', label: 'ATM Withdrawal', color: 'zinc' },
-    { code: 'paycheck', label: 'Paycheck / Income', color: 'emerald' },
-    { code: 'refund', label: 'Refund', color: 'emerald' },
-    { code: 'cashback', label: 'Cashback / Rewards', color: 'emerald' },
-    { code: 'tax', label: 'Tax Payment', color: 'red' },
-    { code: 'childcare', label: 'Childcare', color: 'teal' },
-    { code: 'pet', label: 'Pet Expenses', color: 'amber' },
-    { code: 'charity', label: 'Charity / Donations', color: 'teal' },
-    { code: 'dividend', label: 'Dividend', color: 'emerald' },
-    { code: 'interest', label: 'Interest', color: 'emerald' },
-    { code: 'credit_card_payment', label: 'Credit Card Payment', color: 'sky' },
-    { code: 'bank_charges', label: 'Bank Charges / Fees', color: 'rose' },
-    { code: 'forex', label: 'Foreign Exchange', color: 'indigo' },
-    { code: 'other', label: 'Other', color: 'zinc' },
+    { code: 'food_dining', label: 'Food & Dining', color: 'orange', kind: 'expense' },
+    { code: 'groceries', label: 'Groceries', color: 'lime', kind: 'expense' },
+    { code: 'shopping', label: 'Shopping', color: 'blue', kind: 'expense' },
+    { code: 'utilities', label: 'Utilities', color: 'cyan', kind: 'expense' },
+    { code: 'phone_internet', label: 'Phone & Internet', color: 'cyan', kind: 'expense' },
+    { code: 'mortgage', label: 'Mortgage', color: 'purple', kind: 'expense' },
+    { code: 'rent', label: 'Rent', color: 'purple', kind: 'expense' },
+    { code: 'gas', label: 'Gas / Fuel', color: 'amber', kind: 'expense' },
+    { code: 'entertainment', label: 'Entertainment', color: 'pink', kind: 'expense' },
+    { code: 'travel', label: 'Travel', color: 'sky', kind: 'expense' },
+    { code: 'healthcare', label: 'Healthcare', color: 'red', kind: 'expense' },
+    { code: 'personal_care', label: 'Personal Care & Fitness', color: 'pink', kind: 'expense' },
+    { code: 'gifts', label: 'Gifts & Flowers', color: 'fuchsia', kind: 'expense' },
+    { code: 'education', label: 'Education', color: 'indigo', kind: 'expense' },
+    { code: 'insurance', label: 'Insurance', color: 'slate', kind: 'expense' },
+    { code: 'investment', label: 'Investment', color: 'amber', kind: 'investment' },
+    { code: 'software', label: 'Software & Services', color: 'violet', kind: 'expense' },
+    { code: 'transfer', label: 'Transfer', color: 'sky', kind: 'transfer' },
+    { code: 'atm_withdrawal', label: 'ATM Withdrawal', color: 'zinc', kind: 'expense' },
+    { code: 'paycheck', label: 'Paycheck', color: 'emerald', kind: 'income' },
+    { code: 'refund', label: 'Refund', color: 'emerald', kind: 'expense' },
+    { code: 'cashback', label: 'Cashback / Rewards', color: 'emerald', kind: 'income' },
+    { code: 'other_income', label: 'Other Income', color: 'emerald', kind: 'income' },
+    { code: 'tax', label: 'Tax Payment', color: 'red', kind: 'expense' },
+    { code: 'childcare', label: 'Childcare', color: 'teal', kind: 'expense' },
+    { code: 'pet', label: 'Pet Expenses', color: 'amber', kind: 'expense' },
+    { code: 'charity', label: 'Charity / Donations', color: 'teal', kind: 'expense' },
+    { code: 'dividend', label: 'Dividend', color: 'emerald', kind: 'income' },
+    { code: 'interest', label: 'Interest', color: 'emerald', kind: 'income' },
+    { code: 'credit_card_payment', label: 'Credit Card Payment', color: 'sky', kind: 'transfer' },
+    { code: 'bank_charges', label: 'Bank Charges / Fees', color: 'rose', kind: 'expense' },
+    { code: 'forex', label: 'Foreign Exchange', color: 'indigo', kind: 'expense' },
+    { code: 'other', label: 'Other', color: 'zinc', kind: 'expense' },
   ],
 } as const
 
@@ -1219,6 +1228,38 @@ export function getAccountTypesForCountry(countryCode: CountryCode) {
  */
 export function getCategoriesForCountry(countryCode: CountryCode) {
   return TRANSACTION_CATEGORIES[countryCode] || TRANSACTION_CATEGORIES.US
+}
+
+/**
+ * Lookup of category code to kind, built once from both country lists
+ */
+const CATEGORY_KIND_BY_CODE = new Map<string, CategoryKind>(
+  [...TRANSACTION_CATEGORIES.IN, ...TRANSACTION_CATEGORIES.US].map((c) => [c.code, c.kind] as const)
+)
+
+/**
+ * Display order and labels for category kinds
+ */
+export const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
+  income: 'Income',
+  expense: 'Expense',
+  investment: 'Investment',
+  transfer: 'Transfer',
+}
+
+/**
+ * Get the kind of a category code (country-agnostic)
+ * Unknown codes count as expenses
+ */
+export function getCategoryKind(code: string): CategoryKind {
+  return CATEGORY_KIND_BY_CODE.get(code) ?? 'expense'
+}
+
+/**
+ * Check if a category code exists in any country's category list
+ */
+export function isKnownCategory(code: string): boolean {
+  return CATEGORY_KIND_BY_CODE.has(code)
 }
 
 /**

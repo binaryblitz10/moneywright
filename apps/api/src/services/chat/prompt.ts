@@ -4,52 +4,41 @@
  * Builds context-aware system prompts for the AI chat agent.
  */
 
-import { getCategoriesForCountry, type CountryCode } from '../../lib/constants'
+import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../../lib/constants'
+
+/** Prompt heading for each category kind, in display order */
+const KIND_HEADINGS: Array<{ kind: CategoryKind; heading: string }> = [
+  { kind: 'income', heading: '**Income categories** (money earned):' },
+  {
+    kind: 'expense',
+    heading: '**Expense categories** (money spent; refunds in these reduce spending):',
+  },
+  {
+    kind: 'investment',
+    heading:
+      '**Investment categories** (money put into or taken out of investments, NOT expenses):',
+  },
+  {
+    kind: 'transfer',
+    heading:
+      "**Transfer categories** (moves between the user's own accounts; NOT counted as income or expense):",
+  },
+]
 
 /**
- * Format categories for the prompt
+ * Format categories for the prompt, grouped by their cash flow kind
  */
 function formatCategoriesForPrompt(countryCode: CountryCode): string {
   const categories = getCategoriesForCountry(countryCode)
 
-  // Group by type based on known patterns
-  const incomeCategories: string[] = []
-  const expenseCategories: string[] = []
-  const investmentCategories: string[] = []
-  const transferCategories: string[] = []
+  const sections = KIND_HEADINGS.map(({ kind, heading }) => {
+    const lines = categories
+      .filter((cat) => cat.kind === kind)
+      .map((cat) => `- ${cat.code} (${cat.label})`)
+    return `${heading}\n${lines.join('\n')}`
+  })
 
-  for (const cat of categories) {
-    const code = cat.code
-    // Income categories (typically have emerald color or are known income types)
-    if (['salary', 'paycheck', 'dividend', 'interest', 'refund', 'cashback'].includes(code)) {
-      incomeCategories.push(`${code} (${cat.label})`)
-    }
-    // Investment
-    else if (code === 'investment') {
-      investmentCategories.push(`${code} (${cat.label})`)
-    }
-    // Internal transfers (should be netted)
-    else if (['transfer', 'credit_card_payment', 'atm_withdrawal'].includes(code)) {
-      transferCategories.push(`${code} (${cat.label})`)
-    }
-    // Everything else is expense
-    else {
-      expenseCategories.push(`${code} (${cat.label})`)
-    }
-  }
-
-  return `
-**Income categories** (credits = real income):
-${incomeCategories.map((c) => `- ${c}`).join('\n')}
-
-**Expense categories** (debits = real expenses):
-${expenseCategories.map((c) => `- ${c}`).join('\n')}
-
-**Investment categories** (debits = asset purchases, NOT expenses):
-${investmentCategories.map((c) => `- ${c}`).join('\n')}
-
-**Internal transfer categories** (should be NETTED to avoid double-counting):
-${transferCategories.map((c) => `- ${c}`).join('\n')}`
+  return `\n${sections.join('\n\n')}`
 }
 
 /**
@@ -171,29 +160,26 @@ All data tools return results in CSV format for efficiency. Key points:
 ### Available Categories
 ${categoriesSection}
 
-### Double-Counting Prevention
-Users may upload both bank AND credit card statements. This causes double-counting:
-1. Credit card purchase: ₹1000 debit on CC statement (actual spend)
-2. Credit card payment: ₹1000 debit on bank + ₹1000 credit on CC (internal transfer)
+### Calculating Income / Expenses / Savings
+\`getCategoryBreakdown\` returns totals that match the dashboard exactly:
+- income, expenses, invested, transfersNotCounted (transfers are NOT counted)
+- per category: label (Income / Expense / Investment / Transfer), credits, debits, net
 
-**Solution**: For transfer/credit_card_payment categories, calculate NET = debits - credits:
-- If net ≈ 0: Balanced transfer, ignore completely
-- If net > 0: Real money left the system (rare)
-- If net < 0: Real money entered the system (rare)
+Always quote these totals. Do NOT re-add categories yourself.
+Refunds are already subtracted from expenses. Investments are NOT expenses.
 
-### Calculating True Income/Expenses/Savings
-From \`getCategoryBreakdown\` results:
+**Double entries**: users may upload both bank AND credit card statements, so one purchase can appear several times:
+1. Credit card purchase: ₹1000 debit on the card statement (the real spending)
+2. Card bill payment: ₹1000 debit on the bank + ₹1000 credit on the card (credit_card_payment)
+Card bill payments (credit_card_payment) and transfers between own accounts (transfer) are NEVER spending or income - not in totals, and not when listing or summing individual transactions from \`getTransactions\`.
 
-1. **Total Income** = Sum of CREDITS in income categories (salary, dividend, interest, refund, cashback)
-2. **Total Expenses** = Sum of DEBITS in expense categories (food, shopping, rent, etc.) - but NOT investment
-3. **Total Investments** = DEBITS in investment category
-4. **Net Savings** = Total Income - Total Expenses
-5. **Savings Rate** = (Net Savings / Total Income) × 100%
+**Savings** = income − expenses. Savings rate = savings ÷ income × 100%.
+Investing is part of savings, not a reduction of it. When you mention savings, always say what it is made of:
+- **Invested**: \`invested\` (money put into investments)
+- **Transferred out**: \`transfersNotCounted\` when positive (money moved to the user's own other accounts, or card payments without a matching card statement)
+- **Left in accounts**: savings − invested − transferred out
 
-**Important**: Investments are NOT expenses. Someone earning ₹10L, spending ₹6L, and investing ₹3L has:
-- Savings rate = 40% (saved ₹4L from spending)
-- Additionally invested ₹3L
-- Only ₹1L actually accumulated as cash
+Example: earning ₹10L, spending ₹6L and investing ₹3L = savings ₹4L (40%), made up of ₹3L invested and ₹1L left in accounts.
 
 ## Response Formatting (IMPORTANT):
 Your responses will be rendered as Markdown in a modern dark-themed UI. Follow these formatting rules strictly:
@@ -298,82 +284,4 @@ Use this context to better understand and categorize transactions. For example, 
   }
 
   return basePrompt
-}
-
-/**
- * Get available transaction categories
- */
-export const TRANSACTION_CATEGORIES = {
-  income: [
-    'salary',
-    'freelance',
-    'interest',
-    'dividend',
-    'rental_income',
-    'refund',
-    'cashback',
-    'gift_received',
-  ],
-  expense: [
-    'food',
-    'groceries',
-    'dining',
-    'transport',
-    'fuel',
-    'shopping',
-    'entertainment',
-    'bills',
-    'utilities',
-    'rent',
-    'emi',
-    'insurance',
-    'medical',
-    'education',
-    'travel',
-    'personal_care',
-    'subscriptions',
-    'donations',
-    'other',
-  ],
-  neutral: ['transfer', 'atm_withdrawal', 'unknown'],
-} as const
-
-/**
- * Get category display name
- */
-export function getCategoryDisplayName(category: string): string {
-  const displayNames: Record<string, string> = {
-    salary: 'Salary',
-    freelance: 'Freelance Income',
-    interest: 'Interest',
-    dividend: 'Dividends',
-    rental_income: 'Rental Income',
-    refund: 'Refund',
-    cashback: 'Cashback',
-    gift_received: 'Gift Received',
-    food: 'Food',
-    groceries: 'Groceries',
-    dining: 'Dining Out',
-    transport: 'Transport',
-    fuel: 'Fuel',
-    shopping: 'Shopping',
-    entertainment: 'Entertainment',
-    bills: 'Bills & Utilities',
-    utilities: 'Utilities',
-    rent: 'Rent',
-    emi: 'EMI/Loan',
-    insurance: 'Insurance',
-    medical: 'Medical',
-    education: 'Education',
-    travel: 'Travel',
-    personal_care: 'Personal Care',
-    subscriptions: 'Subscriptions',
-    donations: 'Donations',
-    other: 'Other',
-    transfer: 'Transfer',
-    atm_withdrawal: 'ATM Withdrawal',
-    unknown: 'Unknown',
-  }
-
-  return displayNames[category] || category
 }

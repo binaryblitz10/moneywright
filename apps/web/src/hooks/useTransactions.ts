@@ -73,6 +73,8 @@ export function useTransactionStats(filters?: {
   type?: 'credit' | 'debit'
   search?: string
   isSubscription?: boolean
+  includeHidden?: boolean
+  onlyHidden?: boolean
   enabled?: boolean
 }) {
   const { enabled = true, ...filterOptions } = filters ?? {}
@@ -145,7 +147,6 @@ export function useBulkUpdateTransactions() {
     mutationFn: bulkUpdateTransactions,
     onSuccess: ({ updatedCount }) => {
       queryClient.invalidateQueries({ queryKey: transactionKeys.all })
-      queryClient.invalidateQueries({ queryKey: ['transaction-stats'] })
       // Category changes can drop entity links
       queryClient.invalidateQueries({ queryKey: ['loans'] })
       queryClient.invalidateQueries({ queryKey: ['insurance'] })

@@ -6,10 +6,10 @@
  * Supports streaming mode with mini-batches for real-time updates
  */
 
-import { generateText, streamText } from 'ai'
+import { streamText } from 'ai'
 import { eq, inArray, and, isNull } from 'drizzle-orm'
 import { createLLMClientFromSettings, type LLMClientResult } from '../../llm'
-import { getCategoriesForCountry, type CountryCode } from '../constants'
+import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../constants'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
 import type { CategorizedTransaction, TransactionForCategorization } from './types'
@@ -25,10 +25,24 @@ const CATEGORY_HINTS: Record<CountryCode, string> = {
 SALARY in India is ONLY paid via NEFT/RTGS/IMPS from employer, NEVER via UPI!
 - SALARY = NEFT/RTGS credit with "SALARY" in description OR from known employer company name
 - SALARY must be consistent monthly amount (same or very similar amount each month)
-- UPI credits from individuals are NEVER salary - they are "transfer" (even if recurring)
-- Recurring UPI payments from same person = transfer (NOT salary)
+- UPI credits from individuals are NEVER salary (see TRANSFER RULES for what they are)
+- Recurring UPI payments from same person are NOT salary, even if monthly
 - Just because credits are regular/monthly does NOT make them salary
-- Credits from individuals (person names) = transfer, NOT salary
+
+=== TRANSFER RULES - BE VERY CAREFUL ===
+"transfer" is ONLY for money moving between the account holder's OWN accounts.
+- transfer = "SELF", "OWN A/C", "TO SELF", transfer to/from the holder's own other bank account, wallet top-up (Paytm, Amazon Pay, PhonePe wallet load)
+- Credit card bill payments = credit_card_payment (never transfer)
+- Debits to OTHER people (person names via UPI/IMPS/NEFT) are NOT transfer. Use what the payment was for: landlord/rent = rent, present = gifts, shared meal = food_dining, house help/driver/cook = other. If the purpose is unclear = other
+- Credits from OTHER people are NOT transfer. If the credit clearly pays back a shared expense (e.g. "dinner", "trip share", "split") use that expense category. Otherwise = other_income
+
+=== REFUNDS & REVERSALS ===
+- A refund, reversal, chargeback or failed-payment return (a credit) = the ORIGINAL merchant's category if it can be identified (Amazon/Flipkart refund = shopping, IRCTC/airline/MakeMyTrip refund = travel, Swiggy/Zomato refund = food_dining)
+- If the merchant or purpose cannot be identified = refund
+- NEVER use salary, other_income or cashback for refunds
+
+=== CASHBACK & REWARDS ===
+- Cashback, reward points credited, card or UPI rewards = cashback
 
 === SOFTWARE & SERVICES (software) ===
 - AI tools: Claude AI, Anthropic, OpenAI, ChatGPT, Midjourney, Perplexity = software
@@ -54,7 +68,6 @@ SALARY in India is ONLY paid via NEFT/RTGS/IMPS from employer, NEVER via UPI!
 - Amazon, Flipkart, Myntra, Ajio, Meesho = shopping (unless clearly software/digital)
 - Netflix, Spotify, Prime Video, Hotstar, JioCinema, YouTube Premium = entertainment
 - CRED, credit card payments, card bill = credit_card_payment
-- Person names via UPI (P2P transfers) = transfer (even if recurring monthly!)
 - ATM, cash withdrawal, CWDR = atm_withdrawal
 - Electricity, BESCOM, Tata Power, gas, water, piped gas = utilities
 - Airtel, Jio, Vi, BSNL, broadband, Hathway, ACT = mobile_internet
@@ -75,8 +88,10 @@ SALARY in India is ONLY paid via NEFT/RTGS/IMPS from employer, NEVER via UPI!
 - Amazon, Target, Walmart, Best Buy, Costco = shopping (unless clearly software/digital)
 - Netflix, Spotify, HBO Max, Disney+, Hulu, Apple TV, YouTube Premium = entertainment
 - Credit card payment, card services = credit_card_payment
-- Venmo, Zelle, PayPal, Cash App (person names) = transfer
-- ATM withdrawal, cash back = atm_withdrawal
+- Venmo, Zelle, PayPal, Cash App with OTHER people are NOT transfer: debits = what the payment was for (rent, gifts, food_dining…) or other; credits = other_income unless they pay back a shared expense (then that expense's category)
+- Moves between the holder's OWN accounts (own savings, own brokerage cash) = transfer
+- ATM withdrawal, or cash back taken at a store checkout = atm_withdrawal
+- Cashback or rewards credited by a card/bank = cashback
 - Electric, gas, water, PG&E, ConEd, utility company = utilities
 - Verizon, AT&T, T-Mobile, Comcast, Spectrum = phone_internet
 - Uber, Lyft, airline, Delta, United, Amtrak = travel
@@ -87,6 +102,18 @@ SALARY in India is ONLY paid via NEFT/RTGS/IMPS from employer, NEVER via UPI!
 - Daycare, preschool, childcare, nanny = childcare
 - Tuition, student loan, college, university = education
 - Petco, PetSmart, vet, veterinary = pet
+
+=== TRANSFER RULES - BE VERY CAREFUL ===
+"transfer" is ONLY for money moving between the account holder's OWN accounts.
+- transfer = money moved between the holder's own checking, savings and brokerage cash accounts (e.g. "Transfer to Savings", "Online transfer to Brokerage" for an account the holder owns)
+- Credit card bill payments = credit_card_payment (never transfer)
+- Debits to OTHER people (Zelle, Venmo, PayPal, Cash App) are NOT transfer. Use what the payment was for: landlord/rent = rent, present = gifts, shared dinner = food_dining. If the purpose is unclear = other
+- Credits from OTHER people are NOT transfer. If the credit clearly pays back a shared expense (e.g. "dinner", "trip share", "split") use that expense category. Otherwise = other_income
+
+=== REFUNDS & REVERSALS ===
+- A refund, reversal, chargeback or failed-payment return (a credit) = the ORIGINAL merchant's category if it can be identified (Amazon refund = shopping, airline refund = travel, DoorDash refund = food_dining)
+- If the merchant or purpose cannot be identified = refund
+- NEVER use paycheck, other_income or cashback for refunds
 
 === SOFTWARE & SERVICES (software) ===
 - AI tools: Claude AI, Anthropic, OpenAI, ChatGPT, Midjourney, Perplexity = software
@@ -114,6 +141,7 @@ const ACCOUNT_TYPE_HINTS: Record<string, string> = {
 - This is a CREDIT CARD statement, NOT a bank account
 - Credits in credit card statements are typically: refunds, cashback, rewards, or PAYMENT RECEIVED (credit card bill payment)
 - "PAYMENT RECEIVED" or "PAYMENT THANK YOU" = credit_card_payment (NOT salary!)
+- Refund credits = the original merchant's category (or refund if unknown); cashback/reward credits = cashback
 - Large credits are usually bill payments from bank account, NOT salary
 - Debits are purchases/spending made using the credit card`,
 
@@ -121,17 +149,41 @@ const ACCOUNT_TYPE_HINTS: Record<string, string> = {
 - This is a bank savings account statement
 - Large regular credits (same amount monthly) are likely salary
 - Debits to credit card companies = credit_card_payment
-- UPI transfers to individuals = transfer`,
+- UPI payments to other people are NOT transfer - categorize by what they were for (see TRANSFER RULES)
+- Money moved to/from the account holder's OWN other accounts = transfer`,
 
   current_account: `BANK ACCOUNT (CURRENT) CONTEXT:
 - This is a bank current/checking account statement
-- Large regular credits may be salary or business income
-- Debits to credit card companies = credit_card_payment`,
+- Large regular credits may be salary or business income (business income = other_income)
+- Debits to credit card companies = credit_card_payment
+- Payments to/from other people or businesses are NOT transfer - only the holder's own accounts are transfer`,
 
   checking_account: `BANK ACCOUNT (CHECKING) CONTEXT:
 - This is a bank checking account statement
 - Large regular credits may be salary or business income (paycheck)
-- Debits to credit card companies = credit_card_payment`,
+- Debits to credit card companies = credit_card_payment
+- Payments to/from other people or businesses are NOT transfer - only the holder's own accounts are transfer`,
+}
+
+/**
+ * Format the category list grouped by kind, for the LLM prompt
+ */
+function formatCategoryList(categories: ReturnType<typeof getCategoriesForCountry>): string {
+  const groups: { kind: CategoryKind; heading: string }[] = [
+    { kind: 'income', heading: 'INCOME:' },
+    { kind: 'expense', heading: 'EXPENSE:' },
+    { kind: 'investment', heading: 'INVESTMENT:' },
+    { kind: 'transfer', heading: "TRANSFER (only between the account holder's OWN accounts):" },
+  ]
+
+  return groups
+    .map(({ kind, heading }) =>
+      [
+        heading,
+        ...categories.filter((c) => c.kind === kind).map((c) => `${c.code}: ${c.label}`),
+      ].join('\n')
+    )
+    .join('\n\n')
 }
 
 /**
@@ -146,7 +198,7 @@ function buildProfileContextHint(profileSummary?: string | null): string {
   return `PROFILE CONTEXT (use this to improve categorization accuracy):
 ${profileSummary.trim()}
 
-Apply this context when categorizing - e.g., if profile mentions "freelancer", irregular large credits may be freelance income; if "has rental property", regular credits could be rental income; if "runs a business", business-related expenses should be identified.
+Apply this context when categorizing - e.g., if profile mentions "freelancer", irregular large credits may be freelance income (other_income); if "has rental property", regular credits from tenants are rental income (other_income); if "runs a business", business-related expenses should be identified. If a UPI/NEFT name matches the account holder's own name, it is a transfer between their own accounts.
 `
 }
 
@@ -317,145 +369,6 @@ function parseCSVLine(line: string): string[] {
 }
 
 /**
- * Parse LLM CSV response into categorized transactions
- */
-function parseCategoryCSV(
-  csvText: string,
-  validCategories: string[]
-): Map<string, CategorizedTransaction> {
-  const result = new Map<string, CategorizedTransaction>()
-  const lines = csvText.trim().split('\n')
-
-  for (const line of lines) {
-    // Skip empty lines and header
-    if (!line.trim() || line.toLowerCase().startsWith('id,')) continue
-
-    const fields = parseCSVLine(line)
-    if (fields.length < 5) {
-      logger.warn(`[Categorize] Skipping malformed CSV line: ${line}`)
-      continue
-    }
-
-    const [id, category, confidenceStr, summary, isSubStr] = fields
-
-    if (!id) continue
-
-    // Validate category
-    const categoryCode = category?.toLowerCase().trim() || 'other'
-    const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
-
-    // Parse confidence
-    const confidence = parseFloat(confidenceStr || '0.8')
-
-    // Parse is_subscription (1 or 0)
-    const isSubscription = isSubStr?.trim() === '1'
-
-    result.set(id.trim(), {
-      id: id.trim(),
-      category: finalCategory,
-      confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
-      summary: summary?.trim() || '',
-      isSubscription,
-    })
-  }
-
-  return result
-}
-
-/**
- * Categorize a batch of transactions
- */
-async function categorizeBatch(
-  transactions: TransactionForCategorization[],
-  countryCode: CountryCode,
-  modelOverride?: string
-): Promise<Map<string, CategorizedTransaction>> {
-  const { model, providerOptions } = await createLLMClientFromSettings(modelOverride)
-  const categories = getCategoriesForCountry(countryCode)
-  const categoryList = categories.map((c) => `${c.code}: ${c.label}`).join('\n')
-  const validCategories = categories.map((c) => c.code)
-
-  // Format transactions for LLM - include all info for pattern detection
-  const txnList = transactions
-    .map((t) => `${t.id},${t.date},${t.type},${t.amount},"${t.description.replace(/"/g, '""')}"`)
-    .join('\n')
-
-  const prompt = `Categorize these bank transactions. Look for patterns like recurring payments (salary, rent, subscriptions).
-
-TRANSACTIONS (id,date,type,amount,description):
-${txnList}
-
-CATEGORIES:
-${categoryList}
-
-OUTPUT FORMAT (CSV):
-id,category,confidence,summary,is_subscription
-
-RULES:
-- id: exact ID from input
-- category: code from categories list
-- confidence: 0.0 to 1.0 (higher for recurring patterns you're sure about)
-- summary: MUST follow format "MerchantName brief description" where MerchantName is exactly ONE WORD (no spaces)
-  Examples: "Zomato food order", "Amazon purchase", "Netflix subscription", "Rahul transfer received"
-- is_subscription: 1 if recurring subscription/service, 0 otherwise
-
-SUBSCRIPTION DETECTION (is_subscription=1):
-- Streaming services: Netflix, Spotify, YouTube Premium, etc.
-- Software/SaaS: Claude AI, ChatGPT, GitHub, Figma, Adobe, etc.
-- Cloud services: AWS, Vercel, hosting, domains
-- Recurring memberships: gym, clubs, premium services
-- Monthly/annual service fees
-- NOT one-time purchases, NOT salary, NOT rent, NOT utilities
-
-Example:
-abc123,salary,1.0,"Google salary",0
-def456,entertainment,0.95,"Netflix subscription",1
-ghi789,utilities,0.9,"BESCOM electricity bill",0
-jkl012,software,0.95,"Claude subscription",1`
-
-  try {
-    const { text } = await generateText({
-      model,
-      prompt,
-      providerOptions,
-    })
-
-    return parseCategoryCSV(text, validCategories)
-  } catch (error) {
-    logger.error(`[Categorize] Batch error:`, error)
-    return new Map()
-  }
-}
-
-/**
- * Fetch transactions by IDs from the database
- */
-async function fetchTransactionsByIds(
-  transactionIds: string[]
-): Promise<TransactionForCategorization[]> {
-  if (transactionIds.length === 0) return []
-
-  const rows = await db
-    .select({
-      id: tables.transactions.id,
-      date: tables.transactions.date,
-      amount: tables.transactions.amount,
-      type: tables.transactions.type,
-      description: tables.transactions.originalDescription,
-    })
-    .from(tables.transactions)
-    .where(inArray(tables.transactions.id, transactionIds))
-
-  return rows.map((r) => ({
-    id: r.id,
-    date: r.date,
-    amount: parseFloat(r.amount),
-    type: r.type as 'credit' | 'debit',
-    description: r.description || '',
-  }))
-}
-
-/**
  * Fetch uncategorized transactions (where summary is null)
  * These are transactions that were inserted but not yet categorized by LLM
  */
@@ -484,65 +397,6 @@ async function fetchUncategorizedTransactions(
     type: r.type as 'credit' | 'debit',
     description: r.description || '',
   }))
-}
-
-/**
- * Categorize transactions by their IDs
- * Fetches transactions from DB, sends to LLM, returns categorizations
- */
-export async function categorizeTransactionsByIds(
-  transactionIds: string[],
-  countryCode: CountryCode,
-  modelOverride?: string
-): Promise<CategorizedTransaction[]> {
-  if (transactionIds.length === 0) return []
-
-  logger.debug(
-    `[Categorize] Categorizing ${transactionIds.length} transactions in batches of ${BATCH_SIZE}`
-  )
-
-  // Fetch transaction data from DB
-  const transactions = await fetchTransactionsByIds(transactionIds)
-
-  const results: CategorizedTransaction[] = []
-  const batches: TransactionForCategorization[][] = []
-
-  // Split into batches
-  for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-    batches.push(transactions.slice(i, i + BATCH_SIZE))
-  }
-
-  logger.debug(`[Categorize] Processing ${batches.length} batches`)
-
-  // Process batches sequentially to avoid rate limits
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]!
-    logger.debug(
-      `[Categorize] Processing batch ${i + 1}/${batches.length} (${batch.length} transactions)`
-    )
-
-    const categoryMap = await categorizeBatch(batch, countryCode, modelOverride)
-
-    // Match results back to transactions
-    for (const txn of batch) {
-      const categorized = categoryMap.get(txn.id)
-      if (categorized) {
-        results.push(categorized)
-      } else {
-        // Default categorization if LLM missed it
-        results.push({
-          id: txn.id,
-          category: 'other',
-          confidence: 0.5,
-          summary: txn.description.slice(0, 50),
-          isSubscription: false,
-        })
-      }
-    }
-  }
-
-  logger.debug(`[Categorize] Completed categorization of ${results.length} transactions`)
-  return results
 }
 
 /**
@@ -620,6 +474,7 @@ TRANSACTIONS (id,date,type,amount,description):
 ${txnList}
 
 CATEGORIES:
+
 ${categoryList}
 
 OUTPUT FORMAT - CSV ONLY, one line per transaction:
@@ -761,7 +616,7 @@ async function runCategorizationPass(
   userCategorizationHints?: string
 ): Promise<{ success: number; failed: number }> {
   const categories = getCategoriesForCountry(countryCode)
-  const categoryList = categories.map((c) => `${c.code}: ${c.label}`).join('\n')
+  const categoryList = formatCategoryList(categories)
   const validCategories = categories.map((c) => c.code)
 
   // Only batch if we have more than threshold - we want all transactions together for pattern recognition

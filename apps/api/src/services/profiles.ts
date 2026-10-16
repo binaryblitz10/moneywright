@@ -3,7 +3,6 @@ import { db, tables, dbType } from '../db'
 import type { Profile } from '../db'
 import { isValidRelationshipType, type RelationshipType } from '../lib/constants'
 import { logger } from '../lib/logger'
-import { getPreference, setPreference, PREFERENCE_KEYS } from './preferences'
 
 /**
  * Profile service
@@ -86,20 +85,6 @@ export async function createProfile(data: {
 
   if (!profile) {
     throw new Error('Failed to create profile')
-  }
-
-  // Set default user-wide preference to exclude investment category from income/expense chart
-  // Only create if it doesn't already exist
-  const existingPref = await getPreference(
-    data.userId,
-    PREFERENCE_KEYS.INCOME_EXPENSES_EXCLUDED_CATEGORIES
-  )
-  if (!existingPref) {
-    await setPreference(
-      data.userId,
-      PREFERENCE_KEYS.INCOME_EXPENSES_EXCLUDED_CATEGORIES,
-      JSON.stringify(['investment'])
-    )
   }
 
   logger.debug(`[Profile] Created profile ${profile.id} for user ${data.userId}`)

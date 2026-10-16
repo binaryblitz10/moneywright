@@ -22,7 +22,8 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TransactionFilters, Category, Account, Statement } from '@/lib/api'
+import type { TransactionFilters, Category, CategoryKind, Account, Statement } from '@/lib/api'
+import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 
 interface TransactionFiltersBarProps {
   filters: TransactionFilters
@@ -299,6 +300,12 @@ export function TransactionFiltersBar({
                   onFiltersChange({
                     ...filters,
                     category: updated.length > 0 ? updated : undefined,
+                  })
+                }}
+                onSetCategories={(codes) => {
+                  onFiltersChange({
+                    ...filters,
+                    category: codes.length > 0 ? codes : undefined,
                   })
                 }}
                 onToggleHidden={() => {
@@ -580,6 +587,7 @@ function CategoryFilterDropdown({
   getCategoryLabel,
   onClear,
   onToggle,
+  onSetCategories,
   onToggleHidden,
 }: {
   categories: Category[]
@@ -588,6 +596,7 @@ function CategoryFilterDropdown({
   getCategoryLabel: (code: string) => string
   onClear: () => void
   onToggle: (code: string) => void
+  onSetCategories: (codes: string[]) => void
   onToggleHidden: () => void
 }) {
   const [categorySearch, setCategorySearch] = useState('')
@@ -595,6 +604,23 @@ function CategoryFilterDropdown({
   const filteredCategories = categories.filter((cat) =>
     cat.label.toLowerCase().includes(categorySearch.toLowerCase())
   )
+
+  const groupedCategories = CATEGORY_KIND_ORDER.map((kind) => ({
+    kind,
+    items: categoriesOfKind(filteredCategories, kind),
+  })).filter((group) => group.items.length > 0)
+
+  // Select or clear every category of one kind; a chip is active when all of its kind is selected
+  const toggleKind = (kind: CategoryKind) => {
+    const codes = categoriesOfKind(categories, kind).map((cat) => cat.code)
+    const current = selectedCategories ?? []
+    const allSelected = codes.every((code) => current.includes(code))
+    onSetCategories(
+      allSelected
+        ? current.filter((code) => !codes.includes(code))
+        : [...current, ...codes.filter((code) => !current.includes(code))]
+    )
+  }
 
   // Determine what to show in the button
   const getButtonLabel = () => {
@@ -639,6 +665,33 @@ function CategoryFilterDropdown({
               className="h-8 pl-8 text-sm bg-surface-elevated border-border-subtle"
             />
           </div>
+          {/* Kind chips: select or clear all categories of one kind */}
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {CATEGORY_KIND_ORDER.map((kind) => {
+              const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
+              const isActive =
+                kindCodes.length > 0 &&
+                kindCodes.every((code) => selectedCategories?.includes(code))
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  disabled={onlyHidden || kindCodes.length === 0}
+                  aria-pressed={isActive}
+                  onClick={() => toggleKind(kind)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
+                    'disabled:opacity-50 disabled:pointer-events-none',
+                    isActive
+                      ? 'bg-primary/10 border-primary/30 text-primary'
+                      : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {CATEGORY_KIND_LABELS[kind]}
+                </button>
+              )
+            })}
+          </div>
           <div className="max-h-60 overflow-y-auto space-y-1">
             {!categorySearch && (
               <>
@@ -667,25 +720,32 @@ function CategoryFilterDropdown({
                 <div className="border-t border-border-subtle my-2" />
               </>
             )}
-            {filteredCategories.length === 0 ? (
+            {groupedCategories.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No categories found</p>
             ) : (
-              filteredCategories.map((cat) => {
-                const isSelected = selectedCategories?.includes(cat.code)
-                return (
-                  <Button
-                    key={cat.code}
-                    variant={isSelected ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => onToggle(cat.code)}
-                    disabled={onlyHidden} // Disable category selection when showing hidden
-                  >
-                    {isSelected && <Check className="mr-2 h-4 w-4 text-primary shrink-0" />}
-                    <span className={cn('truncate', !isSelected && 'ml-6')}>{cat.label}</span>
-                  </Button>
-                )
-              })
+              groupedCategories.map(({ kind, items }) => (
+                <div key={kind} className="space-y-1">
+                  <p className="px-2 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {CATEGORY_KIND_LABELS[kind]}
+                  </p>
+                  {items.map((cat) => {
+                    const isSelected = selectedCategories?.includes(cat.code)
+                    return (
+                      <Button
+                        key={cat.code}
+                        variant={isSelected ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => onToggle(cat.code)}
+                        disabled={onlyHidden} // Disable category selection when showing hidden
+                      >
+                        {isSelected && <Check className="mr-2 h-4 w-4 text-primary shrink-0" />}
+                        <span className={cn('truncate', !isSelected && 'ml-6')}>{cat.label}</span>
+                      </Button>
+                    )
+                  })}
+                </div>
+              ))
             )}
           </div>
         </PopoverContent>

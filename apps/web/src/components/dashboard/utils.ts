@@ -99,7 +99,7 @@ export function getDateRange(timeframe: TimeframeKey): { startDate?: string; end
  * Format a date as YYYY-MM-DD using local time
  * (toISOString converts to UTC, which shifts the date back a day in timezones ahead of UTC)
  */
-function toLocalDateString(date: Date): string {
+export function toLocalDateString(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${date.getFullYear()}-${month}-${day}`

@@ -93,7 +93,7 @@ export interface PaginationOptions {
 /**
  * Transform transaction to response format
  */
-function toTransactionResponse(txn: Transaction): TransactionResponse {
+export function toTransactionResponse(txn: Transaction): TransactionResponse {
   return {
     id: txn.id,
     accountId: txn.accountId,
@@ -504,7 +504,8 @@ export async function findLinkCandidates(
 }
 
 /**
- * Get transaction summary statistics
+ * Get raw ledger statistics: credits and debits as recorded, without categorisation.
+ * Income, expense and investment totals come from cashflow.ts.
  */
 export async function getTransactionStats(
   userId: string,
@@ -519,6 +520,7 @@ export async function getTransactionStats(
     search?: string
     isSubscription?: boolean
     includeHidden?: boolean
+    onlyHidden?: boolean
   }
 ): Promise<{
   totalCredits: number
@@ -527,18 +529,13 @@ export async function getTransactionStats(
   debitCount: number
   netAmount: number
   currency: string
-  categoryBreakdown: { category: string; total: number; count: number }[]
-  incomeBreakdown: { category: string; total: number; count: number }[]
-  totalIncome: number
-  /** Credits in categories that make up totalIncome */
-  incomeCount: number
-  investedAmount: number
-  spendingCount: number
 }> {
   const conditions = [eq(tables.transactions.userId, userId)]
 
-  // Exclude hidden transactions by default
-  if (!filters?.includeHidden) {
+  if (filters?.onlyHidden) {
+    conditions.push(eq(tables.transactions.isHidden, true))
+  } else if (!filters?.includeHidden) {
+    // Exclude hidden transactions by default
     conditions.push(eq(tables.transactions.isHidden, false))
   }
 
@@ -595,24 +592,15 @@ export async function getTransactionStats(
     conditions.push(eq(tables.transactions.isSubscription, filters.isSubscription))
   }
 
-  // Get all matching transactions
   const transactions = await db
     .select()
     .from(tables.transactions)
     .where(and(...conditions))
 
-  // Calculate stats
   let totalCredits = 0
   let totalDebits = 0
   let creditCount = 0
   let debitCount = 0
-  // Debits that count as spending (excludes transfers, card payments, investments)
-  let spendingCount = 0
-  // Track both debits and credits per category to calculate net spending
-  const categoryMap = new Map<
-    string,
-    { debits: number; credits: number; count: number; creditCount: number }
-  >()
 
   for (const txn of transactions) {
     const amount = typeof txn.amount === 'string' ? parseFloat(txn.amount) : Number(txn.amount)
@@ -623,66 +611,8 @@ export async function getTransactionStats(
     } else {
       totalDebits += amount
       debitCount++
-      if (!NETTED_CATEGORIES.includes(txn.category) && txn.category !== INVESTMENT_CATEGORY) {
-        spendingCount++
-      }
     }
-
-    // Track both debits and credits per category
-    const existing = categoryMap.get(txn.category) || {
-      debits: 0,
-      credits: 0,
-      count: 0,
-      creditCount: 0,
-    }
-    if (txn.type === 'credit') {
-      existing.credits += amount
-      existing.creditCount++
-    } else {
-      existing.debits += amount
-    }
-    existing.count++
-    categoryMap.set(txn.category, existing)
   }
-
-  // Calculate net spending (debits - credits) per category
-  // Only include categories where net spending is positive
-  // Exclude NETTED_CATEGORIES (like credit_card_payment) as they are internal transfers
-  // Investments are tracked separately (investedAmount), not as spending
-  const categoryBreakdown = Array.from(categoryMap.entries())
-    .filter(
-      ([category]) => !NETTED_CATEGORIES.includes(category) && category !== INVESTMENT_CATEGORY
-    )
-    .map(([category, data]) => ({
-      category,
-      total: data.debits - data.credits, // Net spending
-      count: data.count,
-    }))
-    .filter((c) => c.total > 0) // Only show categories with positive net spending
-    .sort((a, b) => b.total - a.total)
-
-  // Net income (credits - debits) per category, mirroring the spending breakdown
-  const incomeEntries = Array.from(categoryMap.entries())
-    .filter(([category]) => !NETTED_CATEGORIES.includes(category))
-    .map(([category, data]) => ({
-      category,
-      total: data.credits - data.debits,
-      count: data.count,
-      creditCount: data.creditCount,
-    }))
-    .filter((c) => c.total > 0)
-    .sort((a, b) => b.total - a.total)
-  const incomeBreakdown = incomeEntries.map(({ category, total, count }) => ({
-    category,
-    total,
-    count,
-  }))
-  const incomeCount = incomeEntries.reduce((sum, c) => sum + c.creditCount, 0)
-  const totalIncome = incomeBreakdown.reduce((sum, c) => sum + c.total, 0)
-
-  // Net amount put into investments (debits - credits)
-  const investment = categoryMap.get(INVESTMENT_CATEGORY)
-  const investedAmount = investment ? Math.max(investment.debits - investment.credits, 0) : 0
 
   // Get currency from transactions (default to INR if no transactions)
   const currency = transactions[0]?.currency || 'INR'
@@ -694,508 +624,7 @@ export async function getTransactionStats(
     debitCount,
     netAmount: totalCredits - totalDebits,
     currency,
-    categoryBreakdown,
-    incomeBreakdown,
-    totalIncome,
-    incomeCount,
-    investedAmount,
-    spendingCount,
   }
-}
-
-// ============================================================================
-// AI CATEGORY BREAKDOWN
-// ============================================================================
-
-/**
- * Category breakdown for AI analysis
- */
-export interface CategoryBreakdown {
-  period: {
-    startDate: string
-    endDate: string
-  }
-  categories: {
-    category: string
-    credits: number
-    debits: number
-    creditCount: number
-    debitCount: number
-    net: number // credits - debits (positive = net inflow, negative = net outflow)
-  }[]
-  totals: {
-    credits: number
-    debits: number
-    creditCount: number
-    debitCount: number
-    net: number
-  }
-  currency: string
-}
-
-/**
- * Get category breakdown for AI chat
- *
- * Returns credits and debits for each category, letting the AI
- * determine what counts as income, expenses, investments, etc.
- */
-export async function getCategoryBreakdown(
-  userId: string,
-  filters: {
-    profileId?: string
-    startDate?: string
-    endDate?: string
-  }
-): Promise<CategoryBreakdown> {
-  const conditions = [
-    eq(tables.transactions.userId, userId),
-    eq(tables.transactions.isHidden, false), // Exclude hidden transactions
-  ]
-
-  // Filter by profile if specified (undefined = all profiles / family view)
-  if (filters.profileId) {
-    conditions.push(eq(tables.transactions.profileId, filters.profileId))
-  }
-
-  if (filters.startDate) {
-    conditions.push(gte(tables.transactions.date, filters.startDate))
-  }
-
-  if (filters.endDate) {
-    conditions.push(lte(tables.transactions.date, filters.endDate))
-  }
-
-  // Get all matching transactions
-  const transactions = await db
-    .select()
-    .from(tables.transactions)
-    .where(and(...conditions))
-
-  // Track per category
-  const categoryMap = new Map<
-    string,
-    { credits: number; debits: number; creditCount: number; debitCount: number }
-  >()
-
-  let totalCredits = 0
-  let totalDebits = 0
-  let totalCreditCount = 0
-  let totalDebitCount = 0
-
-  for (const txn of transactions) {
-    const amount = typeof txn.amount === 'string' ? parseFloat(txn.amount) : Number(txn.amount)
-
-    const existing = categoryMap.get(txn.category) || {
-      credits: 0,
-      debits: 0,
-      creditCount: 0,
-      debitCount: 0,
-    }
-
-    if (txn.type === 'credit') {
-      existing.credits += amount
-      existing.creditCount++
-      totalCredits += amount
-      totalCreditCount++
-    } else {
-      existing.debits += amount
-      existing.debitCount++
-      totalDebits += amount
-      totalDebitCount++
-    }
-
-    categoryMap.set(txn.category, existing)
-  }
-
-  // Build category list sorted by total volume (debits + credits)
-  const categories = Array.from(categoryMap.entries())
-    .map(([category, data]) => ({
-      category,
-      credits: Math.round(data.credits * 100) / 100,
-      debits: Math.round(data.debits * 100) / 100,
-      creditCount: data.creditCount,
-      debitCount: data.debitCount,
-      net: Math.round((data.credits - data.debits) * 100) / 100,
-    }))
-    .sort((a, b) => b.debits + b.credits - (a.debits + a.credits))
-
-  const currency = transactions[0]?.currency || 'INR'
-
-  return {
-    period: {
-      startDate: filters.startDate || 'all time',
-      endDate: filters.endDate || 'now',
-    },
-    categories,
-    totals: {
-      credits: Math.round(totalCredits * 100) / 100,
-      debits: Math.round(totalDebits * 100) / 100,
-      creditCount: totalCreditCount,
-      debitCount: totalDebitCount,
-      net: Math.round((totalCredits - totalDebits) * 100) / 100,
-    },
-    currency,
-  }
-}
-
-/**
- * Monthly trend data point
- */
-export interface MonthlyTrendData {
-  month: string // YYYY-MM format
-  monthLabel: string // e.g., "Jan 24"
-  income: number
-  expenses: number
-  net: number
-  hasFullData: boolean // true if there's at least one transaction in the last 5 days of the month
-}
-
-// Categories that should be netted (debits - credits) instead of counted separately
-// These are typically internal transfers that shouldn't inflate income/expenses
-const NETTED_CATEGORIES = ['credit_card_payment', 'transfer']
-const INVESTMENT_CATEGORY = 'investment'
-
-/**
- * Month transactions response for the modal
- */
-export interface MonthTransactionsResponse {
-  month: string
-  monthLabel: string
-  credits: TransactionResponse[]
-  debits: TransactionResponse[]
-  totals: {
-    income: number
-    expenses: number
-    net: number
-  }
-  currency: string
-}
-
-/**
- * Get transactions for a specific month with netting and exclusions applied
- * Returns transactions grouped by type and totals matching the chart logic
- *
- * For netted categories (like credit_card_payment):
- * - If credits and debits are equal, hide them completely
- * - If there's a difference, show only the net amount on the appropriate side
- */
-export async function getMonthTransactions(
-  userId: string,
-  profileId: string | undefined,
-  month: string, // Format: YYYY-MM
-  excludeCategories?: string[]
-): Promise<MonthTransactionsResponse> {
-  // Parse month and calculate date range
-  // Use direct string construction to avoid timezone issues with toISOString()
-  const [year, monthNum] = month.split('-').map(Number)
-  const paddedMonth = String(monthNum).padStart(2, '0')
-  const startDateStr = `${year}-${paddedMonth}-01`
-
-  // Get last day of month by creating a date for day 0 of next month
-  const lastDayOfMonth = new Date(year!, monthNum!, 0).getDate()
-  const endDateStr = `${year}-${paddedMonth}-${String(lastDayOfMonth).padStart(2, '0')}`
-
-  const monthLabel = new Date(year!, monthNum! - 1, 1).toLocaleDateString('en-US', {
-    month: 'short',
-    year: '2-digit',
-  })
-
-  // Build query conditions
-  const conditions = [
-    eq(tables.transactions.userId, userId),
-    eq(tables.transactions.isHidden, false),
-    gte(tables.transactions.date, startDateStr),
-    lte(tables.transactions.date, endDateStr),
-  ]
-
-  // Only filter by profileId if provided (undefined = family view, all profiles)
-  if (profileId) {
-    conditions.push(eq(tables.transactions.profileId, profileId))
-  }
-
-  // Fetch all transactions for this month (excluding hidden)
-  const transactions = await db
-    .select()
-    .from(tables.transactions)
-    .where(and(...conditions))
-    .orderBy(desc(tables.transactions.date))
-
-  // Filter out excluded categories
-  const filteredTransactions = excludeCategories?.length
-    ? transactions.filter((txn) => !excludeCategories.includes(txn.category))
-    : transactions
-
-  // Separate into credits and debits, excluding netted categories
-  const credits: TransactionResponse[] = []
-  const debits: TransactionResponse[] = []
-
-  // Track totals with netting logic
-  let income = 0
-  let expenses = 0
-
-  // Track netted categories separately
-  const nettedData = new Map<
-    string,
-    {
-      debits: number
-      credits: number
-      lastDebitTxn: TransactionResponse | null
-      lastCreditTxn: TransactionResponse | null
-    }
-  >()
-
-  for (const txn of filteredTransactions) {
-    const response = toTransactionResponse(txn)
-    const amount = response.amount
-
-    if (NETTED_CATEGORIES.includes(txn.category)) {
-      // Track netted categories separately - don't add to lists yet
-      if (!nettedData.has(txn.category)) {
-        nettedData.set(txn.category, {
-          debits: 0,
-          credits: 0,
-          lastDebitTxn: null,
-          lastCreditTxn: null,
-        })
-      }
-      const data = nettedData.get(txn.category)!
-      if (txn.type === 'credit') {
-        data.credits += amount
-        data.lastCreditTxn = response
-      } else {
-        data.debits += amount
-        data.lastDebitTxn = response
-      }
-    } else {
-      // Normal categories: add to lists directly
-      if (txn.type === 'credit') {
-        credits.push(response)
-        income += amount
-      } else {
-        debits.push(response)
-        expenses += amount
-      }
-    }
-  }
-
-  // Process netted categories - only show net difference if any
-  const currency = filteredTransactions[0]?.currency || 'INR'
-
-  for (const [category, data] of nettedData) {
-    const net = data.debits - data.credits
-
-    if (Math.abs(net) > 1) {
-      // Only show if there's a meaningful difference (> 1 to handle rounding)
-      // Create a synthetic transaction for the net difference
-      const baseTxn = net > 0 ? data.lastDebitTxn : data.lastCreditTxn
-      if (baseTxn) {
-        const netTxn: TransactionResponse = {
-          ...baseTxn,
-          id: `${baseTxn.id}-net`,
-          amount: Math.abs(net),
-          type: net > 0 ? 'debit' : 'credit',
-          summary: `Net ${category.replace(/_/g, ' ')}`,
-          originalDescription: `Net difference for ${category.replace(/_/g, ' ')}`,
-        }
-
-        if (net > 0) {
-          // More debits than credits - add to expenses
-          debits.push(netTxn)
-          expenses += Math.abs(net)
-        } else {
-          // More credits than debits - add to income
-          credits.push(netTxn)
-          income += Math.abs(net)
-        }
-      }
-    }
-    // If net is ~0, don't add anything (balanced, hide completely)
-  }
-
-  return {
-    month,
-    monthLabel,
-    credits,
-    debits,
-    totals: {
-      income: Math.round(income),
-      expenses: Math.round(expenses),
-      net: Math.round(income - expenses),
-    },
-    currency,
-  }
-}
-
-/**
- * Options for monthly trends query
- */
-export interface MonthlyTrendsOptions {
-  /** Number of months to fetch (default: 12, max: 120) - used if startDate/endDate not provided */
-  months?: number
-  /** Start date in YYYY-MM-DD format - takes precedence over months */
-  startDate?: string
-  /** End date in YYYY-MM-DD format - takes precedence over months */
-  endDate?: string
-  /** Categories to exclude from calculations */
-  excludeCategories?: string[]
-}
-
-/**
- * Get monthly income and expense trends for the last N months
- * Only returns months that have actual transaction data
- */
-export async function getMonthlyTrends(
-  userId: string,
-  profileId: string | undefined,
-  options: MonthlyTrendsOptions = {}
-): Promise<{ trends: MonthlyTrendData[]; currency: string }> {
-  const { months = 12, startDate, endDate, excludeCategories } = options
-
-  // Calculate date range - use startDate/endDate if provided, otherwise use months
-  let startDateStr: string
-  let endDateStr: string | undefined
-
-  if (startDate) {
-    // Use provided dates
-    startDateStr = startDate
-    endDateStr = endDate
-  } else {
-    // Calculate from months
-    const now = new Date()
-    const startYear = now.getFullYear()
-    const startMonth = now.getMonth() - months + 1
-    const adjustedDate = new Date(startYear, startMonth, 1)
-    startDateStr = `${adjustedDate.getFullYear()}-${String(adjustedDate.getMonth() + 1).padStart(2, '0')}-01`
-  }
-
-  // Build query conditions
-  const conditions = [
-    eq(tables.transactions.userId, userId),
-    eq(tables.transactions.isHidden, false), // Exclude hidden transactions
-    gte(tables.transactions.date, startDateStr),
-  ]
-
-  // Only filter by profileId if provided (undefined = family view, all profiles)
-  if (profileId) {
-    conditions.push(eq(tables.transactions.profileId, profileId))
-  }
-
-  if (endDateStr) {
-    conditions.push(lte(tables.transactions.date, endDateStr))
-  }
-
-  // Fetch all transactions in the date range
-  const transactions = await db
-    .select()
-    .from(tables.transactions)
-    .where(and(...conditions))
-
-  // Filter out excluded categories if specified
-  const filteredTransactions = excludeCategories?.length
-    ? transactions.filter((txn) => !excludeCategories.includes(txn.category))
-    : transactions
-
-  // Group by month - only include months with data
-  const monthlyData = new Map<
-    string,
-    {
-      income: number
-      expenses: number
-      nettedDebits: Map<string, number>
-      nettedCredits: Map<string, number>
-      latestDate: string // Track latest transaction date to determine if month has full data
-    }
-  >()
-
-  // Aggregate transactions by month
-  // Extract month directly from date string to avoid timezone issues
-  for (const txn of filteredTransactions) {
-    const monthKey = txn.date.substring(0, 7) // "YYYY-MM" from "YYYY-MM-DD"
-
-    if (!monthlyData.has(monthKey)) {
-      monthlyData.set(monthKey, {
-        income: 0,
-        expenses: 0,
-        nettedDebits: new Map(),
-        nettedCredits: new Map(),
-        latestDate: txn.date,
-      })
-    }
-
-    const data = monthlyData.get(monthKey)!
-
-    // Track the latest transaction date for this month
-    if (txn.date > data.latestDate) {
-      data.latestDate = txn.date
-    }
-    const amount = typeof txn.amount === 'string' ? parseFloat(txn.amount) : Number(txn.amount)
-
-    // Check if this category should be netted
-    if (NETTED_CATEGORIES.includes(txn.category)) {
-      // Track debits and credits separately for netted categories
-      if (txn.type === 'credit') {
-        data.nettedCredits.set(txn.category, (data.nettedCredits.get(txn.category) || 0) + amount)
-      } else {
-        data.nettedDebits.set(txn.category, (data.nettedDebits.get(txn.category) || 0) + amount)
-      }
-    } else {
-      // Normal categories: add to income or expenses directly
-      if (txn.type === 'credit') {
-        data.income += amount
-      } else {
-        data.expenses += amount
-      }
-    }
-  }
-
-  // Now calculate net values for netted categories and add to income/expenses
-  for (const [, data] of monthlyData) {
-    for (const category of NETTED_CATEGORIES) {
-      const debits = data.nettedDebits.get(category) || 0
-      const credits = data.nettedCredits.get(category) || 0
-      const net = debits - credits
-
-      // If net > 0, more money went out than came in (add to expenses)
-      // If net < 0, more money came in than went out (add to income)
-      // If net = 0, balanced transfer (no effect)
-      if (net > 0) {
-        data.expenses += net
-      } else if (net < 0) {
-        data.income += Math.abs(net)
-      }
-    }
-  }
-
-  // Convert to array and format - sorted chronologically
-  const trends: MonthlyTrendData[] = Array.from(monthlyData.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => {
-      const [year, monthNum] = month.split('-')
-      const date = new Date(parseInt(year!), parseInt(monthNum!) - 1, 1)
-      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-
-      // Check if month has full data (at least one transaction in last 5 days of the month)
-      // Get the last day of the month
-      const lastDayOfMonth = new Date(parseInt(year!), parseInt(monthNum!), 0).getDate()
-      // Get the day from the latest transaction date
-      const latestDay = parseInt(data.latestDate.split('-')[2]!)
-      // Month has full data if latest transaction is within the last 5 days
-      const hasFullData = latestDay > lastDayOfMonth - 5
-
-      return {
-        month,
-        monthLabel,
-        income: Math.round(data.income),
-        expenses: Math.round(data.expenses),
-        net: Math.round(data.income - data.expenses),
-        hasFullData,
-      }
-    })
-
-  // Get currency from transactions (default to INR)
-  const currency = filteredTransactions[0]?.currency || 'INR'
-
-  return { trends, currency }
 }
 
 /**

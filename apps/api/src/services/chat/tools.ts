@@ -35,13 +35,9 @@ import {
 import { executeCode as runCodeInSandbox, isE2BConfigured } from './code-executor'
 
 // Import existing service functions
-import {
-  getTransactions,
-  getCategoryBreakdown,
-  getMonthlyTrends,
-  getDetectedSubscriptions,
-  type TransactionFilters,
-} from '../transactions'
+import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
+import { getCashFlow, getMonthsRange } from '../cashflow'
+import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
 import { getSourcesByUserId } from '../investment-sources'
@@ -55,6 +51,11 @@ import {
 
 /** Page size for paginated results */
 const PAGE_SIZE = 250
+
+/** Round a money amount to 2 decimal places for the model */
+function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100
+}
 
 /**
  * Check if Tavily is configured
@@ -917,42 +918,78 @@ Returns data in CSV format.`,
     }),
 
     getCategoryBreakdown: tool({
-      description: `Get credits and debits breakdown by category for a period. Use this to analyze spending patterns, income sources, and calculate savings.
+      description: `Get income, expense, investment and transfer totals by category for a period.
 
-**Returns per category:**
-- credits: Total money received (inflow)
-- debits: Total money spent (outflow)
+**Totals** (match the dashboard exactly):
+- income, expenses, invested, transfersNotCounted (transfers are NOT counted in any total)
+
+**Per category:**
+- label: Income, Expense, Investment or Transfer
+- credits, debits, net
 - creditCount/debitCount: Number of transactions
-- net: credits - debits (positive = net inflow, negative = net outflow)
 
-**Also returns totals** across all categories.
-
-Use this data to identify income categories, expense categories, and calculate metrics like savings rate.`,
+Refunds are already subtracted from expenses. Investments are NOT expenses. Always quote the totals rather than re-adding categories yourself.`,
       inputSchema: z.object({
         startDate: z.string().optional().describe('Start date (YYYY-MM-DD)'),
         endDate: z.string().optional().describe('End date (YYYY-MM-DD)'),
       }),
       execute: async (params) => {
-        return await getCategoryBreakdown(userId, {
+        const result = await getCashFlow(userId, {
           profileId: profileIdForQuery,
           startDate: params.startDate,
           endDate: params.endDate,
         })
+
+        return {
+          period: {
+            startDate: params.startDate || 'all time',
+            endDate: params.endDate || 'now',
+          },
+          totals: {
+            income: roundMoney(result.income),
+            expenses: roundMoney(result.expenses),
+            invested: roundMoney(result.invested),
+            transfersNotCounted: roundMoney(result.transferNet),
+          },
+          categories: result.byCategory.map((cat) => ({
+            category: cat.category,
+            label: CATEGORY_KIND_LABELS[cat.kind],
+            credits: roundMoney(cat.credits),
+            debits: roundMoney(cat.debits),
+            net: roundMoney(cat.net),
+            creditCount: cat.creditCount,
+            debitCount: cat.debitCount,
+          })),
+          excludedCategories: result.excludedCategories,
+          currency: result.currency,
+        }
       },
     }),
 
     getMonthlyTrends: tool({
-      description: 'Get monthly income and expense trends.',
+      description:
+        'Get monthly income, expense and investment trends (same numbers as the dashboard chart).',
       inputSchema: z.object({
         months: z.number().optional().default(12).describe('Number of months (default: 12)'),
       }),
       execute: async (params) => {
         const months = Math.min(params.months || 12, 24)
-        const result = await getMonthlyTrends(userId, profileIdForQuery, { months })
+        const result = await getCashFlow(userId, {
+          profileId: profileIdForQuery,
+          ...getMonthsRange(months),
+          groupByMonth: true,
+        })
 
         return {
           currency: result.currency,
-          trends: result.trends,
+          trends: result.months.map((m) => ({
+            month: m.month,
+            monthLabel: m.monthLabel,
+            income: roundMoney(m.income),
+            expenses: roundMoney(m.expenses),
+            invested: roundMoney(m.invested),
+            net: roundMoney(m.income - m.expenses),
+          })),
         }
       },
     }),

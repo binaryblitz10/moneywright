@@ -19,7 +19,7 @@ import {
 import { getProfileById } from '../services/profiles'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
-import { TRANSACTION_LINK_TYPES, type CountryCode } from '../lib/constants'
+import { TRANSACTION_LINK_TYPES, isKnownCategory, type CountryCode } from '../lib/constants'
 
 const transactionRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -30,7 +30,11 @@ transactionRoutes.use('*', auth())
  * Update transaction request schema
  */
 const updateTransactionSchema = z.object({
-  category: z.string().min(1).optional(),
+  category: z
+    .string()
+    .min(1)
+    .refine((c) => isKnownCategory(c), { message: 'Unknown category' })
+    .optional(),
   summary: z.string().optional(),
   isHidden: z.boolean().optional(),
   // Entity linking - allows manual linking/unlinking
@@ -44,7 +48,11 @@ const updateTransactionSchema = z.object({
 const bulkUpdateSchema = z
   .object({
     transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
-    category: z.string().min(1).optional(),
+    category: z
+      .string()
+      .min(1)
+      .refine((c) => isKnownCategory(c), { message: 'Unknown category' })
+      .optional(),
     summary: z.string().optional(),
     isHidden: z.boolean().optional(),
   })
@@ -74,6 +82,7 @@ const recategorizeSchema = z
     categorizationModel: z.string().min(1, 'Categorization model is required'),
     categorizationHints: z.string().max(1000).optional(),
     includeManual: z.boolean().optional(), // If true, include manually categorized transactions
+    categories: z.array(z.string()).optional(), // If set, only recategorize these categories
   })
   .refine((data) => data.accountId || data.statementId, {
     message: 'Either accountId or statementId is required',
@@ -168,6 +177,7 @@ transactionRoutes.get('/stats', async (c) => {
   const search = c.req.query('search')
   const isSubscription = c.req.query('isSubscription')
   const includeHidden = c.req.query('includeHidden')
+  const onlyHidden = c.req.query('onlyHidden')
 
   // Parse multi-value filters
   const accountIds = parseMultiValue(accountId)
@@ -186,6 +196,7 @@ transactionRoutes.get('/stats', async (c) => {
     isSubscription:
       isSubscription === 'true' ? true : isSubscription === 'false' ? false : undefined,
     includeHidden: includeHidden === 'true',
+    onlyHidden: onlyHidden === 'true',
   })
 
   return c.json(stats)
@@ -393,6 +404,7 @@ transactionRoutes.post('/recategorize', async (c) => {
     categorizationModel,
     categorizationHints,
     includeManual,
+    categories,
   } = result.data
 
   // Verify profile belongs to user
@@ -425,6 +437,7 @@ transactionRoutes.post('/recategorize', async (c) => {
     categorizationModel,
     categorizationHints,
     includeManual,
+    categories,
   })
 
   return c.json({
