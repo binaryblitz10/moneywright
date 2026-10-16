@@ -127,12 +127,13 @@ export function StatCard({
 
             {/* Value */}
             {loading ? (
-              <Skeleton className="h-8 w-28 mb-1.5" />
+              <Skeleton className="h-8 w-28" />
             ) : (
-              <div className="flex items-baseline gap-2 flex-wrap">
+              // Fixed height so the length-based font size never changes the card height
+              <div className="flex h-8 items-center gap-2">
                 <p
                   className={cn(
-                    'font-semibold tracking-tight text-foreground tabular-nums transition-all duration-200',
+                    'font-semibold tracking-tight text-foreground tabular-nums truncate',
                     fontSize
                   )}
                 >
