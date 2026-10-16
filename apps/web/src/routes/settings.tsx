@@ -18,6 +18,7 @@ import {
   DangerZoneSection,
   AboutSection,
   PinSection,
+  CategorizationHintsSection,
 } from '@/components/settings'
 
 export const Route = createFileRoute('/settings')({
@@ -70,6 +71,9 @@ function SettingsPage() {
       <div className="max-w-4xl space-y-6">
         {/* AI Providers Section */}
         <AIProvidersSection settings={llmSettings} providers={providers} />
+
+        {/* Default Categorization Hints */}
+        <CategorizationHintsSection />
 
         {/* Profiles Section */}
         <ProfilesSection profiles={profiles} />

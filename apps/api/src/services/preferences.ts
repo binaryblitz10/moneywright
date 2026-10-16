@@ -9,6 +9,7 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
+  DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const
 
 /**

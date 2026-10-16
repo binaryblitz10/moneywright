@@ -1694,6 +1694,7 @@ export const PREFERENCE_KEYS = {
   STATEMENT_PARSING_MODEL: 'statement.parsing.model',
   STATEMENT_CATEGORISATION_PROVIDER: 'statement.categorisation.provider',
   STATEMENT_CATEGORISATION_MODEL: 'statement.categorisation.model',
+  DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const
 
 /**
