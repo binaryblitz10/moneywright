@@ -171,7 +171,8 @@ export function TransactionTable({
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-border-subtle bg-card">
+    // Fade in once on mount; rows swap in place on updates so they don't flash
+    <div className="rounded-xl overflow-hidden border border-border-subtle bg-card animate-fade-in">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
@@ -233,14 +234,12 @@ export function TransactionTable({
                 className={cn(
                   'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
                   'hover:bg-surface-hover',
-                  'animate-fade-in',
                   rowClickSelects && 'cursor-pointer',
                   selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                 )}
                 onClick={rowClickSelects ? (e) => handleRowClick(e, index) : undefined}
                 // Stop shift-click from highlighting text while range selecting
                 onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
-                style={{ animationDelay: `${Math.min(index * 20, 200)}ms` }}
               >
                 {selectable && (
                   <TableCell

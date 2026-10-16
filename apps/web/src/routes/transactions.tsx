@@ -14,6 +14,7 @@ import {
 import { TableSkeleton } from '@/components/ui/skeleton'
 import type { Transaction, TransactionFilters } from '@/lib/api'
 import { getKindOf } from '@/lib/category-kinds'
+import { cn } from '@/lib/utils'
 import {
   useAuth,
   useTransactions,
@@ -99,10 +100,11 @@ function TransactionsPage() {
   }
 
   // Query hooks
-  const { data: transactionsData, isLoading: transactionsLoading } = useTransactions(
-    activeFilters,
-    { page, limit, sortBy, sortOrder }
-  )
+  const {
+    data: transactionsData,
+    isLoading: transactionsLoading,
+    isPlaceholderData: transactionsStale,
+  } = useTransactions(activeFilters, { page, limit, sortBy, sortOrder })
   // activeFilters carries includeHidden / onlyHidden from `filters`, so stats match the list
   const { data: stats, isLoading: statsLoading } = useTransactionStats(activeFilters)
   const { data: categoriesData } = useCategories()
@@ -381,22 +383,25 @@ function TransactionsPage() {
         {transactionsLoading ? (
           <TableSkeleton rows={10} columns={4} />
         ) : transactions.length > 0 ? (
-          <TransactionTable
-            transactions={transactions}
-            accounts={accounts || []}
-            categories={categories}
-            countryCode={countryCode}
-            onEditTransaction={setEditingTransaction}
-            getCategoryLabel={getCategoryLabel}
-            formatAmount={formatAmount}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={handleSortChange}
-            profiles={profiles}
-            showProfileBadge={showFamilyView}
-            selectedIds={selectionMode ? selectedIds : undefined}
-            onSelectionChange={selectionMode ? setSelectedIds : undefined}
-          />
+          // Dim the previous results while the new ones load
+          <div className={cn('transition-opacity duration-200', transactionsStale && 'opacity-60')}>
+            <TransactionTable
+              transactions={transactions}
+              accounts={accounts || []}
+              categories={categories}
+              countryCode={countryCode}
+              onEditTransaction={setEditingTransaction}
+              getCategoryLabel={getCategoryLabel}
+              formatAmount={formatAmount}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
+              profiles={profiles}
+              showProfileBadge={showFamilyView}
+              selectedIds={selectionMode ? selectedIds : undefined}
+              onSelectionChange={selectionMode ? setSelectedIds : undefined}
+            />
+          </div>
         ) : (
           <EmptyState
             icon={hasActiveFilters ? Receipt : Upload}
