@@ -96,7 +96,7 @@ export function TransactionFiltersBar({
       {/* Main Filter Bar */}
       <div
         className={cn(
-          'relative flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300',
+          'relative flex flex-col p-4 rounded-2xl transition-all duration-300',
           'bg-linear-to-b from-card to-card/80',
           'border border-border-subtle',
           'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
@@ -106,12 +106,7 @@ export function TransactionFiltersBar({
         {/* Top Row: Search + Quick Filters */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Search Input - Command Bar Style */}
-          <div
-            className={cn(
-              'relative flex-1 min-w-60 max-w-md transition-all duration-200',
-              searchFocused && 'max-w-lg'
-            )}
-          >
+          <div className="relative flex-1 min-w-60">
             <div
               className={cn(
                 'absolute inset-0 rounded-xl transition-all duration-200',
@@ -152,7 +147,7 @@ export function TransactionFiltersBar({
           </div>
 
           {/* Quick Filter Chips */}
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Transaction Type Selector */}
             <div
               className={cn(
@@ -269,7 +264,7 @@ export function TransactionFiltersBar({
         <div
           className={cn(
             'grid transition-all duration-300 ease-out overflow-hidden',
-            showAdvanced ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            showAdvanced ? 'mt-4 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
           )}
         >
           <div className="min-h-0 overflow-hidden">
