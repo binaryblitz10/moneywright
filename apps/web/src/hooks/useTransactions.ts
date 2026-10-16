@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getTransactions,
@@ -45,6 +45,8 @@ export function useTransactions(
     queryKey: transactionKeys.list(filterOptions, pagination),
     queryFn: () => getTransactions(filterOptions, pagination),
     enabled,
+    // Keep showing the current page while a new filter/page loads, so the layout doesn't jump
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -82,6 +84,7 @@ export function useTransactionStats(filters?: {
     queryKey: transactionKeys.stats(filterOptions),
     queryFn: () => getTransactionStats(filterOptions),
     enabled,
+    placeholderData: keepPreviousData,
   })
 }
 
