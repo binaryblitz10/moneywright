@@ -105,14 +105,16 @@ summaryRoutes.get('/', async (c) => {
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
       },
-      totalIncome: transactionStats.totalCredits,
+      // Net income by category: matches the income-by-category breakdown
+      totalIncome: transactionStats.totalIncome,
       // Spending only: excludes transfers, card payments and investments
       totalExpenses: transactionStats.categoryBreakdown.reduce((sum, c) => sum + c.total, 0),
-      incomeCount: transactionStats.creditCount,
+      incomeCount: transactionStats.incomeCount,
       expenseCount: transactionStats.spendingCount,
       netCashFlow: transactionStats.netAmount,
       currency: transactionStats.currency,
       categoryBreakdown: transactionStats.categoryBreakdown,
+      incomeBreakdown: transactionStats.incomeBreakdown,
       // Net amount put into investments during the period
       investedAmount: transactionStats.investedAmount,
     },

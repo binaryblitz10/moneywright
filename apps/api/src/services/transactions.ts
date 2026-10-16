@@ -530,6 +530,8 @@ export async function getTransactionStats(
   categoryBreakdown: { category: string; total: number; count: number }[]
   incomeBreakdown: { category: string; total: number; count: number }[]
   totalIncome: number
+  /** Credits in categories that make up totalIncome */
+  incomeCount: number
   investedAmount: number
   spendingCount: number
 }> {
@@ -607,7 +609,10 @@ export async function getTransactionStats(
   // Debits that count as spending (excludes transfers, card payments, investments)
   let spendingCount = 0
   // Track both debits and credits per category to calculate net spending
-  const categoryMap = new Map<string, { debits: number; credits: number; count: number }>()
+  const categoryMap = new Map<
+    string,
+    { debits: number; credits: number; count: number; creditCount: number }
+  >()
 
   for (const txn of transactions) {
     const amount = typeof txn.amount === 'string' ? parseFloat(txn.amount) : Number(txn.amount)
@@ -624,9 +629,15 @@ export async function getTransactionStats(
     }
 
     // Track both debits and credits per category
-    const existing = categoryMap.get(txn.category) || { debits: 0, credits: 0, count: 0 }
+    const existing = categoryMap.get(txn.category) || {
+      debits: 0,
+      credits: 0,
+      count: 0,
+      creditCount: 0,
+    }
     if (txn.type === 'credit') {
       existing.credits += amount
+      existing.creditCount++
     } else {
       existing.debits += amount
     }
@@ -651,15 +662,22 @@ export async function getTransactionStats(
     .sort((a, b) => b.total - a.total)
 
   // Net income (credits - debits) per category, mirroring the spending breakdown
-  const incomeBreakdown = Array.from(categoryMap.entries())
+  const incomeEntries = Array.from(categoryMap.entries())
     .filter(([category]) => !NETTED_CATEGORIES.includes(category))
     .map(([category, data]) => ({
       category,
       total: data.credits - data.debits,
       count: data.count,
+      creditCount: data.creditCount,
     }))
     .filter((c) => c.total > 0)
     .sort((a, b) => b.total - a.total)
+  const incomeBreakdown = incomeEntries.map(({ category, total, count }) => ({
+    category,
+    total,
+    count,
+  }))
+  const incomeCount = incomeEntries.reduce((sum, c) => sum + c.creditCount, 0)
   const totalIncome = incomeBreakdown.reduce((sum, c) => sum + c.total, 0)
 
   // Net amount put into investments (debits - credits)
@@ -679,6 +697,7 @@ export async function getTransactionStats(
     categoryBreakdown,
     incomeBreakdown,
     totalIncome,
+    incomeCount,
     investedAmount,
     spendingCount,
   }

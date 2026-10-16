@@ -71,7 +71,7 @@ function TransactionsPage() {
   // Filter state
   const searchParams = useSearch({ from: '/transactions' })
   const [filters, setFilters] = useState<TransactionFilters>(() => ({
-    ...(searchParams.category && { category: [searchParams.category] }),
+    ...(searchParams.category && { category: searchParams.category.split(',') }),
     ...(searchParams.startDate && { startDate: searchParams.startDate }),
     ...(searchParams.endDate && { endDate: searchParams.endDate }),
     ...(searchParams.statementId && { statementId: [searchParams.statementId] }),

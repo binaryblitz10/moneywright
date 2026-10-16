@@ -1479,6 +1479,7 @@ export interface FinancialSummary {
     netCashFlow: number
     currency: string
     categoryBreakdown: { category: string; total: number; count: number }[]
+    incomeBreakdown: { category: string; total: number; count: number }[]
     investedAmount: number
   }
 }

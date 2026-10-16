@@ -246,7 +246,7 @@ function DashboardPage() {
   })
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading } = useQuery({
+  const { data: accounts } = useQuery({
     queryKey: ['accounts', profileId ?? 'family'],
     queryFn: () => getAccounts(profileId),
     enabled: queryEnabled,
@@ -356,6 +356,17 @@ function DashboardPage() {
     setSelectedMonth(month)
   }, [])
 
+  // Link a card to the exact categories its total is built from (refunds and
+  // reversals included), so the transactions page's net amount equals the card
+  const categoriesLink = (breakdown?: { category: string }[]) =>
+    breakdown?.length
+      ? {
+          category: breakdown.map((c) => c.category).join(','),
+          startDate: categoryDateOptions.startDate,
+          endDate: categoryDateOptions.endDate,
+        }
+      : undefined
+
   const accountsCount = accounts?.length || 0
   const allAccounts = summary
     ? [
@@ -403,6 +414,19 @@ function DashboardPage() {
           trend={summary?.netWorth.total ? (summary.netWorth.total > 0 ? 'up' : 'down') : undefined}
         />
         <StatCard
+          label="Income"
+          value={summary?.transactions.totalIncome}
+          currency={summary?.transactions.currency}
+          subtitle={
+            summary?.transactions.incomeCount
+              ? `${summary.transactions.incomeCount} transactions · ${selectedTimeframeLabel}`
+              : selectedTimeframeLabel
+          }
+          icon={Wallet}
+          loading={summaryLoading}
+          transactionsLink={categoriesLink(summary?.transactions.incomeBreakdown)}
+        />
+        <StatCard
           label="Expenses"
           value={
             summary?.transactions.totalExpenses && summary.transactions.totalExpenses > 0
@@ -421,6 +445,7 @@ function DashboardPage() {
           }
           icon={CreditCard}
           loading={summaryLoading || trendsLoading}
+          transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
         />
         <StatCard
           label="Investments"
@@ -434,14 +459,6 @@ function DashboardPage() {
             startDate: categoryDateOptions.startDate,
             endDate: categoryDateOptions.endDate,
           }}
-        />
-        <StatCard
-          label="Accounts"
-          value={accountsCount}
-          subtitle="Connected accounts"
-          icon={Wallet}
-          loading={accountsLoading}
-          isCount
         />
       </StatCardGrid>
 
