@@ -664,6 +664,8 @@ export interface Statement {
   errorMessage: string | null
   summary: Record<string, unknown> | null
   transactionCount: number
+  /** Transactions deleted after parsing */
+  deletedTransactionCount: number
   holdingsCount: number | null
   createdAt: string
   updatedAt: string

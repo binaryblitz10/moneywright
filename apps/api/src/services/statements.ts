@@ -55,6 +55,7 @@ export interface StatementResponse {
   errorMessage: string | null
   summary: StatementSummary | null
   transactionCount: number
+  deletedTransactionCount: number
   holdingsCount: number | null
   parseStartedAt: string | Date | null
   parseCompletedAt: string | Date | null
@@ -126,6 +127,7 @@ function toStatementResponse(statement: Statement): StatementResponse {
     errorMessage: statement.errorMessage,
     summary,
     transactionCount: statement.transactionCount || 0,
+    deletedTransactionCount: statement.deletedTransactionCount || 0,
     holdingsCount: statement.holdingsCount || null,
     parseStartedAt: statement.parseStartedAt || null,
     parseCompletedAt: statement.parseCompletedAt || null,

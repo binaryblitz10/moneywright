@@ -226,6 +226,11 @@ export function StatementCard({
                   {isInvestment ? 'Holdings' : 'Transactions'}
                 </span>
                 <p className="text-lg font-semibold text-foreground tabular-nums mt-0.5">{count}</p>
+                {!isInvestment && statement.deletedTransactionCount > 0 && (
+                  <p className="text-[11px] text-muted-foreground tabular-nums">
+                    {statement.deletedTransactionCount} deleted
+                  </p>
+                )}
               </div>
             )}
 

@@ -204,6 +204,7 @@ export const statements = pgTable(
 
     // Stats
     transactionCount: integer('transaction_count').default(0),
+    deletedTransactionCount: integer('deleted_transaction_count').default(0), // Transactions the user deleted after parsing
     holdingsCount: integer('holdings_count'), // For investment statements
 
     // Parse timing

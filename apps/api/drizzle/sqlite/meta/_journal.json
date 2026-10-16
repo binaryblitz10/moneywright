@@ -57,6 +57,13 @@
       "when": 1792084368150,
       "tag": "0007_account_categorization_hints",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792162014889,
+      "tag": "0008_statement_deleted_transaction_count",
+      "breakpoints": true
     }
   ]
 }

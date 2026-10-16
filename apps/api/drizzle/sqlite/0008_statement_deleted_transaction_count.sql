@@ -1,0 +1,1 @@
+ALTER TABLE `statements` ADD `deleted_transaction_count` integer DEFAULT 0;
