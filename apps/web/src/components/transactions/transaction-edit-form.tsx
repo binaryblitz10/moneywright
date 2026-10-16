@@ -171,6 +171,7 @@ export function TransactionEditForm({
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           placeholder="Brief description"
+          className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
 
