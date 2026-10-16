@@ -385,8 +385,9 @@ function SubscriptionsPage() {
             ))}
           </div>
         ) : filteredSubscriptions.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredSubscriptions.map((sub, index) => (
+          // Fade in once on mount; cards swap in place when filters change
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
+            {filteredSubscriptions.map((sub) => (
               <SubscriptionCard
                 key={`${sub.name}-${sub.lastChargeDate}`}
                 subscription={sub}
@@ -394,7 +395,6 @@ function SubscriptionsPage() {
                 countryCode={countryCode}
                 getCategoryLabel={getCategoryLabel}
                 onClick={() => setSelectedSubscription(sub)}
-                index={index}
                 profiles={profiles}
                 showProfileBadge={showFamilyView}
               />
@@ -475,7 +475,6 @@ function SubscriptionCard({
   countryCode,
   getCategoryLabel,
   onClick,
-  index,
   profiles,
   showProfileBadge,
 }: {
@@ -484,7 +483,6 @@ function SubscriptionCard({
   countryCode: string
   getCategoryLabel: (code: string) => string
   onClick: () => void
-  index: number
   profiles?: Profile[]
   showProfileBadge?: boolean
 }) {
@@ -499,10 +497,8 @@ function SubscriptionCard({
         'group relative w-full text-left bg-card border border-border-subtle rounded-xl p-4',
         'hover:border-border-hover hover:bg-surface-hover/50 transition-all duration-200',
         'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40',
-        !sub.isActive && 'opacity-60',
-        'animate-stagger-fade-in'
+        !sub.isActive && 'opacity-60'
       )}
-      style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
     >
       {/* Top row: Name and Amount */}
       <div className="flex items-start justify-between gap-3 mb-2">
