@@ -14,7 +14,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -29,6 +28,7 @@ import {
   TrendingUp,
   MoreVertical,
   RefreshCw,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Statement, Account, InvestmentSource, Profile } from '@/lib/api'
@@ -42,6 +42,7 @@ interface StatementCardProps {
   formatFileSize: (bytes: number | null) => string
   formatPeriod: (start: string | null, end: string | null) => string | null
   onDelete: () => void
+  onEdit?: () => void
   onRecategorize?: () => void
   /** Profiles list for showing profile badge in family view */
   profiles?: Profile[]
@@ -57,6 +58,7 @@ export function StatementCard({
   formatFileSize,
   formatPeriod,
   onDelete,
+  onEdit,
   onRecategorize,
   profiles,
   showProfileBadge,
@@ -180,14 +182,21 @@ export function StatementCard({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  {/* Only show recategorize for bank/credit card statements that are completed */}
-                  {!isInvestment && isCompleted && onRecategorize && (
+                  {/* Only show edit and recategorize for bank/credit card statements that are completed */}
+                  {!isInvestment && isCompleted && (onEdit || onRecategorize) && (
                     <>
-                      <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Recategorize
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
+                      {onEdit && (
+                        <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                      )}
+                      {onRecategorize && (
+                        <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Recategorize
+                        </DropdownMenuItem>
+                      )}
                     </>
                   )}
                   <DropdownMenuItem

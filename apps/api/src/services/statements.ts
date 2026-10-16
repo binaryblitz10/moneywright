@@ -323,6 +323,96 @@ export async function updateStatementResults(
     .where(eq(tables.statements.id, statementId))
 }
 
+export interface StatementDetailsUpdate {
+  periodStart?: string | null
+  periodEnd?: string | null
+  /** Bank statements */
+  openingBalance?: number | null
+  closingBalance?: number | null
+  /** Credit card statements: also stored as the closing balance, which drives the card's outstanding */
+  totalDue?: number | null
+}
+
+/**
+ * Edit the period and balances of a completed bank/credit card statement
+ */
+export async function updateStatementDetails(
+  statementId: string,
+  userId: string,
+  data: StatementDetailsUpdate
+): Promise<StatementResponse> {
+  const statement = await getStatementById(statementId, userId)
+  if (!statement) throw new Error('Statement not found')
+  if (statement.documentType === 'investment_statement') {
+    throw new Error('Investment statements cannot be edited')
+  }
+
+  const periodStart = data.periodStart !== undefined ? data.periodStart : statement.periodStart
+  const periodEnd = data.periodEnd !== undefined ? data.periodEnd : statement.periodEnd
+  if (periodStart && periodEnd && periodStart > periodEnd) {
+    throw new Error('Period start must be on or before period end')
+  }
+
+  const toDbNumber = (value: number | null) =>
+    value == null ? null : dbType === 'postgres' ? value.toString() : value
+
+  const updates: Partial<typeof tables.statements.$inferInsert> = {
+    periodStart: periodStart || null,
+    periodEnd: periodEnd || null,
+    updatedAt: (dbType === 'postgres' ? new Date() : new Date().toISOString()) as Date,
+  }
+  let summary = statement.summary
+
+  if (data.totalDue !== undefined) {
+    // Credit card: the total due is the outstanding balance
+    updates.closingBalance = toDbNumber(
+      data.totalDue
+    ) as typeof tables.statements.$inferSelect.closingBalance
+    const base = summary?.type === 'credit_card_statement' ? summary : null
+    summary = {
+      ...base,
+      type: 'credit_card_statement',
+      totalDue: data.totalDue ?? undefined,
+    }
+  } else {
+    if (data.openingBalance !== undefined) {
+      updates.openingBalance = toDbNumber(
+        data.openingBalance
+      ) as typeof tables.statements.$inferSelect.openingBalance
+    }
+    if (data.closingBalance !== undefined) {
+      updates.closingBalance = toDbNumber(
+        data.closingBalance
+      ) as typeof tables.statements.$inferSelect.closingBalance
+    }
+    if (summary?.type === 'bank_statement') {
+      summary = {
+        ...summary,
+        openingBalance:
+          data.openingBalance !== undefined
+            ? (data.openingBalance ?? undefined)
+            : summary.openingBalance,
+        closingBalance:
+          data.closingBalance !== undefined
+            ? (data.closingBalance ?? undefined)
+            : summary.closingBalance,
+      }
+    }
+  }
+
+  if (summary !== statement.summary) {
+    updates.summary = (
+      dbType === 'postgres' ? summary : JSON.stringify(summary)
+    ) as typeof tables.statements.$inferSelect.summary
+  }
+
+  await db.update(tables.statements).set(updates).where(eq(tables.statements.id, statementId))
+
+  const updated = await getStatementById(statementId, userId)
+  if (!updated) throw new Error('Statement not found')
+  return updated
+}
+
 export async function deleteStatement(statementId: string, userId: string): Promise<void> {
   const statement = await getStatementById(statementId, userId)
   if (!statement) throw new Error('Statement not found')

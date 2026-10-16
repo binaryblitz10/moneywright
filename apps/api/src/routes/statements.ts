@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod/v4'
 import { auth, type AuthVariables } from '../middleware/auth'
 import {
   getStatementsByUserId,
@@ -6,6 +7,7 @@ import {
   getStatementStatus,
   createStatement,
   deleteStatement,
+  updateStatementDetails,
   queueStatements,
   type StatementInput,
 } from '../services/statements'
@@ -51,6 +53,48 @@ statementRoutes.get('/:id', async (c) => {
   }
 
   return c.json({ statement })
+})
+
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be YYYY-MM-DD')
+
+const updateStatementSchema = z.object({
+  periodStart: dateSchema.nullable().optional(),
+  periodEnd: dateSchema.nullable().optional(),
+  openingBalance: z.number().finite().nullable().optional(),
+  closingBalance: z.number().finite().nullable().optional(),
+  totalDue: z.number().finite().nullable().optional(),
+})
+
+/**
+ * PATCH /statements/:id
+ * Edit a statement's period and balances (total due for credit cards)
+ */
+statementRoutes.patch('/:id', async (c) => {
+  const userId = c.get('userId')
+  const statementId = c.req.param('id')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = updateStatementSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  try {
+    const statement = await updateStatementDetails(statementId, userId, result.data)
+    return c.json({ statement })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update statement'
+    if (message === 'Statement not found') {
+      return c.json({ error: 'not_found', message }, 404)
+    }
+    return c.json({ error: 'update_failed', message }, 400)
+  }
 })
 
 /**

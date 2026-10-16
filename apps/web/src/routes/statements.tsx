@@ -17,7 +17,13 @@ import {
   useDeleteStatement,
   useProfileSelection,
 } from '@/hooks'
-import { StatementCard, FilterBar, UploadForm, type SortOption } from '@/components/statements'
+import {
+  StatementCard,
+  StatementEditDialog,
+  FilterBar,
+  UploadForm,
+  type SortOption,
+} from '@/components/statements'
 import { RecategorizeModal } from '@/components/transactions/recategorize-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FileText, Upload as UploadIcon } from 'lucide-react'
@@ -57,6 +63,7 @@ function StatementsPage() {
     const saved = localStorage.getItem(SORT_STORAGE_KEY)
     return (saved as SortOption) || 'period_desc'
   })
+  const [editStatement, setEditStatement] = useState<Statement | null>(null)
   const [recategorizeStatement, setRecategorizeStatement] = useState<Statement | null>(null)
 
   // Open upload dialog if ?upload=true is in the URL
@@ -247,6 +254,7 @@ function StatementsPage() {
                   formatFileSize={formatFileSize}
                   formatPeriod={formatPeriod}
                   onDelete={() => deleteMutation.mutate(statement.id)}
+                  onEdit={() => setEditStatement(statement)}
                   onRecategorize={() => setRecategorizeStatement(statement)}
                   profiles={profiles}
                   showProfileBadge={showFamilyView}
@@ -268,6 +276,18 @@ function StatementsPage() {
               onClick: () => setShowUploadDialog(true),
               icon: UploadIcon,
             }}
+          />
+        )}
+
+        {/* Edit Statement Dialog */}
+        {editStatement && (
+          <StatementEditDialog
+            statement={editStatement}
+            isCreditCard={
+              !!editStatement.accountId &&
+              accountMap.get(editStatement.accountId)?.type === 'credit_card'
+            }
+            onClose={() => setEditStatement(null)}
           />
         )}
 

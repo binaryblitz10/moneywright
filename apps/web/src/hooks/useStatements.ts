@@ -6,6 +6,7 @@ import {
   getStatementStatus,
   uploadStatements,
   deleteStatement,
+  updateStatement,
 } from '@/lib/api'
 import { accountKeys } from './useAccounts'
 import { investmentKeys } from './useInvestments'
@@ -102,6 +103,31 @@ export function useUploadStatements() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to upload statements')
+    },
+  })
+}
+
+/**
+ * Edit a statement's period and balances
+ */
+export function useUpdateStatement() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      statementId,
+      data,
+    }: {
+      statementId: string
+      data: Parameters<typeof updateStatement>[1]
+    }) => updateStatement(statementId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: statementKeys.all })
+      queryClient.invalidateQueries({ queryKey: accountKeys.all })
+      toast.success('Statement updated')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update statement')
     },
   })
 }

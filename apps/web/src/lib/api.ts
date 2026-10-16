@@ -660,6 +660,8 @@ export interface Statement {
   fileSizeBytes: number | null
   periodStart: string | null
   periodEnd: string | null
+  openingBalance: number | null
+  closingBalance: number | null
   status: 'pending' | 'parsing' | 'completed' | 'failed'
   errorMessage: string | null
   summary: Record<string, unknown> | null
@@ -776,6 +778,23 @@ export async function uploadStatements(
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return response.data
+}
+
+/**
+ * Edit a statement's period and balances (totalDue for credit cards)
+ */
+export async function updateStatement(
+  statementId: string,
+  data: {
+    periodStart?: string | null
+    periodEnd?: string | null
+    openingBalance?: number | null
+    closingBalance?: number | null
+    totalDue?: number | null
+  }
+): Promise<Statement> {
+  const response = await api.patch(`/statements/${statementId}`, data)
+  return response.data.statement
 }
 
 /**

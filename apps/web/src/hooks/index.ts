@@ -62,6 +62,7 @@ export {
   useStatementStatus,
   useUploadStatements,
   useDeleteStatement,
+  useUpdateStatement,
   useStatementProcessing,
 } from './useStatements'
 
