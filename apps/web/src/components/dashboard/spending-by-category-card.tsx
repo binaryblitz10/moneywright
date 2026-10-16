@@ -10,6 +10,8 @@ import { InlineEmptyState } from '@/components/ui/empty-state'
 import { PieChart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CategoryBreakdown } from './category-breakdown'
+import { CategoryPieChart } from './category-pie-chart'
+import { CategoryViewToggle, type CategoryView } from './category-view-toggle'
 import { CategoryBreakdownDialog } from './category-breakdown-dialog'
 
 interface CategoryStats {
@@ -42,6 +44,7 @@ export function SpendingByCategoryCard({
   endDate,
 }: SpendingByCategoryCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [view, setView] = useState<CategoryView>('list')
   const breakdown = categoryStats?.categoryBreakdown
   const hasData = !isLoading && !!breakdown && breakdown.length > 0
 
@@ -60,6 +63,7 @@ export function SpendingByCategoryCard({
               Spending by Category
             </CardTitle>
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <CategoryViewToggle view={view} onViewChange={setView} />
               {/* Monthly Average Toggle */}
               <Button
                 variant="ghost"
@@ -91,17 +95,29 @@ export function SpendingByCategoryCard({
               ))}
             </div>
           ) : categoryStats?.categoryBreakdown && categoryStats.categoryBreakdown.length > 0 ? (
-            <CategoryBreakdown
-              categoryBreakdown={categoryStats.categoryBreakdown}
-              total={categoryStats.totalDebits}
-              currency={categoryStats.currency}
-              getCategoryLabel={getCategoryLabel}
-              getCategoryColor={getCategoryColor}
-              showMonthlyAverage={showMonthlyAverage}
-              totalMonths={totalMonths}
-              startDate={startDate}
-              endDate={endDate}
-            />
+            view === 'pie' ? (
+              <CategoryPieChart
+                categoryBreakdown={categoryStats.categoryBreakdown}
+                total={categoryStats.totalDebits}
+                currency={categoryStats.currency}
+                getCategoryLabel={getCategoryLabel}
+                getCategoryColor={getCategoryColor}
+                showMonthlyAverage={showMonthlyAverage}
+                totalMonths={totalMonths}
+              />
+            ) : (
+              <CategoryBreakdown
+                categoryBreakdown={categoryStats.categoryBreakdown}
+                total={categoryStats.totalDebits}
+                currency={categoryStats.currency}
+                getCategoryLabel={getCategoryLabel}
+                getCategoryColor={getCategoryColor}
+                showMonthlyAverage={showMonthlyAverage}
+                totalMonths={totalMonths}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            )
           ) : (
             <InlineEmptyState
               icon={PieChart}

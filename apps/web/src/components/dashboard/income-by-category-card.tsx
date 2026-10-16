@@ -10,6 +10,8 @@ import { InlineEmptyState } from '@/components/ui/empty-state'
 import { Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CategoryBreakdown } from './category-breakdown'
+import { CategoryPieChart } from './category-pie-chart'
+import { CategoryViewToggle, type CategoryView } from './category-view-toggle'
 import { CategoryBreakdownDialog } from './category-breakdown-dialog'
 
 interface IncomeByCategoryCardProps {
@@ -40,6 +42,7 @@ export function IncomeByCategoryCard({
   endDate,
 }: IncomeByCategoryCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [view, setView] = useState<CategoryView>('list')
   const hasData = !isLoading && !!incomeBreakdown && incomeBreakdown.length > 0
 
   return (
@@ -56,22 +59,25 @@ export function IncomeByCategoryCard({
             <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
               Income by Category
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onShowMonthlyAverageChange(!showMonthlyAverage)
-              }}
-              className={cn(
-                'h-7 text-xs',
-                showMonthlyAverage
-                  ? 'text-primary hover:text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {showMonthlyAverage ? '/mo' : 'Total'}
-            </Button>
+            <div className="flex items-center gap-1">
+              <CategoryViewToggle view={view} onViewChange={setView} />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onShowMonthlyAverageChange(!showMonthlyAverage)
+                }}
+                className={cn(
+                  'h-7 text-xs',
+                  showMonthlyAverage
+                    ? 'text-primary hover:text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {showMonthlyAverage ? '/mo' : 'Total'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -88,20 +94,32 @@ export function IncomeByCategoryCard({
               ))}
             </div>
           ) : incomeBreakdown && incomeBreakdown.length > 0 ? (
-            <CategoryBreakdown
-              categoryBreakdown={incomeBreakdown}
-              total={totalIncome}
-              currency={currency}
-              getCategoryLabel={getCategoryLabel}
-              getCategoryColor={getCategoryColor}
-              showMonthlyAverage={showMonthlyAverage}
-              totalMonths={totalMonths}
-              startDate={startDate}
-              endDate={endDate}
-              totalLabel="Total Income"
-              averageLabel="Avg. Monthly Income"
-              emptyTitle="No income data"
-            />
+            view === 'pie' ? (
+              <CategoryPieChart
+                categoryBreakdown={incomeBreakdown}
+                total={totalIncome}
+                currency={currency}
+                getCategoryLabel={getCategoryLabel}
+                getCategoryColor={getCategoryColor}
+                showMonthlyAverage={showMonthlyAverage}
+                totalMonths={totalMonths}
+              />
+            ) : (
+              <CategoryBreakdown
+                categoryBreakdown={incomeBreakdown}
+                total={totalIncome}
+                currency={currency}
+                getCategoryLabel={getCategoryLabel}
+                getCategoryColor={getCategoryColor}
+                showMonthlyAverage={showMonthlyAverage}
+                totalMonths={totalMonths}
+                startDate={startDate}
+                endDate={endDate}
+                totalLabel="Total Income"
+                averageLabel="Avg. Monthly Income"
+                emptyTitle="No income data"
+              />
+            )
           ) : (
             <InlineEmptyState
               icon={Wallet}
