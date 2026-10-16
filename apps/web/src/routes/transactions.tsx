@@ -290,7 +290,10 @@ function TransactionsPage() {
           open={!!editingTransaction}
           onOpenChange={(open) => !open && setEditingTransaction(null)}
         >
-          <DialogContent>
+          <DialogContent
+            // Don't auto-focus (and select) the first input when opening
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Edit Transaction</DialogTitle>
               <DialogDescription>{editingTransaction?.originalDescription}</DialogDescription>
