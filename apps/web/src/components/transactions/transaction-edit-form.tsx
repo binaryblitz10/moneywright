@@ -1,11 +1,21 @@
 import { useState, useMemo } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Loader2, EyeOff, Link2, Unlink } from 'lucide-react'
+import { Loader2, EyeOff, Link2, Trash2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Select,
   SelectContent,
@@ -14,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { updateTransaction, type Transaction, type Category, type CategoryKind } from '@/lib/api'
-import { useLoans, useInsurancePolicies, useAccounts } from '@/hooks'
+import { useLoans, useInsurancePolicies, useAccounts, useBulkDeleteTransactions } from '@/hooks'
 import {
   CATEGORY_KIND_LABELS,
   CATEGORY_KIND_ORDER,
@@ -56,6 +66,7 @@ export function TransactionEditForm({
   const [summary, setSummary] = useState(transaction.summary || '')
   const [isHidden, setIsHidden] = useState(transaction.isHidden)
   const [linkedEntityId, setLinkedEntityId] = useState<string | null>(transaction.linkedEntityId)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Check if current category supports entity linking
   const isLinkableCategory = category in LINKABLE_CATEGORIES
@@ -162,6 +173,13 @@ export function TransactionEditForm({
     },
   })
 
+  const deleteMutation = useBulkDeleteTransactions()
+
+  const handleDelete = () => {
+    setConfirmDelete(false)
+    deleteMutation.mutate([transaction.id], { onSuccess })
+  }
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -265,24 +283,53 @@ export function TransactionEditForm({
         <Switch id="hide-transaction" checked={isHidden} onCheckedChange={setIsHidden} />
       </div>
 
-      <div className="flex justify-end gap-2 pt-4">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
+      <div className="flex items-center justify-between gap-2 pt-4">
         <Button
-          onClick={() => updateMutation.mutate()}
-          disabled={!category || updateMutation.isPending}
+          variant="destructive"
+          onClick={() => setConfirmDelete(true)}
+          disabled={deleteMutation.isPending || updateMutation.isPending}
         >
-          {updateMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
+          {deleteMutation.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            'Save Changes'
+            <Trash2 className="mr-2 h-4 w-4" />
           )}
+          Delete
         </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => updateMutation.mutate()}
+            disabled={!category || updateMutation.isPending || deleteMutation.isPending}
+          >
+            {updateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+        </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete this transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This can't be undone. To keep it but exclude it from totals, hide it instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
