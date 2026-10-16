@@ -136,6 +136,8 @@ export function TransactionTable({
   const selectable = !!selectedIds && !!onSelectionChange
   const selectedOnPage = selectable ? transactions.filter((t) => selectedIds.has(t.id)).length : 0
   const allOnPageSelected = transactions.length > 0 && selectedOnPage === transactions.length
+  // Clicking anywhere on a row only selects once a selection has been started via a checkbox
+  const rowClickSelects = selectable && selectedIds.size > 0
 
   // ID of the last row clicked, used as the anchor for shift-click range selection
   const anchorIdRef = useRef<string | null>(null)
@@ -232,16 +234,22 @@ export function TransactionTable({
                   'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
                   'hover:bg-surface-hover',
                   'animate-fade-in',
-                  selectable && 'cursor-pointer',
+                  rowClickSelects && 'cursor-pointer',
                   selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                 )}
-                onClick={selectable ? (e) => handleRowClick(e, index) : undefined}
+                onClick={rowClickSelects ? (e) => handleRowClick(e, index) : undefined}
                 // Stop shift-click from highlighting text while range selecting
                 onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
                 style={{ animationDelay: `${Math.min(index * 20, 200)}ms` }}
               >
                 {selectable && (
-                  <TableCell className="py-3">
+                  <TableCell
+                    className="py-3 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRowClick(e, index)
+                    }}
+                  >
                     <Checkbox
                       className={CHECKBOX_CLASS}
                       aria-label="Select transaction"
