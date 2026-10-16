@@ -6,8 +6,7 @@
  * Uses Vercel AI SDK v6 with ToolLoopAgent for multi-step tool calling.
  */
 
-import { ToolLoopAgent, stepCountIs, wrapLanguageModel, type ModelMessage } from 'ai'
-import { devToolsMiddleware } from '@ai-sdk/devtools'
+import { ToolLoopAgent, stepCountIs, type ModelMessage } from 'ai'
 import { createLLMClient, type LLMConfig } from '../../llm'
 import { buildSystemPrompt } from './prompt'
 import { createTools } from './tools'
@@ -110,11 +109,6 @@ function buildProviderOptions(
 const MAX_STEPS = 10
 
 /**
- * Check if DevTools should be enabled (development only)
- */
-const isDevToolsEnabled = process.env.APP_ENV === 'development'
-
-/**
  * Create an AI agent for financial chat
  *
  * Uses ToolLoopAgent for multi-step tool calling with automatic
@@ -156,16 +150,7 @@ export function createChatAgent(options: {
   if (apiKey) {
     llmConfig.apiKey = apiKey
   }
-  let model = createLLMClient(llmConfig)
-
-  // Wrap with DevTools middleware in development mode
-  if (isDevToolsEnabled) {
-    model = wrapLanguageModel({
-      model: model as any,
-      middleware: devToolsMiddleware(),
-    }) as any
-    logger.debug(`[Chat Agent] Model wrapped with DevTools middleware`)
-  }
+  const { model } = createLLMClient(llmConfig)
   logger.debug(`[Chat Agent] Model instance created`)
 
   // Create tools bound to this profile (or all profiles for family view)
@@ -187,7 +172,7 @@ export function createChatAgent(options: {
   // Create the agent with multi-step capabilities
   logger.debug(`[Chat Agent] Creating ToolLoopAgent with maxSteps=${MAX_STEPS}...`)
   const agent = new ToolLoopAgent({
-    model: model as any, // Type assertion for SDK version compatibility
+    model,
     instructions,
     tools,
     stopWhen: stepCountIs(MAX_STEPS),
