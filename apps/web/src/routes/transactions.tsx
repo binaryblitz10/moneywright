@@ -35,7 +35,7 @@ import {
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { Pencil, Receipt, Upload, X } from 'lucide-react'
+import { ListChecks, Pencil, Receipt, Upload, X } from 'lucide-react'
 
 interface TransactionsSearchParams {
   category?: string
@@ -66,6 +66,7 @@ function TransactionsPage() {
   } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
@@ -161,6 +162,11 @@ function TransactionsPage() {
           year: '2-digit',
         })
     return `${statement.originalFilename.replace(/\.[^/.]+$/, ``)} (${date})`
+  }
+
+  const toggleSelectionMode = () => {
+    setSelectedIds(new Set())
+    setSelectionMode((on) => !on)
   }
 
   const clearFilters = () => {
@@ -345,13 +351,30 @@ function TransactionsPage() {
 
         {/* Pagination - Always visible */}
         {!transactionsLoading && transactions.length > 0 && (
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={limit}
-            onPageChange={setPage}
-          />
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              variant={selectionMode ? 'secondary' : 'outline'}
+              className="h-8"
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? (
+                <X className="mr-2 h-4 w-4" />
+              ) : (
+                <ListChecks className="mr-2 h-4 w-4" />
+              )}
+              {selectionMode ? 'Cancel' : 'Select'}
+            </Button>
+            <div className="flex-1">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                limit={limit}
+                onPageChange={setPage}
+              />
+            </div>
+          </div>
         )}
 
         {/* Transactions Table */}
@@ -371,8 +394,8 @@ function TransactionsPage() {
             onSortChange={handleSortChange}
             profiles={profiles}
             showProfileBadge={showFamilyView}
-            selectedIds={selectedIds}
-            onSelectionChange={setSelectedIds}
+            selectedIds={selectionMode ? selectedIds : undefined}
+            onSelectionChange={selectionMode ? setSelectedIds : undefined}
           />
         ) : (
           <EmptyState
