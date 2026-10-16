@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod/v4'
 import { auth, type AuthVariables } from '../middleware/auth'
 import {
@@ -6,6 +6,10 @@ import {
   getTransactionById,
   updateTransaction,
   bulkUpdateTransactions,
+  bulkDeleteTransactions,
+  findDuplicateGroups,
+  getReviewCounts,
+  type TransactionFilters,
   linkTransactions,
   unlinkTransaction,
   findLinkCandidates,
@@ -63,6 +67,13 @@ const bulkUpdateSchema = z
   )
 
 /**
+ * Bulk delete request schema
+ */
+const bulkDeleteSchema = z.object({
+  transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
+})
+
+/**
  * Link transactions request schema
  */
 const linkTransactionsSchema = z.object({
@@ -101,61 +112,55 @@ function parseMultiValue(value: string | undefined): string[] | undefined {
 }
 
 /**
+ * Read the transaction list filters from the query string
+ */
+function parseTransactionFilters(c: Context): TransactionFilters {
+  const type = c.req.query('type')
+  const minAmount = c.req.query('minAmount')
+  const maxAmount = c.req.query('maxAmount')
+  const isSubscription = c.req.query('isSubscription')
+  const reviewStatus = c.req.query('reviewStatus')
+
+  return {
+    profileId: c.req.query('profileId') || undefined,
+    accountId: parseMultiValue(c.req.query('accountId')),
+    statementId: parseMultiValue(c.req.query('statementId')),
+    category: parseMultiValue(c.req.query('category')),
+    type: type === 'credit' || type === 'debit' ? type : undefined,
+    startDate: c.req.query('startDate') || undefined,
+    endDate: c.req.query('endDate') || undefined,
+    search: c.req.query('search') || undefined,
+    minAmount: minAmount ? parseFloat(minAmount) : undefined,
+    maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+    isSubscription:
+      isSubscription === 'true' ? true : isSubscription === 'false' ? false : undefined,
+    includeHidden: c.req.query('includeHidden') === 'true',
+    onlyHidden: c.req.query('onlyHidden') === 'true',
+    reviewStatus:
+      reviewStatus === 'pending' || reviewStatus === 'other' || reviewStatus === 'all'
+        ? reviewStatus
+        : undefined,
+  }
+}
+
+/**
  * GET /transactions
  * List transactions with filters and pagination
  */
 transactionRoutes.get('/', async (c) => {
   const userId = c.get('userId')
 
-  // Parse query params
-  const profileId = c.req.query('profileId')
-  const accountId = c.req.query('accountId')
-  const statementId = c.req.query('statementId')
-  const category = c.req.query('category')
-  const type = c.req.query('type') as 'credit' | 'debit' | undefined
-  const startDate = c.req.query('startDate')
-  const endDate = c.req.query('endDate')
-  const search = c.req.query('search')
-  const minAmount = c.req.query('minAmount')
-  const maxAmount = c.req.query('maxAmount')
-  const isSubscription = c.req.query('isSubscription')
-  const includeHidden = c.req.query('includeHidden')
-  const onlyHidden = c.req.query('onlyHidden')
   const page = parseInt(c.req.query('page') || '1', 10)
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100)
   const sortBy = c.req.query('sortBy') as 'date' | 'amount' | 'createdAt' | undefined
   const sortOrder = c.req.query('sortOrder') as 'asc' | 'desc' | undefined
 
-  // Parse multi-value filters (comma-separated)
-  const accountIds = parseMultiValue(accountId)
-  const statementIds = parseMultiValue(statementId)
-  const categories = parseMultiValue(category)
-
-  const result = await getTransactions(
-    userId,
-    {
-      profileId: profileId || undefined,
-      accountId: accountIds,
-      statementId: statementIds,
-      category: categories,
-      type: type && ['credit', 'debit'].includes(type) ? type : undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      search: search || undefined,
-      minAmount: minAmount ? parseFloat(minAmount) : undefined,
-      maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
-      isSubscription:
-        isSubscription === 'true' ? true : isSubscription === 'false' ? false : undefined,
-      includeHidden: includeHidden === 'true',
-      onlyHidden: onlyHidden === 'true',
-    },
-    {
-      page,
-      limit,
-      sortBy: sortBy || undefined,
-      sortOrder: sortOrder || undefined,
-    }
-  )
+  const result = await getTransactions(userId, parseTransactionFilters(c), {
+    page,
+    limit,
+    sortBy: sortBy || undefined,
+    sortOrder: sortOrder || undefined,
+  })
 
   return c.json(result)
 })
@@ -210,6 +215,28 @@ transactionRoutes.get('/stats', async (c) => {
 transactionRoutes.get('/categorization-status', (c) => {
   const status = getCategorizationStatus()
   return c.json(status)
+})
+
+/**
+ * GET /transactions/duplicates
+ * Find groups of likely duplicate transactions
+ * NOTE: This must be defined BEFORE /:id to avoid matching "duplicates" as an ID
+ */
+transactionRoutes.get('/duplicates', async (c) => {
+  const userId = c.get('userId')
+  const groups = await findDuplicateGroups(userId, parseTransactionFilters(c))
+  return c.json({ groups })
+})
+
+/**
+ * GET /transactions/review-counts
+ * Number of items waiting in each review queue
+ * NOTE: This must be defined BEFORE /:id to avoid matching "review-counts" as an ID
+ */
+transactionRoutes.get('/review-counts', async (c) => {
+  const userId = c.get('userId')
+  const counts = await getReviewCounts(userId, c.req.query('profileId') || undefined)
+  return c.json(counts)
 })
 
 /**
@@ -274,6 +301,32 @@ transactionRoutes.patch('/bulk', async (c) => {
   const { transactionIds, ...data } = result.data
   const updatedCount = await bulkUpdateTransactions([...new Set(transactionIds)], userId, data)
   return c.json({ updatedCount })
+})
+
+/**
+ * POST /transactions/bulk-delete
+ * Permanently delete multiple transactions
+ */
+transactionRoutes.post('/bulk-delete', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = bulkDeleteSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  const deletedCount = await bulkDeleteTransactions(
+    [...new Set(result.data.transactionIds)],
+    userId
+  )
+  return c.json({ deletedCount })
 })
 
 /**

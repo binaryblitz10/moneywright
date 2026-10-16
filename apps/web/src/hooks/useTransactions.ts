@@ -7,6 +7,9 @@ import {
   getCategories,
   updateTransaction,
   bulkUpdateTransactions,
+  bulkDeleteTransactions,
+  getDuplicateGroups,
+  getReviewCounts,
   linkTransactions,
   unlinkTransaction,
   getLinkCandidates,
@@ -24,6 +27,10 @@ export const transactionKeys = {
   stats: (filters?: Omit<TransactionFilters, 'minAmount' | 'maxAmount'>) =>
     [...transactionKeys.all, 'stats', filters] as const,
   categories: () => [...transactionKeys.all, 'categories'] as const,
+  duplicates: (filters?: TransactionFilters) =>
+    [...transactionKeys.all, 'duplicates', filters] as const,
+  reviewCounts: (profileId?: string) =>
+    [...transactionKeys.all, 'reviewCounts', profileId] as const,
   linkCandidates: (transactionId: string) =>
     [...transactionKeys.all, 'linkCandidates', transactionId] as const,
 }
@@ -158,6 +165,49 @@ export function useBulkUpdateTransactions() {
     },
     onError: () => {
       toast.error('Failed to update transactions')
+    },
+  })
+}
+
+/**
+ * Find groups of likely duplicate transactions
+ */
+export function useDuplicateGroups(filters?: TransactionFilters & { enabled?: boolean }) {
+  const { enabled = true, ...filterOptions } = filters ?? {}
+  return useQuery({
+    queryKey: transactionKeys.duplicates(filterOptions),
+    queryFn: () => getDuplicateGroups(filterOptions),
+    enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Number of items waiting in each review queue (drives the sidebar badge)
+ */
+export function useReviewCounts(profileId?: string) {
+  return useQuery({
+    queryKey: transactionKeys.reviewCounts(profileId),
+    queryFn: () => getReviewCounts(profileId),
+  })
+}
+
+/**
+ * Permanently delete multiple transactions
+ */
+export function useBulkDeleteTransactions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: bulkDeleteTransactions,
+    onSuccess: ({ deletedCount }) => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['statements'] })
+      toast.success(`Deleted ${deletedCount} transaction${deletedCount === 1 ? '' : 's'}`)
+    },
+    onError: () => {
+      toast.error('Failed to delete transactions')
     },
   })
 }

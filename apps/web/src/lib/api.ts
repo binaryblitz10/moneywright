@@ -832,6 +832,8 @@ export interface TransactionFilters {
   isSubscription?: boolean
   includeHidden?: boolean
   onlyHidden?: boolean
+  /** Review queues: never categorized ('pending'), only in the fallback 'other' category, or either ('all') */
+  reviewStatus?: 'pending' | 'other' | 'all'
 }
 
 /**
@@ -882,12 +884,9 @@ export interface Category {
 }
 
 /**
- * Get transactions
+ * Build the query string params for the transaction filters
  */
-export async function getTransactions(
-  filters?: TransactionFilters,
-  pagination?: TransactionPagination
-): Promise<TransactionListResponse> {
+function buildFilterParams(filters?: TransactionFilters): URLSearchParams {
   const params = new URLSearchParams()
   if (filters?.profileId) params.set('profileId', filters.profileId)
   if (filters?.accountId?.length) params.set('accountId', filters.accountId.join(','))
@@ -903,6 +902,18 @@ export async function getTransactions(
     params.set('isSubscription', String(filters.isSubscription))
   if (filters?.includeHidden) params.set('includeHidden', 'true')
   if (filters?.onlyHidden) params.set('onlyHidden', 'true')
+  if (filters?.reviewStatus) params.set('reviewStatus', filters.reviewStatus)
+  return params
+}
+
+/**
+ * Get transactions
+ */
+export async function getTransactions(
+  filters?: TransactionFilters,
+  pagination?: TransactionPagination
+): Promise<TransactionListResponse> {
+  const params = buildFilterParams(filters)
   if (pagination?.page) params.set('page', String(pagination.page))
   if (pagination?.limit) params.set('limit', String(pagination.limit))
   if (pagination?.sortBy) params.set('sortBy', pagination.sortBy)
@@ -948,6 +959,51 @@ export async function bulkUpdateTransactions(data: {
   isHidden?: boolean
 }): Promise<{ updatedCount: number }> {
   const response = await api.patch('/transactions/bulk', data)
+  return response.data
+}
+
+/**
+ * A set of transactions that look like the same transaction entered more than once.
+ * The first transaction is the oldest-created one (the one to keep).
+ */
+export interface DuplicateGroup {
+  key: string
+  transactions: Transaction[]
+}
+
+/**
+ * Find groups of likely duplicate transactions
+ */
+export async function getDuplicateGroups(filters?: TransactionFilters): Promise<DuplicateGroup[]> {
+  const queryString = buildFilterParams(filters).toString()
+  const response = await api.get(`/transactions/duplicates${queryString ? `?${queryString}` : ''}`)
+  return response.data.groups
+}
+
+/**
+ * Number of items waiting in each review queue
+ */
+export interface ReviewCounts {
+  duplicateGroups: number
+  pending: number
+  other: number
+}
+
+/**
+ * Get the review queue counts for a profile (or everyone when omitted)
+ */
+export async function getReviewCounts(profileId?: string): Promise<ReviewCounts> {
+  const response = await api.get('/transactions/review-counts', { params: { profileId } })
+  return response.data
+}
+
+/**
+ * Permanently delete multiple transactions
+ */
+export async function bulkDeleteTransactions(
+  transactionIds: string[]
+): Promise<{ deletedCount: number }> {
+  const response = await api.post('/transactions/bulk-delete', { transactionIds })
   return response.data
 }
 

@@ -1,4 +1,17 @@
-import { eq, and, desc, asc, like, or, sql, gte, lte, inArray } from 'drizzle-orm'
+import {
+  eq,
+  and,
+  desc,
+  asc,
+  like,
+  or,
+  sql,
+  gte,
+  lte,
+  inArray,
+  isNull,
+  isNotNull,
+} from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { logger } from '../lib/logger'
@@ -78,7 +91,14 @@ export interface TransactionFilters {
   isSubscription?: boolean
   includeHidden?: boolean // If true, include hidden transactions (default: false)
   onlyHidden?: boolean // If true, show only hidden transactions
+  // Review queues (never manually categorized):
+  // 'pending' = categorization never completed (no summary),
+  // 'other' = categorized but only into the fallback 'other' category,
+  // 'all' = either
+  reviewStatus?: ReviewStatus
 }
+
+export type ReviewStatus = 'pending' | 'other' | 'all'
 
 /**
  * Pagination options
@@ -123,20 +143,9 @@ export function toTransactionResponse(txn: Transaction): TransactionResponse {
 }
 
 /**
- * Get transactions with filters and pagination
+ * Build the where-conditions shared by transaction listing and duplicate detection
  */
-export async function getTransactions(
-  userId: string,
-  filters?: TransactionFilters,
-  pagination?: PaginationOptions
-): Promise<{ transactions: TransactionResponse[]; total: number; page: number; limit: number }> {
-  const page = pagination?.page || 1
-  const limit = pagination?.limit || 50
-  const offset = (page - 1) * limit
-  const sortBy = pagination?.sortBy || 'date'
-  const sortOrder = pagination?.sortOrder || 'desc'
-
-  // Build conditions
+function buildFilterConditions(userId: string, filters?: TransactionFilters) {
   const conditions = [eq(tables.transactions.userId, userId)]
 
   // Handle hidden transactions filter
@@ -201,6 +210,41 @@ export async function getTransactions(
   if (filters?.isSubscription !== undefined) {
     conditions.push(eq(tables.transactions.isSubscription, filters.isSubscription))
   }
+
+  if (filters?.reviewStatus) {
+    const isPending = isNull(tables.transactions.summary)
+    const isOther = and(
+      isNotNull(tables.transactions.summary),
+      eq(tables.transactions.category, 'other')
+    )!
+    conditions.push(eq(tables.transactions.isManuallyCategorized, false))
+    conditions.push(
+      filters.reviewStatus === 'pending'
+        ? isPending
+        : filters.reviewStatus === 'other'
+          ? isOther
+          : or(isPending, isOther)!
+    )
+  }
+
+  return conditions
+}
+
+/**
+ * Get transactions with filters and pagination
+ */
+export async function getTransactions(
+  userId: string,
+  filters?: TransactionFilters,
+  pagination?: PaginationOptions
+): Promise<{ transactions: TransactionResponse[]; total: number; page: number; limit: number }> {
+  const page = pagination?.page || 1
+  const limit = pagination?.limit || 50
+  const offset = (page - 1) * limit
+  const sortBy = pagination?.sortBy || 'date'
+  const sortOrder = pagination?.sortOrder || 'desc'
+
+  const conditions = buildFilterConditions(userId, filters)
 
   // Build sort
   const sortColumn =
@@ -366,6 +410,125 @@ export async function bulkUpdateTransactions(
 
   logger.debug(`[Transaction] Bulk updated ${updated.length} transactions`)
   return updated.length
+}
+
+/**
+ * Number of items waiting in each review queue
+ */
+export interface ReviewCounts {
+  duplicateGroups: number
+  pending: number
+  other: number
+}
+
+/**
+ * Count the items waiting in each review queue, for the given profile or for everyone
+ */
+export async function getReviewCounts(userId: string, profileId?: string): Promise<ReviewCounts> {
+  const countFor = async (reviewStatus: 'pending' | 'other'): Promise<number> => {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tables.transactions)
+      .where(and(...buildFilterConditions(userId, { profileId, reviewStatus })))
+    return Number(row?.count || 0)
+  }
+
+  const [pending, other, duplicateGroups] = await Promise.all([
+    countFor('pending'),
+    countFor('other'),
+    findDuplicateGroups(userId, { profileId }),
+  ])
+
+  return { duplicateGroups: duplicateGroups.length, pending, other }
+}
+
+/**
+ * A set of transactions that look like the same transaction entered more than once
+ */
+export interface DuplicateGroup {
+  key: string
+  transactions: TransactionResponse[]
+}
+
+/**
+ * Find likely duplicate transactions: same account, date, type, amount and
+ * (case/whitespace-insensitive) description. Rows within a group are ordered
+ * oldest-created first, so the first row is the one to keep.
+ */
+export async function findDuplicateGroups(
+  userId: string,
+  filters?: TransactionFilters
+): Promise<DuplicateGroup[]> {
+  const rows = await db
+    .select()
+    .from(tables.transactions)
+    .where(and(...buildFilterConditions(userId, filters)))
+    .orderBy(asc(tables.transactions.createdAt), asc(tables.transactions.id))
+
+  const groups = new Map<string, TransactionResponse[]>()
+  for (const row of rows) {
+    const txn = toTransactionResponse(row)
+    const description = txn.originalDescription.toLowerCase().replace(/\s+/g, ' ').trim()
+    const key = [txn.accountId, txn.date, txn.type, txn.amount.toFixed(2), description].join('|')
+    const group = groups.get(key)
+    if (group) {
+      group.push(txn)
+    } else {
+      groups.set(key, [txn])
+    }
+  }
+
+  return [...groups.entries()]
+    .filter(([, transactions]) => transactions.length > 1)
+    .map(([key, transactions]) => ({ key, transactions }))
+    .sort((a, b) => b.transactions[0]!.date.localeCompare(a.transactions[0]!.date))
+}
+
+/**
+ * Permanently delete transactions owned by the user.
+ * Clears the link on any transaction that was linked to a deleted one.
+ * Returns the number of transactions deleted.
+ */
+export async function bulkDeleteTransactions(
+  transactionIds: string[],
+  userId: string
+): Promise<number> {
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+
+  await db
+    .update(tables.transactions)
+    .set({ linkedEntityId: null, linkedEntityType: null, updatedAt: now as Date })
+    .where(
+      and(
+        eq(tables.transactions.userId, userId),
+        eq(tables.transactions.linkedEntityType, 'transaction'),
+        inArray(tables.transactions.linkedEntityId, transactionIds)
+      )
+    )
+
+  const deleted = await db
+    .delete(tables.transactions)
+    .where(
+      and(inArray(tables.transactions.id, transactionIds), eq(tables.transactions.userId, userId))
+    )
+    .returning({ id: tables.transactions.id, statementId: tables.transactions.statementId })
+
+  // Record on each statement how many of its transactions were deleted
+  const removedPerStatement = new Map<string, number>()
+  for (const { statementId } of deleted) {
+    removedPerStatement.set(statementId, (removedPerStatement.get(statementId) ?? 0) + 1)
+  }
+  for (const [statementId, removed] of removedPerStatement) {
+    await db
+      .update(tables.statements)
+      .set({
+        deletedTransactionCount: sql`COALESCE(${tables.statements.deletedTransactionCount}, 0) + ${removed}`,
+      })
+      .where(eq(tables.statements.id, statementId))
+  }
+
+  logger.debug(`[Transaction] Bulk deleted ${deleted.length} transactions`)
+  return deleted.length
 }
 
 /**

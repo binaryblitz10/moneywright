@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { useAuth, useUpdateChecker } from '@/hooks'
+import { useAuth, useProfileSelection, useReviewCounts, useUpdateChecker } from '@/hooks'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 import {
@@ -40,6 +40,7 @@ import {
   Repeat,
   Shield,
   Landmark,
+  ClipboardCheck,
   Download,
   X,
 } from 'lucide-react'
@@ -70,6 +71,11 @@ const mainNavItems = [
     title: 'Transactions',
     icon: Wallet,
     href: '/transactions',
+  },
+  {
+    title: 'Review',
+    icon: ClipboardCheck,
+    href: '/review',
   },
   {
     title: 'Subscriptions',
@@ -119,6 +125,13 @@ export function AppSidebar() {
 
   const isDark = theme === 'dark'
 
+  // Items waiting in the Review queues
+  const { activeProfileId } = useProfileSelection()
+  const { data: reviewCounts } = useReviewCounts(activeProfileId)
+  const reviewTotal = reviewCounts
+    ? reviewCounts.duplicateGroups + reviewCounts.pending + reviewCounts.other
+    : 0
+
   const renderNavItem = (item: (typeof mainNavItems)[0] & { disabled?: boolean }) => {
     const isActive = location.pathname === item.href
     return (
@@ -141,6 +154,11 @@ export function AppSidebar() {
           )}
           <item.icon className={cn('h-4.5 w-4.5', isActive && 'text-primary')} />
           <span className="text-sm">{item.title}</span>
+          {item.href === '/review' && reviewTotal > 0 && (
+            <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              {reviewTotal > 99 ? '99+' : reviewTotal}
+            </span>
+          )}
           {item.disabled && (
             <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded bg-muted text-muted-foreground">
               Soon
