@@ -28,11 +28,13 @@ import {
   TransactionFiltersBar,
   TransactionTable,
   TransactionEditForm,
+  TransactionBulkEditForm,
   Pagination,
 } from '@/components/transactions'
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Receipt, Upload } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Pencil, Receipt, Upload, X } from 'lucide-react'
 
 interface TransactionsSearchParams {
   category?: string
@@ -61,6 +63,8 @@ function TransactionsPage() {
   } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
   // Filter state
   const searchParams = useSearch({ from: '/transactions' })
@@ -147,17 +151,20 @@ function TransactionsPage() {
   }
 
   const clearFilters = () => {
+    setSelectedIds(new Set())
     setFilters({})
     setSearch('')
     setPage(1)
   }
 
   const handleFiltersChange = (newFilters: TransactionFilters) => {
+    setSelectedIds(new Set())
     setFilters(newFilters)
     setPage(1)
   }
 
   const handleSearchChange = (newSearch: string) => {
+    setSelectedIds(new Set())
     setSearch(newSearch)
     setPage(1)
   }
@@ -285,6 +292,44 @@ function TransactionsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Bulk Edit Dialog */}
+        <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit {selectedIds.size} Transactions</DialogTitle>
+              <DialogDescription>
+                Only the fields you change are applied to every selected transaction.
+              </DialogDescription>
+            </DialogHeader>
+            <TransactionBulkEditForm
+              transactionIds={[...selectedIds]}
+              categories={categories}
+              onClose={() => setBulkEditOpen(false)}
+              onSuccess={() => {
+                setBulkEditOpen(false)
+                setSelectedIds(new Set())
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Selection action bar */}
+        {selectedIds.size > 0 && (
+          <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-4 py-2 shadow-sm">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => setBulkEditOpen(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit selected
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="mr-2 h-4 w-4" />
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Pagination - Always visible */}
         {!transactionsLoading && transactions.length > 0 && (
           <Pagination
@@ -313,6 +358,8 @@ function TransactionsPage() {
             onSortChange={handleSortChange}
             profiles={profiles}
             showProfileBadge={showFamilyView}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
           />
         ) : (
           <EmptyState

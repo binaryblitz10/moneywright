@@ -5,6 +5,7 @@ import {
   getTransactions,
   getTransactionById,
   updateTransaction,
+  bulkUpdateTransactions,
   linkTransactions,
   unlinkTransaction,
   findLinkCandidates,
@@ -36,6 +37,22 @@ const updateTransactionSchema = z.object({
   linkedEntityId: z.string().nullable().optional(),
   linkedEntityType: z.enum(['credit_card', 'insurance', 'loan']).nullable().optional(),
 })
+
+/**
+ * Bulk update request schema (no entity linking - that is specific to one transaction)
+ */
+const bulkUpdateSchema = z
+  .object({
+    transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
+    category: z.string().min(1).optional(),
+    summary: z.string().optional(),
+    isHidden: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.category !== undefined || data.summary !== undefined || data.isHidden !== undefined,
+    { message: 'Nothing to update' }
+  )
 
 /**
  * Link transactions request schema
@@ -221,6 +238,31 @@ transactionRoutes.get('/:id/link-candidates', async (c) => {
 
     return c.json({ error: 'failed', message }, 400)
   }
+})
+
+/**
+ * PATCH /transactions/bulk
+ * Update category, summary and/or hidden state on multiple transactions
+ * NOTE: This must be defined BEFORE /:id to avoid matching "bulk" as an ID
+ */
+transactionRoutes.patch('/bulk', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = bulkUpdateSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  const { transactionIds, ...data } = result.data
+  const updatedCount = await bulkUpdateTransactions([...new Set(transactionIds)], userId, data)
+  return c.json({ updatedCount })
 })
 
 /**

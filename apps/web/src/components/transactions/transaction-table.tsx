@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -40,6 +41,9 @@ interface TransactionTableProps {
   profiles?: Profile[]
   /** Whether to show profile badge (family view mode) */
   showProfileBadge?: boolean
+  /** IDs of selected transactions (enables the selection column) */
+  selectedIds?: Set<string>
+  onSelectionChange?: (selectedIds: Set<string>) => void
 }
 
 // Sort indicator component
@@ -104,6 +108,8 @@ export function TransactionTable({
   onSortChange,
   profiles,
   showProfileBadge,
+  selectedIds,
+  onSelectionChange,
 }: TransactionTableProps) {
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
@@ -124,11 +130,42 @@ export function TransactionTable({
     }
   }
 
+  const selectable = !!selectedIds && !!onSelectionChange
+  const selectedOnPage = selectable ? transactions.filter((t) => selectedIds.has(t.id)).length : 0
+  const allOnPageSelected = transactions.length > 0 && selectedOnPage === transactions.length
+
+  const toggleOne = (id: string, checked: boolean) => {
+    if (!selectedIds || !onSelectionChange) return
+    const next = new Set(selectedIds)
+    if (checked) next.add(id)
+    else next.delete(id)
+    onSelectionChange(next)
+  }
+
+  const togglePage = (checked: boolean) => {
+    if (!selectedIds || !onSelectionChange) return
+    const next = new Set(selectedIds)
+    for (const txn of transactions) {
+      if (checked) next.add(txn.id)
+      else next.delete(txn.id)
+    }
+    onSelectionChange(next)
+  }
+
   return (
     <div className="rounded-xl overflow-hidden border border-border-subtle bg-card">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
+            {selectable && (
+              <TableHead className="w-11">
+                <Checkbox
+                  aria-label="Select all transactions on this page"
+                  checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
+                  onCheckedChange={(checked) => togglePage(checked === true)}
+                />
+              </TableHead>
+            )}
             <TableHead className="w-27.5">
               <button
                 onClick={() => handleSort('date')}
@@ -177,10 +214,20 @@ export function TransactionTable({
                 className={cn(
                   'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
                   'hover:bg-surface-hover',
-                  'animate-fade-in'
+                  'animate-fade-in',
+                  selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                 )}
                 style={{ animationDelay: `${Math.min(index * 20, 200)}ms` }}
               >
+                {selectable && (
+                  <TableCell className="py-3">
+                    <Checkbox
+                      aria-label="Select transaction"
+                      checked={selectedIds.has(txn.id)}
+                      onCheckedChange={(checked) => toggleOne(txn.id, checked === true)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap py-3">
                   {new Date(txn.date).toLocaleDateString('en-GB', {
                     day: '2-digit',

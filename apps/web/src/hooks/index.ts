@@ -45,6 +45,7 @@ export {
   useCategories,
   useLinkCandidates,
   useUpdateTransaction,
+  useBulkUpdateTransactions,
   useLinkTransactions,
   useUnlinkTransaction,
   useCategorizationStatus,

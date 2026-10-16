@@ -6,6 +6,7 @@ import {
   getTransactionStats,
   getCategories,
   updateTransaction,
+  bulkUpdateTransactions,
   linkTransactions,
   unlinkTransaction,
   getLinkCandidates,
@@ -130,6 +131,29 @@ export function useUpdateTransaction() {
     },
     onError: () => {
       toast.error('Failed to update transaction')
+    },
+  })
+}
+
+/**
+ * Update category, summary and/or hidden state on multiple transactions
+ */
+export function useBulkUpdateTransactions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: bulkUpdateTransactions,
+    onSuccess: ({ updatedCount }) => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['transaction-stats'] })
+      // Category changes can drop entity links
+      queryClient.invalidateQueries({ queryKey: ['loans'] })
+      queryClient.invalidateQueries({ queryKey: ['insurance'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success(`Updated ${updatedCount} transaction${updatedCount === 1 ? '' : 's'}`)
+    },
+    onError: () => {
+      toast.error('Failed to update transactions')
     },
   })
 }

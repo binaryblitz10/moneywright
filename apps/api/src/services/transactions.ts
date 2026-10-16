@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, like, or, sql, gte, lte } from 'drizzle-orm'
+import { eq, and, desc, asc, like, or, sql, gte, lte, inArray } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { logger } from '../lib/logger'
@@ -321,6 +321,51 @@ export async function updateTransaction(
 
   logger.debug(`[Transaction] Updated transaction ${transactionId}`)
   return toTransactionResponse(updated)
+}
+
+/**
+ * Update category, summary and/or hidden state on many transactions at once.
+ * Only transactions owned by the user are touched; returns the number updated.
+ * Changing a category drops loan/insurance/credit-card links on rows whose category
+ * actually changes (transaction-to-transaction links are kept).
+ */
+export async function bulkUpdateTransactions(
+  transactionIds: string[],
+  userId: string,
+  data: { category?: string; summary?: string; isHidden?: boolean }
+): Promise<number> {
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+
+  const updateData: Partial<Transaction> = { updatedAt: now as Date }
+
+  if (data.category !== undefined) {
+    updateData.category = data.category
+    updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
+    updateData.linkedEntityId =
+      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('credit_card', 'insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityId} END` as unknown as null
+    updateData.linkedEntityType =
+      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('credit_card', 'insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityType} END` as unknown as null
+  }
+  if (data.summary !== undefined) {
+    updateData.summary = data.summary
+  }
+  if (data.category !== undefined || data.summary !== undefined) {
+    updateData.isManuallyCategorized = true
+  }
+  if (data.isHidden !== undefined) {
+    updateData.isHidden = data.isHidden
+  }
+
+  const updated = await db
+    .update(tables.transactions)
+    .set(updateData)
+    .where(
+      and(inArray(tables.transactions.id, transactionIds), eq(tables.transactions.userId, userId))
+    )
+    .returning({ id: tables.transactions.id })
+
+  logger.debug(`[Transaction] Bulk updated ${updated.length} transactions`)
+  return updated.length
 }
 
 /**

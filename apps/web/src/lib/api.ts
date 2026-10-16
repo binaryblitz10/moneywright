@@ -934,6 +934,19 @@ export async function updateTransaction(
 }
 
 /**
+ * Update category, summary and/or hidden state on multiple transactions
+ */
+export async function bulkUpdateTransactions(data: {
+  transactionIds: string[]
+  category?: string
+  summary?: string
+  isHidden?: boolean
+}): Promise<{ updatedCount: number }> {
+  const response = await api.patch('/transactions/bulk', data)
+  return response.data
+}
+
+/**
  * Get transaction stats
  */
 export async function getTransactionStats(filters?: {
