@@ -55,6 +55,25 @@ cd apps/docs && bun run dev    # Port 3002
 cd apps/desktop && bun run tauri dev
 ```
 
+## Running Dev Against Real Data (desktop app data)
+
+A plain `bun run dev` uses `apps/api/data/app.db` (an empty dev DB) and the secrets in `apps/api/.env.local`. The user's real data, PIN and encrypted values live in the desktop app folder `~/Library/Application Support/com.moneywright.desktop/` (`.env`, `data/`, `drizzle/`). The `ENCRYPTION_KEY`/`JWT_SECRET` there differ from `.env.local`, so running against the real DB without them causes decrypt errors and a PIN that never works.
+
+To start dev against the real data, **use a copy** (dev runs migrations, so never point it at the live folder) and export the desktop secrets, since shell env overrides `.env.local`:
+
+```bash
+APP="$HOME/Library/Application Support/com.moneywright.desktop"
+COPY=<scratchpad>/mw-data
+rm -rf "$COPY" && mkdir "$COPY" && cp -R "$APP"/{.env,data,drizzle} "$COPY"/
+pkill -f "bun.*dev"; pkill -f vite          # stop any stale dev servers first
+set -a; . "$COPY/.env"; set +a; export PORT=17777
+DATA_DIR="$COPY" bun run dev                # web :3000, api :17777
+```
+
+Verify the API log shows no `decrypt` / `no such table` errors. Never print the secret values.
+
+---
+
 ## Build Commands
 
 ```bash
