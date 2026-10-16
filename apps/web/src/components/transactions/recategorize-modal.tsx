@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { SavedHintsNote } from '@/components/accounts/saved-hints-note'
 import {
   Select,
   SelectContent,
@@ -64,7 +63,8 @@ export function RecategorizeModal({
   const queryClient = useQueryClient()
   // Combined provider:model value (e.g., "openai:gpt-4o")
   const [modelValue, setModelValue] = useState<string>('')
-  const [categorizationHints, setCategorizationHints] = useState<string>('')
+  // null until the user edits the hints, so the box shows the account's saved hints meanwhile
+  const [typedHints, setTypedHints] = useState<string | null>(null)
   const [includeManual, setIncludeManual] = useState(false)
   const [onlyTransfer, setOnlyTransfer] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -82,6 +82,8 @@ export function RecategorizeModal({
   const savedHints = accounts?.find(
     (a) => a.id === (hintsAccountId ?? accountId)
   )?.categorizationHints
+
+  const categorizationHints = typedHints ?? (savedHints || '')
 
   const { data: providers } = useQuery({
     queryKey: ['llm-providers'],
@@ -173,7 +175,7 @@ export function RecategorizeModal({
     setJobProgress(null)
     setError(null)
     setIsSubmitting(false)
-    setCategorizationHints('')
+    setTypedHints(null)
     setIncludeManual(false)
   }, [])
 
@@ -397,14 +399,16 @@ export function RecategorizeModal({
               <Textarea
                 placeholder="E.g., FX transactions are investments, not transfers"
                 value={categorizationHints}
-                onChange={(e) => setCategorizationHints(e.target.value.slice(0, 1000))}
+                onChange={(e) => {
+                  setTypedHints(e.target.value.slice(0, 1000))
+                }}
                 className="min-h-[80px] resize-none"
                 maxLength={1000}
               />
               <p className="text-xs text-muted-foreground">
-                Help the AI categorize your transactions better with custom rules.
+                Help the AI categorize your transactions better with custom rules. Prefilled from
+                the account's saved hints.
               </p>
-              <SavedHintsNote hints={savedHints} />
             </div>
           )}
 

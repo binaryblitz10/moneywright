@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { SavedHintsNote } from '@/components/accounts/saved-hints-note'
 import {
   Select,
   SelectContent,
@@ -62,7 +61,8 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
   // Combined provider:model values (e.g., "openai:gpt-4o")
   const [parsingModelValue, setParsingModelValue] = useState<string>('')
   const [categorizationModelValue, setCategorizationModelValue] = useState<string>('')
-  const [categorizationHints, setCategorizationHints] = useState<string>('')
+  // null until the user edits the hints, so the box shows the account's or default hints meanwhile
+  const [typedHints, setTypedHints] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [savePassword, setSavePassword] = useState(true)
   const [showPasswordField, setShowPasswordField] = useState(false)
@@ -186,6 +186,12 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
       }
     }
   }, [preferences, configuredProviders, parsingModelValue, categorizationModelValue])
+
+  // Prefill hints from the selected account, else the default from Settings
+  const accountHints =
+    accountId !== 'auto' ? accounts?.find((a) => a.id === accountId)?.categorizationHints : null
+  const defaultHints = preferences?.[PREFERENCE_KEYS.DEFAULT_CATEGORIZATION_HINTS]
+  const categorizationHints = typedHints ?? (accountHints || defaultHints || '')
 
   const handleParsingModelChange = (value: string) => {
     setParsingModelValue(value)
@@ -641,7 +647,10 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
                 <AccountSelector
                   accounts={accounts || []}
                   value={accountId === 'auto' ? null : accountId}
-                  onValueChange={(id) => setAccountId(id || 'auto')}
+                  onValueChange={(id) => {
+                    setAccountId(id || 'auto')
+                    setTypedHints(null)
+                  }}
                   mode="single"
                   showAllOption
                   allOptionLabel="Auto-detect from statement"
@@ -852,14 +861,16 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
                 <Textarea
                   placeholder="E.g., FX transactions are investments, not transfers"
                   value={categorizationHints}
-                  onChange={(e) => setCategorizationHints(e.target.value.slice(0, 1000))}
+                  onChange={(e) => {
+                    setTypedHints(e.target.value.slice(0, 1000))
+                  }}
                   className="min-h-[80px] resize-none"
                   maxLength={1000}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Help the AI categorize your transactions better with custom rules.
+                  Help the AI categorize your transactions better with custom rules. Prefilled from
+                  the selected account, or your default in Settings when none is selected.
                 </p>
-                <SavedHintsNote hints={selectedAccount?.categorizationHints} />
               </div>
             )}
           </div>

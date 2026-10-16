@@ -849,12 +849,9 @@ export async function categorizeStatements(
     savedAccountHints = accounts[0]?.categorizationHints ?? null
   }
 
-  // Saved account hints always apply; hints given for this run are added after them
-  const combinedHints =
-    [savedAccountHints, userCategorizationHints]
-      .map((h) => h?.trim())
-      .filter(Boolean)
-      .join('\n') || undefined
+  // Hints given for this run are prefilled from the account's saved hints by the UI, so they
+  // already include them; fall back to the saved hints only when none were given
+  const combinedHints = userCategorizationHints?.trim() || savedAccountHints?.trim() || undefined
 
   // Fetch profile summary for context if profileId is provided
   let profileSummary: string | null = null
