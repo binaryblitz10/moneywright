@@ -129,3 +129,12 @@ export const DEFAULT_CATEGORY_COLOR: CategoryColorClasses = {
 export function getCategoryColorClasses(colorName: string): CategoryColorClasses {
   return CATEGORY_COLOR_MAP[colorName] || DEFAULT_CATEGORY_COLOR
 }
+
+/**
+ * Get a CSS color value for a category color name, for SVG fills (e.g. pie charts).
+ * Derived from the bar class so it matches the shade used elsewhere.
+ */
+export function getCategoryFillColor(colorName: string): string {
+  const match = getCategoryColorClasses(colorName).bar.match(/^bg-([a-z]+-\d+)/)
+  return match ? `var(--color-${match[1]})` : 'var(--color-zinc-500)'
+}
