@@ -59,10 +59,14 @@ const bulkUpdateSchema = z
       .optional(),
     summary: z.string().optional(),
     isHidden: z.boolean().optional(),
+    confirmCategory: z.literal(true).optional(),
   })
   .refine(
     (data) =>
-      data.category !== undefined || data.summary !== undefined || data.isHidden !== undefined,
+      data.category !== undefined ||
+      data.summary !== undefined ||
+      data.isHidden !== undefined ||
+      data.confirmCategory !== undefined,
     { message: 'Nothing to update' }
   )
 

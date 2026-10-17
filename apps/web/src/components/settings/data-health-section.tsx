@@ -142,7 +142,7 @@ function collectIssues(report: DataHealthReport): Issue[] {
   if (report.lowConfidence.count > 0) {
     issues.push({
       key: 'low-confidence',
-      label: `${plural(report.lowConfidence.count, 'large transaction')} with a shaky category`,
+      label: `${plural(report.lowConfidence.count, 'transaction')} with a shaky category`,
       detail: `${formatCurrency(report.lowConfidence.total)} total; confirm the category in Review`,
       target: { page: 'review' },
     })

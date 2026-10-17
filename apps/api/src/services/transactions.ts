@@ -94,16 +94,15 @@ export interface TransactionFilters {
   // Review queues (never manually categorized):
   // 'pending' = categorization never completed (no summary),
   // 'other' = categorized but only into the fallback 'other' category,
-  // 'low_confidence' = categorized with low model confidence on a larger amount,
+  // 'low_confidence' = categorized with low model confidence,
   // 'all' = pending or other
   reviewStatus?: ReviewStatus
 }
 
 export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all'
 
-/** Low-confidence review queue: categorizations the model was unsure of, on amounts that matter */
+/** Low-confidence review queue: categorizations the model was unsure of */
 export const LOW_CONFIDENCE_BELOW = 0.7
-export const LOW_CONFIDENCE_MIN_AMOUNT = 5000
 
 /**
  * Pagination options
@@ -222,10 +221,7 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
       isNotNull(tables.transactions.summary),
       eq(tables.transactions.category, 'other')
     )!
-    const isLowConfidence = and(
-      sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`,
-      sql`${tables.transactions.amount} >= ${LOW_CONFIDENCE_MIN_AMOUNT}`
-    )!
+    const isLowConfidence = sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`
     conditions.push(eq(tables.transactions.isManuallyCategorized, false))
     conditions.push(
       filters.reviewStatus === 'pending'
@@ -380,6 +376,7 @@ export async function updateTransaction(
 
 /**
  * Update category, summary and/or hidden state on many transactions at once.
+ * `confirmCategory` marks the current category as correct without changing it.
  * Only transactions owned by the user are touched; returns the number updated.
  * Changing a category drops loan/insurance/credit-card links on rows whose category
  * actually changes (transaction-to-transaction links are kept).
@@ -387,7 +384,7 @@ export async function updateTransaction(
 export async function bulkUpdateTransactions(
   transactionIds: string[],
   userId: string,
-  data: { category?: string; summary?: string; isHidden?: boolean }
+  data: { category?: string; summary?: string; isHidden?: boolean; confirmCategory?: boolean }
 ): Promise<number> {
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
 
@@ -404,7 +401,10 @@ export async function bulkUpdateTransactions(
   if (data.summary !== undefined) {
     updateData.summary = data.summary
   }
-  if (data.category !== undefined || data.summary !== undefined) {
+  if (data.confirmCategory) {
+    updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
+  }
+  if (data.category !== undefined || data.summary !== undefined || data.confirmCategory) {
     updateData.isManuallyCategorized = true
   }
   if (data.isHidden !== undefined) {

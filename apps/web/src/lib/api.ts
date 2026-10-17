@@ -980,6 +980,8 @@ export async function bulkUpdateTransactions(data: {
   category?: string
   summary?: string
   isHidden?: boolean
+  /** Mark the current category as correct without changing it */
+  confirmCategory?: true
 }): Promise<{ updatedCount: number }> {
   const response = await api.patch('/transactions/bulk', data)
   return response.data

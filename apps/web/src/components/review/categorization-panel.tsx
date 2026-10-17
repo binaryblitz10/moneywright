@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCheck, Pencil, X } from 'lucide-react'
+import { Check, CheckCheck, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { useReviewCounts, useTransactions } from '@/hooks'
+import { useBulkUpdateTransactions, useReviewCounts, useTransactions } from '@/hooks'
 import { Pagination } from '@/components/transactions/pagination'
 import { TransactionTable } from '@/components/transactions/transaction-table'
 import { TransactionBulkEditForm } from '@/components/transactions/transaction-bulk-edit-form'
@@ -23,7 +23,7 @@ type StatusFilter = 'all' | 'pending' | 'other'
 const LIMIT = 25
 
 interface CategorizationPanelProps extends ReviewPanelProps {
-  /** 'low_confidence' lists large transactions the model categorized with low confidence */
+  /** 'low_confidence' lists transactions the model categorized with low confidence */
   queue?: 'categorization' | 'low_confidence'
 }
 
@@ -39,6 +39,8 @@ export function CategorizationPanel({
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+
+  const confirmMutation = useBulkUpdateTransactions()
 
   const { data: counts } = useReviewCounts(filters.profileId)
   const { data, isLoading, isPlaceholderData } = useTransactions(
@@ -66,8 +68,9 @@ export function CategorizationPanel({
     <div className="space-y-4">
       {isLowConfidence ? (
         <p className="text-sm text-muted-foreground">
-          Transactions of ₹5,000 or more that were categorized with low confidence. Set or re-select
-          a category (edit, or bulk edit) to confirm it and move it out of this list.
+          Transactions that were categorized with low confidence. Select the ones whose category is
+          right and click Mark as correct, or change the category to fix it. Either moves them out
+          of this list.
         </p>
       ) : (
         <>
@@ -102,7 +105,26 @@ export function CategorizationPanel({
         <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-4 py-2 shadow-sm">
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setBulkEditOpen(true)}>
+            {isLowConfidence && (
+              <Button
+                size="sm"
+                disabled={confirmMutation.isPending}
+                onClick={() =>
+                  confirmMutation.mutate(
+                    { transactionIds: [...selectedIds], confirmCategory: true },
+                    { onSuccess: () => setSelectedIds(new Set()) }
+                  )
+                }
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Mark as correct
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={isLowConfidence ? 'outline' : 'default'}
+              onClick={() => setBulkEditOpen(true)}
+            >
               <Pencil className="mr-2 h-4 w-4" />
               Edit selected
             </Button>
@@ -152,7 +174,7 @@ export function CategorizationPanel({
           title="All clear"
           description={
             isLowConfidence
-              ? 'No large transactions are waiting for a category check.'
+              ? 'No transactions are waiting for a category check.'
               : 'Every transaction has a category.'
           }
         />

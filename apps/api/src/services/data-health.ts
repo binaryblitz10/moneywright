@@ -3,7 +3,7 @@ import { db, tables } from '../db'
 import { getCategoryKind } from '../lib/constants'
 import { getAccountsByUserId } from './accounts'
 import { getCashFlow } from './cashflow'
-import { LOW_CONFIDENCE_BELOW, LOW_CONFIDENCE_MIN_AMOUNT } from './transactions'
+import { LOW_CONFIDENCE_BELOW } from './transactions'
 
 /**
  * Data health service
@@ -639,8 +639,7 @@ export async function getDataHealth(
           profileId ? eq(tables.transactions.profileId, profileId) : undefined,
           eq(tables.transactions.isHidden, false),
           eq(tables.transactions.isManuallyCategorized, false),
-          sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`,
-          sql`${tables.transactions.amount} >= ${LOW_CONFIDENCE_MIN_AMOUNT}`
+          sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`
         )
       ),
   ])
