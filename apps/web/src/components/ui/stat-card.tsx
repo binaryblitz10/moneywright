@@ -117,63 +117,58 @@ export function StatCard({
       )}
     >
       <CardContent className="pt-5 pb-5">
-        <div className="flex items-start justify-between gap-3">
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            {/* Label */}
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              {label}
-            </p>
-
-            {/* Value */}
-            {loading ? (
-              <Skeleton className="h-8 w-28" />
-            ) : (
-              // Fixed height so the length-based font size never changes the card height
-              <div className="flex h-8 items-center gap-2">
-                <p
-                  className={cn(
-                    'font-semibold tracking-tight text-foreground tabular-nums truncate',
-                    fontSize
-                  )}
-                >
-                  {displayValue}
-                </p>
-
-                {/* Trend indicator */}
-                {trend && value !== undefined && value !== null && value !== 0 && !isCount && (
-                  <span
-                    className={cn(
-                      'flex items-center text-xs font-medium shrink-0',
-                      trend === 'up' ? 'text-positive' : 'text-negative'
-                    )}
-                  >
-                    {trend === 'up' ? (
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowDownRight className="h-3.5 w-3.5" />
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Subtitle */}
-            {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
-          </div>
-
-          {/* Icon */}
+        {/* Header: label left, icon top-right, so the value below gets the full width */}
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
           {Icon && (
             <div
               className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-lg shrink-0',
+                'flex h-8 w-8 items-center justify-center rounded-lg shrink-0',
                 'bg-surface-elevated border border-border-subtle'
               )}
             >
-              <Icon className="h-5 w-5 text-muted-foreground" />
+              <Icon className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
         </div>
+
+        {/* Value */}
+        {loading ? (
+          <Skeleton className="h-8 w-28" />
+        ) : (
+          // Fixed height so the length-based font size never changes the card height
+          <div className="flex h-8 items-center gap-2">
+            <p
+              className={cn(
+                'font-semibold tracking-tight text-foreground tabular-nums truncate',
+                fontSize
+              )}
+            >
+              {displayValue}
+            </p>
+
+            {/* Trend indicator */}
+            {trend && value !== undefined && value !== null && value !== 0 && !isCount && (
+              <span
+                className={cn(
+                  'flex items-center text-xs font-medium shrink-0',
+                  trend === 'up' ? 'text-positive' : 'text-negative'
+                )}
+              >
+                {trend === 'up' ? (
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ArrowDownRight className="h-3.5 w-3.5" />
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Subtitle */}
+        {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
       </CardContent>
     </Card>
   )
