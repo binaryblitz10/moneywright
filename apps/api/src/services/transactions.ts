@@ -17,6 +17,8 @@ import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { logger } from '../lib/logger'
 import { getDismissedDuplicates } from './preferences'
+import { merchantKey, merchantName } from './spending-changes'
+import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
 
@@ -366,6 +368,7 @@ export async function updateTransaction(
 
   if (data.summary !== undefined && data.summary !== (existing.summary || '')) {
     updateData.summary = data.summary
+    updateData.nameVersion = NAME_VERSION
     categoryOrSummaryChanged = true
   }
 
@@ -424,6 +427,7 @@ export async function bulkUpdateTransactions(
   }
   if (data.summary !== undefined) {
     updateData.summary = data.summary
+    updateData.nameVersion = NAME_VERSION
   }
   if (data.confirmCategory) {
     updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
@@ -863,7 +867,7 @@ export interface DetectedSubscription {
 
 /**
  * Get detected subscriptions from transaction data
- * Groups transactions marked as subscriptions by their summary/description
+ * Groups transactions marked as subscriptions by their name
  */
 export async function getDetectedSubscriptions(
   userId: string,
@@ -903,7 +907,7 @@ export async function getDetectedSubscriptions(
     .where(and(...conditions))
     .orderBy(desc(tables.transactions.date))
 
-  // Group by summary (LLM-generated clean name) or fallback to original description
+  // Group by name (summary) or fallback to original description
   const subscriptionGroups = new Map<
     string,
     {
@@ -922,11 +926,9 @@ export async function getDetectedSubscriptions(
     const txn = row.transaction
     const account = row.account
 
-    // Use summary if available, otherwise use first 50 chars of description
-    const name = txn.summary || txn.originalDescription.substring(0, 50).trim()
-    // Group by first word only (lowercase) to handle inconsistent naming like "Furlenco rent" vs "Furlenco rental"
-    const firstWord = name.split(/\s+/)[0] || name
-    const groupKey = firstWord.toLowerCase().trim()
+    // Group by the whole name (same merchant or person always has the same name)
+    const name = merchantName(txn)
+    const groupKey = merchantKey(txn)
 
     // Get last 4 digits of account number (decrypt first since it's encrypted in DB)
     const decryptedAccountNumber = account?.accountNumber
@@ -936,7 +938,7 @@ export async function getDetectedSubscriptions(
 
     if (!subscriptionGroups.has(groupKey)) {
       subscriptionGroups.set(groupKey, {
-        name: firstWord, // Use just the first word as the display name
+        name,
         category: txn.category,
         transactions: [],
         accountId: account?.id || null,

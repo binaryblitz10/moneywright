@@ -256,6 +256,7 @@ export const transactions = pgTable(
     // Description
     originalDescription: text('original_description').notNull(),
     summary: text('summary'), // LLM-generated summary
+    nameVersion: integer('name_version'), // null = old-style summary, 1 = clean name rules
 
     // Categorization
     category: varchar('category', { length: 50 }).notNull(),

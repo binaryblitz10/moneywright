@@ -143,23 +143,26 @@ export function percentile(values: number[], p: number): number | null {
   return sorted[lower]! + (sorted[upper]! - sorted[lower]!) * (rank - lower)
 }
 
+/** Title of a transaction: its saved name, falling back to the start of the bank description */
+function transactionTitle(txn: Pick<ChangeTransaction, 'summary' | 'originalDescription'>): string {
+  return (txn.summary?.trim() || txn.originalDescription.substring(0, 50)).trim()
+}
+
 /**
- * Merchant identity: lowercase first word of the LLM summary, falling back to the
- * original description. Matches subscription grouping; swap here for a real merchant column.
+ * Merchant identity: the whole name, lowercased with whitespace collapsed. Falls back to
+ * the original description. Matches subscription grouping.
  */
 export function merchantKey(
   txn: Pick<ChangeTransaction, 'summary' | 'originalDescription'>
 ): string {
-  const name = txn.summary?.trim() || txn.originalDescription.substring(0, 50).trim()
-  return (name.split(/\s+/)[0] || name).toLowerCase()
+  return transactionTitle(txn).replace(/\s+/g, ' ').toLowerCase()
 }
 
-/** Display form of the merchant: first word as written */
+/** Display form of the merchant: the whole name as written */
 export function merchantName(
   txn: Pick<ChangeTransaction, 'summary' | 'originalDescription'>
 ): string {
-  const name = txn.summary?.trim() || txn.originalDescription.substring(0, 50).trim()
-  return name.split(/\s+/)[0] || name
+  return transactionTitle(txn)
 }
 
 /** Month (YYYY-MM) shifted by a number of months */

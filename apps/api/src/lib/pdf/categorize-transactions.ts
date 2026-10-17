@@ -6,12 +6,18 @@
  * Supports streaming mode with mini-batches for real-time updates
  */
 
-import { streamText } from 'ai'
 import { eq, inArray, and, isNull } from 'drizzle-orm'
 import { createLLMClientFromSettings, type LLMClientResult } from '../../llm'
 import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../constants'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
+import { parseCSVLine, quoteCSVField, streamCsvLines } from './csv'
+import {
+  NAME_FORMAT,
+  NAME_VERSION,
+  buildNamesInUseSection,
+  getNamesInUse,
+} from './transaction-names'
 import type { CategorizedTransaction, TransactionForCategorization } from './types'
 
 /**
@@ -203,129 +209,6 @@ Apply this context when categorizing - e.g., if profile mentions "freelancer", i
 }
 
 /**
- * Country-specific summary examples for the LLM
- */
-const SUMMARY_EXAMPLES: Record<CountryCode, string> = {
-  IN: `SUMMARY FORMAT - CRITICAL: Follow this exact format for merchant/stats identification:
-
-FORMAT: "MerchantName brief description" (MerchantName = ONE WORD, no spaces)
-
-BAD SUMMARIES (too generic or wrong format):
-- "misc credit", "payment", "transfer", "transaction", "UPI payment"
-- "food order", "online purchase", "order" (too generic)
-- "Swiggy food delivery" → should be "Swiggy food order"
-- "Amazon electronics purchase" → should be "Amazon purchase"
-
-GOOD SUMMARIES (MerchantName is exactly ONE word, followed by 2-3 description words):
-- "Swiggy food order"
-- "Zomato food order"
-- "Blinkit grocery order"
-- "Zepto grocery order"
-- "BigBasket grocery order"
-- "Amazon purchase"
-- "Flipkart purchase"
-- "Myntra fashion purchase"
-- "Netflix subscription"
-- "Spotify subscription"
-- "Claude subscription"
-- "ChatGPT subscription"
-- "Vercel hosting"
-- "Namecheap domain renewal"
-- "GitHub subscription"
-- "Figma subscription"
-- "ATM cash withdrawal"
-- "BESCOM electricity bill"
-- "Airtel mobile recharge"
-- "ACT broadband payment"
-- "HP petrol refuel"
-- "BPCL petrol refuel"
-- "Zerodha investment"
-- "Groww investment"
-- "LIC premium payment"
-- "CRED card payment"
-- "Uber cab ride"
-- "Ola cab ride"
-- "Rapido auto ride"
-- "Cultfit gym membership"
-- "UrbanCompany salon service"
-- "FNP flower delivery"
-- "IGP gift order"
-- "NoBroker rent payment"
-
-FOR TRANSFERS (person names):
-- "[PersonName] transfer received" (for credits from individuals)
-- "[PersonName] transfer sent" (for debits to individuals)
-- Example: "Rahul transfer received", "Priya transfer sent"
-
-FOR SALARY:
-- "[CompanyName] salary" (one word company, e.g., "Google salary", "TCS salary")
-
-RULES:
-1. MerchantName MUST be exactly ONE word with NO spaces (combine if needed: UrbanCompany not Urban Company)
-2. Follow with 2-3 descriptive words
-3. This format enables merchant statistics and recurring transaction identification`,
-
-  US: `SUMMARY FORMAT - CRITICAL: Follow this exact format for merchant/stats identification:
-
-FORMAT: "MerchantName brief description" (MerchantName = ONE WORD, no spaces)
-
-BAD SUMMARIES (too generic or wrong format):
-- "misc credit", "payment", "transfer", "transaction", "debit"
-- "food delivery", "online purchase" (too generic)
-- "DoorDash food delivery" → should be "DoorDash food order"
-
-GOOD SUMMARIES (MerchantName is exactly ONE word, followed by 2-3 description words):
-- "DoorDash food order"
-- "UberEats food order"
-- "Grubhub food order"
-- "Amazon purchase"
-- "Target grocery shopping"
-- "Walmart shopping"
-- "Costco shopping"
-- "Netflix subscription"
-- "Spotify subscription"
-- "Claude subscription"
-- "ChatGPT subscription"
-- "Vercel hosting"
-- "Namecheap domain renewal"
-- "AWS services"
-- "GitHub subscription"
-- "Figma subscription"
-- "ATM cash withdrawal"
-- "PGE electric bill"
-- "Verizon phone bill"
-- "Comcast internet"
-- "Shell gas refuel"
-- "Chevron gas refuel"
-- "Fidelity investment"
-- "Vanguard investment"
-- "Geico car insurance"
-- "Chase card payment"
-- "Uber ride"
-- "Lyft ride"
-- "PlanetFitness gym"
-- "Supercuts haircut"
-- "ProFlowers delivery"
-
-FOR TRANSFERS (person names via Venmo/Zelle):
-- "[PersonName] transfer received" (for credits)
-- "[PersonName] transfer sent" (for debits)
-- Example: "John transfer received", "Sarah transfer sent"
-
-FOR SALARY/PAYCHECK:
-- "[CompanyName] salary" (one word company, e.g., "Google salary", "Apple salary")
-
-FOR RENT/MORTGAGE:
-- "[Landlord/Bank] rent payment"
-- "[Bank] mortgage payment" (e.g., "WellsFargo mortgage payment")
-
-RULES:
-1. MerchantName MUST be exactly ONE word with NO spaces (combine if needed: WellsFargo not Wells Fargo)
-2. Follow with 2-3 descriptive words
-3. This format enables merchant statistics and recurring transaction identification`,
-}
-
-/**
  * Batch size for categorization - only batch if more than this many transactions
  * We want to send enough transactions together for pattern recognition (salary, recurring, etc.)
  * but not so many that it overwhelms the LLM's output capacity
@@ -337,36 +220,6 @@ const BATCH_SIZE = 250
  * Maximum retry attempts for categorizing remaining uncategorized transactions
  */
 const MAX_CATEGORIZATION_RETRIES = 5
-
-/**
- * Parse CSV line handling quoted fields
- */
-function parseCSVLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-  fields.push(current)
-
-  return fields.map((f) => f.trim())
-}
 
 /**
  * Fetch uncategorized transactions (where summary is null)
@@ -415,6 +268,7 @@ async function updateTransactionCategory(cat: CategorizedTransaction): Promise<b
       category: cat.category,
       categoryConfidence: cat.confidence.toString(),
       summary,
+      nameVersion: NAME_VERSION,
       isSubscription: cat.isSubscription,
       updatedAt: now as Date,
     })
@@ -441,15 +295,19 @@ async function categorizeBatchStreaming(
   onCategorized: (cat: CategorizedTransaction) => Promise<void>,
   accountType?: string,
   profileSummary?: string | null,
-  userCategorizationHints?: string
+  userCategorizationHints?: string,
+  userId?: string
 ): Promise<{ success: number; failed: number }> {
   const txnList = transactions
-    .map((t) => `${t.id},${t.date},${t.type},${t.amount},"${t.description.replace(/"/g, '""')}"`)
+    .map((t) => `${t.id},${t.date},${t.type},${t.amount},${quoteCSVField(t.description)}`)
     .join('\n')
 
   // Get country-specific hints
   const categoryHints = CATEGORY_HINTS[countryCode] || CATEGORY_HINTS.US
-  const summaryExamples = SUMMARY_EXAMPLES[countryCode] || SUMMARY_EXAMPLES.US
+  const nameFormat = NAME_FORMAT[countryCode] || NAME_FORMAT.US
+
+  // Names already saved for this user (fetched per batch so names from earlier batches are included)
+  const namesInUseSection = userId ? buildNamesInUseSection(await getNamesInUse(userId)) : ''
 
   // Get account type specific hints
   const accountTypeHint = accountType ? ACCOUNT_TYPE_HINTS[accountType] || '' : ''
@@ -478,7 +336,7 @@ CATEGORIES:
 ${categoryList}
 
 OUTPUT FORMAT - CSV ONLY, one line per transaction:
-id,category,confidence,summary,is_subscription
+id,category,confidence,name,is_subscription
 
 RULES:
 - Output EXACTLY ${transactions.length} CSV lines, one per transaction
@@ -486,8 +344,8 @@ RULES:
 - id: exact ID from input (copy exactly)
 - category: code from categories list
 - confidence: 0.0 to 1.0
-- summary: MUST follow format "MerchantName brief description" where MerchantName is exactly ONE WORD (no spaces)
-  Examples: "Zomato food order", "Amazon purchase", "Netflix subscription", "Rahul transfer received"
+- name: who is on the other side of the transaction, copied from the description.
+  Follow NAME FORMAT below exactly. Never invent or guess.
 - is_subscription: 1 if recurring subscription/service, 0 otherwise
 
 SUBSCRIPTION DETECTION (is_subscription=1):
@@ -499,91 +357,43 @@ SUBSCRIPTION DETECTION (is_subscription=1):
 
 ${categoryHints}
 
-${summaryExamples}
+${nameFormat}
 
-START OUTPUT NOW:`
+${namesInUseSection}START OUTPUT NOW:`
 
   let success = 0
   let failed = 0
-  let buffer = ''
 
   try {
     logger.debug(`[Categorize] Starting stream for ${transactions.length} transactions`)
 
-    const { textStream } = streamText({
-      model: llmClient.model,
-      system: systemPrompt,
-      prompt,
-      providerOptions: llmClient.providerOptions,
+    await streamCsvLines(llmClient, systemPrompt, prompt, async (line) => {
+      const fields = parseCSVLine(line)
+      const [id, category, confidenceStr, name, isSubStr] = fields
+      if (fields.length < 5 || !id) {
+        failed++
+        return
+      }
+
+      const categoryCode = category?.toLowerCase().trim() || 'other'
+      const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
+      const confidence = parseFloat(confidenceStr || '0.8')
+      const isSubscription = isSubStr?.trim() === '1'
+
+      try {
+        await onCategorized({
+          id: id.trim(),
+          category: finalCategory,
+          confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
+          summary: name?.trim() || '',
+          isSubscription,
+        })
+        success++
+      } catch (err) {
+        logger.warn(`[Categorize] Failed to save transaction ${id}:`, err)
+        failed++
+      }
     })
-
-    for await (const chunk of textStream) {
-      buffer += chunk
-
-      // Process complete lines immediately as they arrive
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-      for (const line of lines) {
-        if (!line.trim() || line.toLowerCase().startsWith('id,')) continue
-
-        const fields = parseCSVLine(line)
-        if (fields.length < 5) {
-          failed++
-          continue
-        }
-
-        const [id, category, confidenceStr, summary, isSubStr] = fields
-        if (!id) {
-          failed++
-          continue
-        }
-
-        const categoryCode = category?.toLowerCase().trim() || 'other'
-        const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
-        const confidence = parseFloat(confidenceStr || '0.8')
-        const isSubscription = isSubStr?.trim() === '1'
-
-        try {
-          await onCategorized({
-            id: id.trim(),
-            category: finalCategory,
-            confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
-            summary: summary?.trim() || '',
-            isSubscription,
-          })
-          success++
-        } catch (err) {
-          logger.warn(`[Categorize] Failed to save transaction ${id}:`, err)
-          failed++
-        }
-      }
-    }
-
-    // Process remaining buffer (last line without newline)
-    if (buffer.trim() && !buffer.toLowerCase().startsWith('id,')) {
-      const fields = parseCSVLine(buffer)
-      if (fields.length >= 5 && fields[0]) {
-        const [id, category, confidenceStr, summary, isSubStr] = fields
-        const categoryCode = category?.toLowerCase().trim() || 'other'
-        const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
-        const confidence = parseFloat(confidenceStr || '0.8')
-        const isSubscription = isSubStr?.trim() === '1'
-
-        try {
-          await onCategorized({
-            id: id!.trim(),
-            category: finalCategory,
-            confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
-            summary: summary?.trim() || '',
-            isSubscription,
-          })
-          success++
-        } catch {
-          failed++
-        }
-      }
-    }
 
     // Log if we didn't get all transactions
     const total = success + failed
@@ -613,7 +423,8 @@ async function runCategorizationPass(
   totalForProgress: number = 0,
   accountType?: string,
   profileSummary?: string | null,
-  userCategorizationHints?: string
+  userCategorizationHints?: string,
+  userId?: string
 ): Promise<{ success: number; failed: number }> {
   const categories = getCategoriesForCountry(countryCode)
   const categoryList = formatCategoryList(categories)
@@ -676,7 +487,8 @@ async function runCategorizationPass(
       },
       accountType,
       profileSummary,
-      userCategorizationHints
+      userCategorizationHints,
+      userId
     )
 
     if (shouldBatch) {
@@ -708,6 +520,8 @@ async function runCategorizationPass(
  * @param onProgress - Optional callback for progress updates
  * @param accountType - Optional account type for context (credit_card, savings_account, etc.)
  * @param profileSummary - Optional profile summary to provide context about the person (employer, income sources, etc.)
+ * @param userCategorizationHints - Optional user-provided hints for categorization
+ * @param userId - Optional user ID; when given, the user's existing transaction names are offered to the LLM for consistency
  */
 export async function categorizeTransactionsStreaming(
   transactionIds: string[],
@@ -717,7 +531,8 @@ export async function categorizeTransactionsStreaming(
   onProgress?: (categorized: number, total: number) => void,
   accountType?: string,
   profileSummary?: string | null,
-  userCategorizationHints?: string
+  userCategorizationHints?: string,
+  userId?: string
 ): Promise<{ categorizedCount: number; failedAtIndex?: number }> {
   if (transactionIds.length === 0) return { categorizedCount: 0 }
 
@@ -756,7 +571,8 @@ export async function categorizeTransactionsStreaming(
       totalTransactions,
       accountType,
       profileSummary,
-      userCategorizationHints
+      userCategorizationHints,
+      userId
     )
 
     totalCategorized += success
@@ -817,6 +633,7 @@ export async function categorizeStatements(
     .select({
       id: tables.transactions.id,
       accountId: tables.transactions.accountId,
+      userId: tables.transactions.userId,
     })
     .from(tables.transactions)
     .where(inArray(tables.transactions.statementId, statementIds))
@@ -879,7 +696,8 @@ export async function categorizeStatements(
     onProgress,
     accountType,
     profileSummary,
-    combinedHints
+    combinedHints,
+    transactions[0]?.userId
   )
 
   logger.debug(

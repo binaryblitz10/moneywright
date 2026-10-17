@@ -20,6 +20,7 @@ import {
   getRecategorizeJobStatus,
   getCategorizationStatus,
 } from '../services/statements'
+import { queueRenameJob, getRenameJobStatus } from '../services/transaction-rename'
 import { getProfileById } from '../services/profiles'
 import { setDuplicatesDismissed } from '../services/preferences'
 import { getAccountByIdRaw } from '../services/accounts'
@@ -550,6 +551,73 @@ transactionRoutes.get('/recategorize/:jobId', async (c) => {
     status: job.status,
     transactionCount: job.transactionCount,
     processedCount: job.processedCount,
+    errorMessage: job.errorMessage,
+    createdAt: job.createdAt,
+    completedAt: job.completedAt,
+  })
+})
+
+/**
+ * Rename transactions request schema
+ */
+const renameNamesSchema = z.object({
+  includeEdited: z.boolean().optional().default(false),
+  model: z.string().optional(), // "provider:model"
+})
+
+/**
+ * POST /transactions/rename-names
+ * Rename older transactions to the clean name format (names only, categories untouched)
+ */
+transactionRoutes.post('/rename-names', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = renameNamesSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  const user = await findUserById(userId)
+  if (!user || !user.country) {
+    return c.json({ error: 'validation_error', message: 'User country not set' }, 400)
+  }
+
+  const jobId = queueRenameJob({
+    userId,
+    countryCode: user.country as CountryCode,
+    includeEdited: result.data.includeEdited,
+    model: result.data.model,
+  })
+
+  return c.json({ success: true, jobId })
+})
+
+/**
+ * GET /transactions/rename-names/:jobId
+ * Get rename job status
+ */
+transactionRoutes.get('/rename-names/:jobId', async (c) => {
+  const userId = c.get('userId')
+  const job = getRenameJobStatus(c.req.param('jobId'), userId)
+
+  if (!job) {
+    return c.json({ error: 'not_found', message: 'Job not found' }, 404)
+  }
+
+  return c.json({
+    id: job.id,
+    status: job.status,
+    totalCount: job.totalCount,
+    renamedCount: job.renamedCount,
+    skippedCount: job.skippedCount,
+    failedCount: job.failedCount,
     errorMessage: job.errorMessage,
     createdAt: job.createdAt,
     completedAt: job.completedAt,

@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "name_version" integer;

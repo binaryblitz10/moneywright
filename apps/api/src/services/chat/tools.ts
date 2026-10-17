@@ -1070,7 +1070,7 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
 Categories the user excluded from cash flow are left out, so totals match the dashboard.
 
 **groupBy**: 'category' | 'merchant' | 'month' | 'account'
-- merchant is the first word of each transaction's summary (e.g. "Swiggy")
+- merchant is the transaction's whole name (e.g. "Swiggy", "Rahul Sharma")
 - month groups come back in date order; the rest are sorted largest first
 
 Optional filters: startDate/endDate (YYYY-MM-DD), category, accountId, search (description text).

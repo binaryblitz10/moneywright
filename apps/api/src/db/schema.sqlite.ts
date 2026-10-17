@@ -265,6 +265,7 @@ export const transactions = sqliteTable(
     // Description
     originalDescription: text('original_description').notNull(),
     summary: text('summary'), // LLM-generated summary
+    nameVersion: integer('name_version'), // null = old-style summary, 1 = clean name rules
 
     // Categorization
     category: text('category').notNull(),

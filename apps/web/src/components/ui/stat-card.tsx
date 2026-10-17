@@ -31,8 +31,8 @@ export interface StatCardProps {
   value?: number | null
   /** Currency code for formatting (default: INR) */
   currency?: string
-  /** Subtitle text displayed below the value */
-  subtitle?: string
+  /** Subtitle displayed below the value */
+  subtitle?: React.ReactNode
   /** Icon component from lucide-react */
   icon?: LucideIcon
   /** Show loading skeleton */
@@ -168,7 +168,7 @@ export function StatCard({
         )}
 
         {/* Subtitle */}
-        {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
+        {subtitle && <div className="text-xs text-muted-foreground mt-1.5">{subtitle}</div>}
       </CardContent>
     </Card>
   )

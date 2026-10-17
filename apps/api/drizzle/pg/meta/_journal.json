@@ -36,6 +36,13 @@
       "when": 1792162015335,
       "tag": "0004_statement_deleted_transaction_count",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792260545486,
+      "tag": "0005_transaction_name_version",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import {
   isSignificantChange,
   average,
   merchantKey,
+  merchantName,
   percentile,
   pickDefaultMonth,
   shiftMonth,
@@ -37,7 +38,7 @@ const TODAY = '2026-10-17'
 /** Steady 20,000 monthly Swiggy spend April-August */
 function steadyBaseline(): ChangeTransaction[] {
   return ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08'].map((m) =>
-    txn(`${m}-10`, 20000, 'Swiggy dinner')
+    txn(`${m}-10`, 20000, 'Swiggy')
   )
 }
 
@@ -61,15 +62,40 @@ describe('average / percentile', () => {
 })
 
 describe('merchantKey', () => {
-  test('uses the lowercase first word of the summary', () => {
-    expect(merchantKey({ summary: 'Swiggy dinner order', originalDescription: 'x' })).toBe('swiggy')
+  test('uses the whole name, lowercased', () => {
+    expect(merchantKey({ summary: 'Zerodha Broking', originalDescription: 'x' })).toBe(
+      'zerodha broking'
+    )
+  })
+
+  test('collapses whitespace and trims', () => {
+    expect(merchantKey({ summary: '  Rahul   Sharma ', originalDescription: 'x' })).toBe(
+      'rahul sharma'
+    )
   })
 
   test('falls back to the original description when there is no summary', () => {
     expect(merchantKey({ summary: null, originalDescription: 'UPI-ZOMATO-123 foo' })).toBe(
-      'upi-zomato-123'
+      'upi-zomato-123 foo'
     )
-    expect(merchantKey({ summary: '  ', originalDescription: 'Amazon Pay' })).toBe('amazon')
+    expect(merchantKey({ summary: '  ', originalDescription: 'Amazon  Pay' })).toBe('amazon pay')
+  })
+
+  test('truncates the fallback description to 50 characters', () => {
+    const description = 'A'.repeat(60)
+    expect(merchantKey({ summary: null, originalDescription: description })).toBe('a'.repeat(50))
+  })
+})
+
+describe('merchantName', () => {
+  test('is the whole trimmed name as written', () => {
+    expect(merchantName({ summary: ' YouTube Google ', originalDescription: 'x' })).toBe(
+      'YouTube Google'
+    )
+  })
+
+  test('falls back to the original description', () => {
+    expect(merchantName({ summary: null, originalDescription: 'Amazon Pay ' })).toBe('Amazon Pay')
   })
 })
 
@@ -175,7 +201,7 @@ describe('computeSpendingChanges', () => {
 
   test('detects a category increase against the average with zeros for empty months', () => {
     // Average of the previous 3 months (Jun-Aug): 20000
-    const txns = [...steadyBaseline(), txn('2026-09-05', 28000, 'Swiggy party')]
+    const txns = [...steadyBaseline(), txn('2026-09-05', 28000, 'Swiggy')]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     expect(result.month).toBe('2026-09')
     expect(result.isPartial).toBe(false)
@@ -195,8 +221,8 @@ describe('computeSpendingChanges', () => {
   test('a category with spend in few baseline months has a average of 0 and is new', () => {
     const txns = [
       ...steadyBaseline(),
-      txn('2026-05-03', 9000, 'Croma tv', 'shopping'),
-      txn('2026-09-05', 12000, 'Croma laptop', 'shopping'),
+      txn('2026-05-03', 9000, 'Croma', 'shopping'),
+      txn('2026-09-05', 12000, 'Croma', 'shopping'),
     ]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     const shopping = result.categories.find((c) => c.category === 'shopping')!
@@ -209,7 +235,7 @@ describe('computeSpendingChanges', () => {
     const txns = [
       txn('2026-06-10', 20000, 'Swiggy'),
       txn('2026-07-10', 20000, 'Swiggy'),
-      txn('2026-08-10', 50000, 'Swiggy party'),
+      txn('2026-08-10', 50000, 'Swiggy'),
       txn('2026-09-10', 30000, 'Swiggy'),
     ]
     const result = ok(
@@ -265,9 +291,9 @@ describe('computeSpendingChanges', () => {
   test('top merchants explain the category delta', () => {
     const txns = [
       ...steadyBaseline(),
-      txn('2026-09-02', 12000, 'Zomato dinner'),
-      txn('2026-09-03', 4000, 'Zomato lunch'),
-      txn('2026-09-04', 20000, 'Swiggy dinner'),
+      txn('2026-09-02', 12000, 'Zomato'),
+      txn('2026-09-03', 4000, 'Zomato'),
+      txn('2026-09-04', 20000, 'Swiggy'),
     ]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     const top = result.categories[0]!.topMerchants
@@ -278,8 +304,8 @@ describe('computeSpendingChanges', () => {
   test('merchant movers span categories', () => {
     const txns = [
       ...steadyBaseline(),
-      txn('2026-09-04', 20000, 'Swiggy dinner'),
-      txn('2026-09-05', 9000, 'Croma tv', 'shopping'),
+      txn('2026-09-04', 20000, 'Swiggy'),
+      txn('2026-09-05', 9000, 'Croma', 'shopping'),
     ]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     expect(result.merchants).toHaveLength(1)
@@ -294,9 +320,9 @@ describe('computeSpendingChanges', () => {
   test('flags large transactions above p95 or from new merchants', () => {
     const txns = [
       ...steadyBaseline(),
-      txn('2026-09-02', 25000, 'Swiggy catering'), // above p95 (20000)
-      txn('2026-09-03', 12000, 'Newplace dinner'), // new merchant, below p95
-      txn('2026-09-04', 9000, 'Newplace snack'), // under 10k threshold
+      txn('2026-09-02', 25000, 'Swiggy'), // above p95 (20000)
+      txn('2026-09-03', 12000, 'Newplace'), // new merchant, below p95
+      txn('2026-09-04', 9000, 'Newplace'), // under 10k threshold
       txn('2026-09-05', 15000, 'Swiggy', 'food_dining', 'credit'), // credit
     ]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))

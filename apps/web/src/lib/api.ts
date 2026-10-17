@@ -1175,6 +1175,41 @@ export async function getRecategorizeJobStatus(jobId: string): Promise<Recategor
 }
 
 /**
+ * Transaction name rename job status
+ */
+export interface RenameNamesJob {
+  id: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  totalCount: number
+  renamedCount: number
+  skippedCount: number
+  failedCount: number
+  errorMessage?: string
+  createdAt: string
+  completedAt?: string
+}
+
+/**
+ * Rename older transactions to the clean name format (names only, categories untouched)
+ */
+export async function renameTransactionNames(data: {
+  includeEdited: boolean
+  /** Model as "provider:model"; the default provider's model when omitted */
+  model?: string
+}): Promise<{ success: boolean; jobId: string }> {
+  const response = await api.post('/transactions/rename-names', data)
+  return response.data
+}
+
+/**
+ * Get rename job status
+ */
+export async function getRenameNamesJobStatus(jobId: string): Promise<RenameNamesJob> {
+  const response = await api.get(`/transactions/rename-names/${jobId}`)
+  return response.data
+}
+
+/**
  * Categorization status
  */
 export interface CategorizationStatus {
@@ -2881,4 +2916,220 @@ export async function sendChatMessage(
       }
     }
   }
+}
+
+// ============================================
+// Reports API
+// ============================================
+
+/** Months a report can cover (YYYY-MM) */
+export interface ReportBounds {
+  /** Null without data */
+  earliestMonth: string | null
+  lastCompleteMonth: string
+}
+
+export interface ReportComparison {
+  from: string
+  to: string
+  startDate: string
+  endDate: string
+  months: string[]
+}
+
+export interface ReportPeriod extends ReportComparison {
+  /** Null when the comparison would start before the data does */
+  comparison: ReportComparison | null
+}
+
+export interface ReportChange {
+  delta: number
+  /** Fraction; null when the previous value was 0 */
+  deltaPct: number | null
+}
+
+/** A row of a current-vs-previous table; previous values are null without a comparison */
+export interface ReportComparedRow {
+  key: string
+  label: string
+  current: number
+  previous: number | null
+  delta: number | null
+  deltaPct: number | null
+  count: number
+  previousCount: number | null
+}
+
+export interface ReportPeriodTotals {
+  income: number
+  expenses: number
+  invested: number
+  surplus: number
+  savingsRate: number | null
+}
+
+export interface ReportAccountFlow {
+  income: number
+  expenses: number
+  invested: number
+}
+
+export interface ReportAccountFlowRow {
+  id: string
+  name: string
+  type: 'bank' | 'card' | 'other'
+  last4: string | null
+  current: ReportAccountFlow
+  previous: ReportAccountFlow | null
+}
+
+export interface ReportSavingsBreakdown {
+  status: 'ok' | 'insufficient'
+  surplus: number
+  invested: number
+  bankChange: number | null
+  cardDuesReduced: number | null
+  unexplained: number | null
+  missingAccounts: Array<{ accountId: string; accountName: string }>
+}
+
+export interface ReportWarning {
+  kind:
+    | 'missing_statements'
+    | 'overlap'
+    | 'coverage'
+    | 'balance_break'
+    | 'mismatch'
+    | 'unlinked_payment'
+  accountName: string
+  message: string
+  amount: number | null
+}
+
+export interface PeriodReport {
+  period: ReportPeriod
+  totals: {
+    current: ReportPeriodTotals
+    previous: ReportPeriodTotals | null
+    changes: Record<'income' | 'expenses' | 'invested' | 'surplus', ReportChange> | null
+    /** Fraction points (0.05 = 5 points) */
+    savingsRateDelta: number | null
+  }
+  expenseCategories: ReportComparedRow[]
+  incomeCategories: ReportComparedRow[]
+  investmentCategories: ReportComparedRow[]
+  shops: ReportComparedRow[]
+  accounts: ReportAccountFlowRow[]
+  savings: ReportSavingsBreakdown
+  warnings: { count: number; items: ReportWarning[] }
+  currency: string
+}
+
+export interface ReportMonthlyRow {
+  key: string
+  label: string
+  /** One amount per month of the report */
+  months: number[]
+  total: number
+  average: number
+}
+
+export interface ReportShopTrendRow extends ReportMonthlyRow {
+  payments: number
+  averagePerPayment: number | null
+  trend: 'rising' | 'falling' | 'steady' | null
+}
+
+export interface ReportAccountMonthlyRow extends ReportMonthlyRow {
+  type: 'bank' | 'card' | 'other'
+  last4: string | null
+}
+
+export interface TrendsReport {
+  from: string
+  to: string
+  months: string[]
+  categories: ReportMonthlyRow[]
+  shops: ReportShopTrendRow[]
+  accounts: ReportAccountMonthlyRow[]
+  monthTotals: number[]
+  total: number
+  average: number
+  currency: string
+}
+
+export interface InvestmentFlow {
+  putIn: number
+  takenOut: number
+  net: number
+  count: number
+}
+
+export interface InvestmentPlatformRow {
+  sourceId: string
+  name: string
+  provider: string
+  institution: string | null
+  putIn: number
+  takenOut: number
+  previousPutIn: number | null
+  netSinceStart: number
+  currentValue: number | null
+  cost: number | null
+  gain: number | null
+  gainPct: number | null
+  asOfDate: string | null
+  holdingsCount: number
+}
+
+export interface InvestmentsReport {
+  period: ReportPeriod
+  totals: {
+    current: InvestmentFlow
+    previous: InvestmentFlow | null
+    putInChange: ReportChange | null
+  }
+  byMonth: Array<{ month: string; putIn: number; takenOut: number; net: number }>
+  platforms: InvestmentPlatformRow[]
+  unmatched: { putIn: number; takenOut: number; count: number }
+  allocation: Array<{ type: string; label: string; value: number; share: number }>
+  overall: {
+    currentValue: number
+    cost: number
+    gain: number
+    gainPct: number | null
+    holdingsCount: number
+  }
+  currency: string
+}
+
+/** First and last month (YYYY-MM) of a report */
+export interface ReportRangeParams {
+  profileId?: string
+  from: string
+  to: string
+}
+
+/** The months a report can cover */
+export async function getReportBounds(profileId?: string): Promise<ReportBounds> {
+  const response = await api.get('/reports/months', { params: { profileId } })
+  return response.data
+}
+
+/** Period report: complete months against the months just before */
+export async function getPeriodReport(params: ReportRangeParams): Promise<PeriodReport> {
+  const response = await api.get('/reports/period', { params })
+  return response.data
+}
+
+/** Spending trends: category, shop and account spend month by month */
+export async function getTrendsReport(params: ReportRangeParams): Promise<TrendsReport> {
+  const response = await api.get('/reports/trends', { params })
+  return response.data
+}
+
+/** Investments: money put in, per platform, with current values */
+export async function getInvestmentsReport(params: ReportRangeParams): Promise<InvestmentsReport> {
+  const response = await api.get('/reports/investments', { params })
+  return response.data
 }

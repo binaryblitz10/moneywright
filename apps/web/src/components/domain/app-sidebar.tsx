@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import {
   LayoutDashboard,
+  FileBarChart,
   FileText,
   Wallet,
   Building2,
@@ -51,6 +52,11 @@ const mainNavItems = [
     title: 'Dashboard',
     icon: LayoutDashboard,
     href: '/',
+  },
+  {
+    title: 'Reports',
+    icon: FileBarChart,
+    href: '/reports',
   },
   {
     title: 'Ask Penny',

@@ -10,15 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  Pencil,
-  RefreshCw,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
-} from 'lucide-react'
+import { Pencil, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
@@ -96,6 +88,12 @@ const colorStyles: Record<string, string> = {
   teal: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20',
   rose: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20',
   zinc: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/10 dark:text-zinc-400 dark:border-zinc-500/20',
+}
+
+/** First letter of a transaction's name, uppercased; "?" when there is none */
+function getNameInitial(name: string): string {
+  const letter = name.trim().charAt(0)
+  return letter ? letter.toUpperCase() : '?'
 }
 
 export function TransactionTable({
@@ -270,20 +268,16 @@ export function TransactionTable({
                 </TableCell>
                 <TableCell className="overflow-hidden py-3">
                   <div className="flex items-center gap-3">
+                    {/* Letter badge: first letter of the name, tinted with the category colour */}
                     <div
                       className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
-                        'bg-surface-elevated border-border-subtle',
-                        'transition-all duration-200',
-                        txn.type === 'credit' &&
-                          'group-hover:bg-emerald-500/5 group-hover:border-emerald-500/20'
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border',
+                        'text-sm font-semibold transition-transform duration-200 group-hover:scale-105',
+                        getCategoryColor(txn.category)
                       )}
+                      aria-hidden="true"
                     >
-                      {txn.type === 'credit' ? (
-                        <ArrowDownLeft className="h-4 w-4 text-positive" />
-                      ) : (
-                        <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                      )}
+                      {getNameInitial(txn.summary || txn.originalDescription)}
                     </div>
                     <div className="min-w-0 flex-1">
                       {/* Title row with category badge inline */}

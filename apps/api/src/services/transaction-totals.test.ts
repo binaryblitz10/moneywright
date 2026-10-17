@@ -30,11 +30,11 @@ describe('signedForKind', () => {
 
 describe('computeTotals', () => {
   const spending = [
-    txn('2026-08-03', 500, 'Swiggy dinner'),
-    txn('2026-08-20', 300, 'Swiggy lunch'),
+    txn('2026-08-03', 500, 'Swiggy'),
+    txn('2026-08-20', 300, 'Swiggy'),
     txn('2026-09-05', 2000, 'Amazon order', 'shopping'),
     txn('2026-09-09', 400, 'Amazon refund', 'shopping', 'credit'),
-    txn('2026-09-15', 700, 'swiggy order', 'food_dining', 'debit', 'acc2'),
+    txn('2026-09-15', 700, 'swiggy', 'food_dining', 'debit', 'acc2'),
   ]
 
   test('groups by category with refunds subtracted, largest first', () => {
@@ -48,7 +48,7 @@ describe('computeTotals', () => {
     expect(result.groups[0]!.label).toBe('Shopping')
   })
 
-  test('groups merchants by first summary word regardless of case', () => {
+  test('groups merchants by the whole name regardless of case', () => {
     const result = computeTotals(spending, { kind: 'expense', groupBy: 'merchant' })
     const swiggy = result.groups.find((g) => g.key === 'swiggy')!
     expect(swiggy.total).toBe(1500)

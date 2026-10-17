@@ -21,6 +21,7 @@ import {
   CategorizationHintsSection,
   DataHealthSection,
   DashboardWidgetsSection,
+  TransactionNamesSection,
 } from '@/components/settings'
 
 export const Route = createFileRoute('/settings')({
@@ -76,6 +77,9 @@ function SettingsPage() {
 
         {/* Default Categorization Hints */}
         <CategorizationHintsSection />
+
+        {/* Transaction Names - one-time rename of older transactions */}
+        <TransactionNamesSection />
 
         {/* Dashboard Widgets - which cards and sections the dashboard shows */}
         <DashboardWidgetsSection />
