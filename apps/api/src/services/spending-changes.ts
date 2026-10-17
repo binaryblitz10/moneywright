@@ -157,7 +157,9 @@ export function merchantKey(
 }
 
 /** Display form of the merchant: first word as written */
-function merchantName(txn: Pick<ChangeTransaction, 'summary' | 'originalDescription'>): string {
+export function merchantName(
+  txn: Pick<ChangeTransaction, 'summary' | 'originalDescription'>
+): string {
   const name = txn.summary?.trim() || txn.originalDescription.substring(0, 50).trim()
   return name.split(/\s+/)[0] || name
 }
@@ -231,7 +233,7 @@ const CATEGORY_LABELS = new Map<string, string>(
   )
 )
 
-function categoryLabel(code: string): string {
+export function categoryLabel(code: string): string {
   return CATEGORY_LABELS.get(code) ?? code.replace(/_/g, ' ')
 }
 

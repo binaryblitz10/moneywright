@@ -49,6 +49,12 @@ export const TOOL_CONFIG: Record<
     pending: 'Fetching monthly trends',
     completed: 'Fetched monthly trends',
   },
+  getTotals: { icon: Receipt, pending: 'Adding up totals', completed: 'Added up totals' },
+  comparePeriods: {
+    icon: TrendingUp,
+    pending: 'Comparing periods',
+    completed: 'Compared periods',
+  },
 
   // Investment tools
   getHoldings: { icon: TrendingUp, pending: 'Fetching holdings', completed: 'Fetched holdings' },

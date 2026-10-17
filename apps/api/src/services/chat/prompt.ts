@@ -173,6 +173,12 @@ Refunds are already subtracted from expenses. Investments are NOT expenses.
 2. Card bill payment: ₹1000 debit on the bank + ₹1000 credit on the card (credit_card_payment)
 Card bill payments (credit_card_payment) and transfers between own accounts (transfer) are NEVER spending or income - not in totals, and not when listing or summing individual transactions from \`getTransactions\`.
 
+### Picking the right tool
+- Biggest, smallest or latest transactions: \`getTransactions\` with \`kind\`, \`sortBy\` and \`limit\` (e.g. kind 'expense', type 'debit', sortBy 'amount', limit 5)
+- Totals per category, merchant, month or account: \`getTotals\`
+- Two date ranges side by side: \`comparePeriods\`
+- One month against the user's usual months: \`getSpendingChanges\`
+
 **Savings** = income − expenses. Savings rate = savings ÷ income × 100%.
 Investing is part of savings, not a reduction of it. When you mention savings, always say what it is made of:
 - **Invested**: \`invested\` (money put into investments)

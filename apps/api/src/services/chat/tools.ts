@@ -39,6 +39,7 @@ import { getTransactions, getDetectedSubscriptions, type TransactionFilters } fr
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
 import { getCashflowExcludedCategories } from '../preferences'
+import { comparePeriods, daysInRange, getTotals } from '../transaction-totals'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
@@ -50,6 +51,9 @@ import {
   getInsurancePaymentHistory,
   calculateLoanOutstanding,
 } from '../entity-linking'
+
+/** A YYYY-MM-DD date */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
 
 /** Page size for paginated results */
 const PAGE_SIZE = 250
@@ -322,7 +326,9 @@ export function createTools(context: ToolContext) {
 **Sorting and limit**:
 - sortBy: 'date' (default) or 'amount'; sortOrder: 'desc' (default) or 'asc'
 - limit: return only the first N matches after sorting (totalCount still counts every match)
-- Example - five largest purchases this year: kind 'expense', type 'debit', sortBy 'amount', limit 5`,
+- Example - five largest purchases this year: kind 'expense', type 'debit', sortBy 'amount', limit 5
+
+For totals per category, merchant, month or account use getTotals instead of adding rows up.`,
       inputSchema: z.object({
         // Pagination
         queryId: z.string().optional().describe('Query ID from previous call to fetch next page'),
@@ -1051,6 +1057,143 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
           month: params.month,
           baselineMonths: params.baselineMonths,
         })
+      },
+    }),
+
+    getTotals: tool({
+      description: `Add up money of one kind for a period, grouped by category, merchant, month or account. The app does the adding - quote these figures, never sum transaction rows yourself.
+
+**kind** (default 'expense'), using the dashboard's labels and signs:
+- expense: purchases minus refunds (card bill payments and own-account transfers are never included)
+- income: credits minus reversals
+- investment: money put into investments
+- transfer: card bill payments and moves between own accounts
+Categories the user excluded from cash flow are left out, so totals match the dashboard.
+
+**groupBy**: 'category' | 'merchant' | 'month' | 'account'
+- merchant is the first word of each transaction's summary (e.g. "Swiggy")
+- month groups come back in date order; the rest are sorted largest first
+
+Optional filters: startDate/endDate (YYYY-MM-DD), category, accountId, search (description text).
+Use limit to return only the top N groups; groupCount says how many groups there are in total.
+
+Examples: "spend per month at Swiggy" -> groupBy 'month', search 'swiggy'. "Top 5 merchants this year" -> groupBy 'merchant', limit 5.`,
+      inputSchema: z.object({
+        groupBy: z.enum(['category', 'merchant', 'month', 'account']).describe('How to group'),
+        kind: z
+          .enum(['expense', 'income', 'investment', 'transfer'])
+          .optional()
+          .default('expense')
+          .describe('Which kind of money to add up (default: expense)'),
+        startDate: z.string().optional().describe('Start date (YYYY-MM-DD)'),
+        endDate: z.string().optional().describe('End date (YYYY-MM-DD)'),
+        category: z.string().optional().describe('Only this category'),
+        accountId: z.string().optional().describe('Only this account'),
+        search: z.string().optional().describe('Only transactions whose description matches'),
+        limit: z.number().int().positive().optional().describe('Return only the top N groups'),
+      }),
+      execute: async (params) => {
+        const result = await getTotals(userId, {
+          profileId: profileIdForQuery,
+          kind: params.kind,
+          groupBy: params.groupBy,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          category: params.category,
+          accountId: params.accountId,
+          search: params.search,
+        })
+
+        return {
+          period: {
+            startDate: params.startDate || 'all time',
+            endDate: params.endDate || 'now',
+          },
+          kind: params.kind,
+          total: roundMoney(result.total),
+          transactionCount: result.count,
+          groupCount: result.groups.length,
+          groups: result.groups.slice(0, params.limit).map((g) => ({
+            [params.groupBy]: g.label,
+            total: roundMoney(g.total),
+            count: g.count,
+          })),
+          currency: result.currency,
+        }
+      },
+    }),
+
+    comparePeriods: tool({
+      description: `Compare money of one kind between two date ranges, per category, merchant or account. The app works out every change - quote these figures, never compute differences yourself.
+
+Change is always periodB minus periodA, so pass the earlier period as periodA. changePct is a percentage of periodA (null when periodA is 0).
+Groups are sorted by the size of the change, largest first; groups that appear in only one period are included.
+daysA/daysB give each period's length: when they differ (or a period is still in progress), say so rather than comparing the totals as equals.
+
+Uses the same kinds, signs and exclusions as getTotals (default kind 'expense').
+For one month against the user's usual months, getSpendingChanges is better.`,
+      inputSchema: z.object({
+        periodA: z
+          .object({ startDate: isoDate, endDate: isoDate })
+          .describe('Earlier period (YYYY-MM-DD, inclusive)'),
+        periodB: z
+          .object({ startDate: isoDate, endDate: isoDate })
+          .describe('Later period (YYYY-MM-DD, inclusive)'),
+        groupBy: z
+          .enum(['category', 'merchant', 'account'])
+          .optional()
+          .default('category')
+          .describe('How to group (default: category)'),
+        kind: z
+          .enum(['expense', 'income', 'investment', 'transfer'])
+          .optional()
+          .default('expense')
+          .describe('Which kind of money to compare (default: expense)'),
+        category: z.string().optional().describe('Only this category'),
+        accountId: z.string().optional().describe('Only this account'),
+        search: z.string().optional().describe('Only transactions whose description matches'),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Return only the N biggest changes (default: 15)'),
+      }),
+      execute: async (params) => {
+        const result = await comparePeriods(userId, {
+          profileId: profileIdForQuery,
+          kind: params.kind,
+          groupBy: params.groupBy,
+          periodA: params.periodA,
+          periodB: params.periodB,
+          category: params.category,
+          accountId: params.accountId,
+          search: params.search,
+        })
+        const toPct = (pct: number | null) => (pct === null ? null : Math.round(pct * 1000) / 10)
+
+        return {
+          kind: params.kind,
+          periodA: { ...params.periodA, days: daysInRange(params.periodA) },
+          periodB: { ...params.periodB, days: daysInRange(params.periodB) },
+          totalA: roundMoney(result.totalA),
+          totalB: roundMoney(result.totalB),
+          change: roundMoney(result.change),
+          changePct: toPct(result.changePct),
+          transactionCountA: result.countA,
+          transactionCountB: result.countB,
+          groupCount: result.groups.length,
+          groups: result.groups.slice(0, params.limit ?? 15).map((g) => ({
+            [params.groupBy]: g.label,
+            totalA: roundMoney(g.totalA),
+            totalB: roundMoney(g.totalB),
+            change: roundMoney(g.change),
+            changePct: toPct(g.changePct),
+            countA: g.countA,
+            countB: g.countB,
+          })),
+          currency: result.currency,
+        }
       },
     }),
 
