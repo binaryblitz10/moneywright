@@ -9,6 +9,7 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
+  DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const
@@ -217,6 +218,30 @@ export async function getCashflowExcludedCategories(userId: string): Promise<str
   if (!value) return []
 
   return parseCategoryList(value)
+}
+
+/**
+ * Helper: Get the duplicate groups the user marked as not duplicates (user-wide)
+ */
+export async function getDismissedDuplicates(userId: string): Promise<string[]> {
+  const value = await getPreference(userId, PREFERENCE_KEYS.DISMISSED_DUPLICATES, null)
+  return value ? parseCategoryList(value) : []
+}
+
+/**
+ * Helper: Mark duplicate groups as not duplicates, or bring them back
+ */
+export async function setDuplicatesDismissed(
+  userId: string,
+  signatures: string[],
+  dismissed: boolean
+): Promise<void> {
+  const current = new Set(await getDismissedDuplicates(userId))
+  for (const signature of signatures) {
+    if (dismissed) current.add(signature)
+    else current.delete(signature)
+  }
+  await setPreference(userId, PREFERENCE_KEYS.DISMISSED_DUPLICATES, JSON.stringify([...current]))
 }
 
 /**

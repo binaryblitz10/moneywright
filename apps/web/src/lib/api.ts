@@ -993,16 +993,32 @@ export async function bulkUpdateTransactions(data: {
  */
 export interface DuplicateGroup {
   key: string
+  signature: string
   transactions: Transaction[]
 }
 
 /**
  * Find groups of likely duplicate transactions
  */
-export async function getDuplicateGroups(filters?: TransactionFilters): Promise<DuplicateGroup[]> {
-  const queryString = buildFilterParams(filters).toString()
+export async function getDuplicateGroups(
+  filters?: TransactionFilters,
+  dismissed = false
+): Promise<DuplicateGroup[]> {
+  const params = buildFilterParams(filters)
+  if (dismissed) params.set('dismissed', 'true')
+  const queryString = params.toString()
   const response = await api.get(`/transactions/duplicates${queryString ? `?${queryString}` : ''}`)
   return response.data.groups
+}
+
+/**
+ * Mark duplicate groups as not duplicates, or bring them back into the list
+ */
+export async function setDuplicatesDismissed(
+  signatures: string[],
+  dismissed: boolean
+): Promise<void> {
+  await api.post('/transactions/duplicates/dismissed', { signatures, dismissed })
 }
 
 /**

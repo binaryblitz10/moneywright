@@ -15,6 +15,7 @@ import {
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { logger } from '../lib/logger'
+import { getDismissedDuplicates } from './preferences'
 import { decryptOptional } from '../lib/encryption'
 
 /**
@@ -462,6 +463,8 @@ export async function getReviewCounts(userId: string, profileId?: string): Promi
  */
 export interface DuplicateGroup {
   key: string
+  /** Group key plus its size: a new identical transaction changes it, so a dismissed group resurfaces */
+  signature: string
   transactions: TransactionResponse[]
 }
 
@@ -469,11 +472,14 @@ export interface DuplicateGroup {
  * Find likely duplicate transactions: same account, date, type, amount and
  * (case/whitespace-insensitive) description. Rows within a group are ordered
  * oldest-created first, so the first row is the one to keep.
+ * Groups the user marked as not duplicates are left out, or returned alone with `dismissed`.
  */
 export async function findDuplicateGroups(
   userId: string,
-  filters?: TransactionFilters
+  filters?: TransactionFilters,
+  dismissed = false
 ): Promise<DuplicateGroup[]> {
+  const dismissedSignatures = new Set(await getDismissedDuplicates(userId))
   const rows = await db
     .select()
     .from(tables.transactions)
@@ -495,7 +501,12 @@ export async function findDuplicateGroups(
 
   return [...groups.entries()]
     .filter(([, transactions]) => transactions.length > 1)
-    .map(([key, transactions]) => ({ key, transactions }))
+    .map(([key, transactions]) => ({
+      key,
+      signature: `${key}#${transactions.length}`,
+      transactions,
+    }))
+    .filter((group) => dismissedSignatures.has(group.signature) === dismissed)
     .sort((a, b) => b.transactions[0]!.date.localeCompare(a.transactions[0]!.date))
 }
 

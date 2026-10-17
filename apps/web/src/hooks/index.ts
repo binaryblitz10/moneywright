@@ -47,6 +47,7 @@ export {
   useUpdateTransaction,
   useBulkUpdateTransactions,
   useBulkDeleteTransactions,
+  useDismissDuplicates,
   useDuplicateGroups,
   useReviewCounts,
   useLinkTransactions,

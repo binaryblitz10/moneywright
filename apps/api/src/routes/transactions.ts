@@ -21,6 +21,7 @@ import {
   getCategorizationStatus,
 } from '../services/statements'
 import { getProfileById } from '../services/profiles'
+import { setDuplicatesDismissed } from '../services/preferences'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
 import { TRANSACTION_LINK_TYPES, isKnownCategory, type CountryCode } from '../lib/constants'
@@ -73,6 +74,11 @@ const bulkUpdateSchema = z
 /**
  * Bulk delete request schema
  */
+const dismissDuplicatesSchema = z.object({
+  signatures: z.array(z.string().min(1)).min(1),
+  dismissed: z.boolean(),
+})
+
 const bulkDeleteSchema = z.object({
   transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
 })
@@ -231,8 +237,27 @@ transactionRoutes.get('/categorization-status', (c) => {
  */
 transactionRoutes.get('/duplicates', async (c) => {
   const userId = c.get('userId')
-  const groups = await findDuplicateGroups(userId, parseTransactionFilters(c))
+  const dismissed = c.req.query('dismissed') === 'true'
+  const groups = await findDuplicateGroups(userId, parseTransactionFilters(c), dismissed)
   return c.json({ groups })
+})
+
+/**
+ * POST /transactions/duplicates/dismissed
+ * Mark duplicate groups as not duplicates (or bring them back)
+ */
+transactionRoutes.post('/duplicates/dismissed', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+  const result = dismissDuplicatesSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
+      400
+    )
+  }
+  await setDuplicatesDismissed(userId, result.data.signatures, result.data.dismissed)
+  return c.json({ success: true })
 })
 
 /**

@@ -9,6 +9,7 @@ import {
   bulkUpdateTransactions,
   bulkDeleteTransactions,
   getDuplicateGroups,
+  setDuplicatesDismissed,
   getReviewCounts,
   linkTransactions,
   unlinkTransaction,
@@ -27,7 +28,7 @@ export const transactionKeys = {
   stats: (filters?: Omit<TransactionFilters, 'minAmount' | 'maxAmount'>) =>
     [...transactionKeys.all, 'stats', filters] as const,
   categories: () => [...transactionKeys.all, 'categories'] as const,
-  duplicates: (filters?: TransactionFilters) =>
+  duplicates: (filters?: TransactionFilters & { dismissed?: boolean }) =>
     [...transactionKeys.all, 'duplicates', filters] as const,
   reviewCounts: (profileId?: string) =>
     [...transactionKeys.all, 'reviewCounts', profileId] as const,
@@ -172,13 +173,34 @@ export function useBulkUpdateTransactions() {
 /**
  * Find groups of likely duplicate transactions
  */
-export function useDuplicateGroups(filters?: TransactionFilters & { enabled?: boolean }) {
-  const { enabled = true, ...filterOptions } = filters ?? {}
+export function useDuplicateGroups(
+  filters?: TransactionFilters & { enabled?: boolean; dismissed?: boolean }
+) {
+  const { enabled = true, dismissed = false, ...filterOptions } = filters ?? {}
   return useQuery({
-    queryKey: transactionKeys.duplicates(filterOptions),
-    queryFn: () => getDuplicateGroups(filterOptions),
+    queryKey: transactionKeys.duplicates({ ...filterOptions, dismissed }),
+    queryFn: () => getDuplicateGroups(filterOptions, dismissed),
     enabled,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Mark duplicate groups as not duplicates, or bring them back
+ */
+export function useDismissDuplicates() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ signatures, dismissed }: { signatures: string[]; dismissed: boolean }) =>
+      setDuplicatesDismissed(signatures, dismissed),
+    onSuccess: (_, { dismissed }) => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      toast.success(dismissed ? 'Marked as not duplicates' : 'Marked as duplicates again')
+    },
+    onError: () => {
+      toast.error('Failed to update duplicates')
+    },
   })
 }
 
