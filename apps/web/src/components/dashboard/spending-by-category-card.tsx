@@ -81,7 +81,7 @@ export function SpendingByCategoryCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 flex-1 flex flex-col">
           {isLoading ? (
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (

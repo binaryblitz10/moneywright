@@ -80,7 +80,7 @@ export function IncomeByCategoryCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 flex-1 flex flex-col">
           {isLoading ? (
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (
@@ -103,6 +103,8 @@ export function IncomeByCategoryCard({
                 getCategoryColor={getCategoryColor}
                 showMonthlyAverage={showMonthlyAverage}
                 totalMonths={totalMonths}
+                totalLabel="Total Income"
+                averageLabel="Avg. Monthly Income"
               />
             ) : (
               <CategoryBreakdown
