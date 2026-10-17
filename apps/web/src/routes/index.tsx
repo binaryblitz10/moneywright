@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   useAuth,
@@ -385,28 +385,6 @@ function DashboardPage() {
           }}
         />
       </StatCardGrid>
-
-      {/* Transfers are excluded from income and expenses; point to them so they can be checked */}
-      {summary && Math.abs(summary.transactions.transferNet) >= 1 && (
-        <p className="-mt-4 mb-6 text-xs text-muted-foreground">
-          {formatCurrency(
-            Math.abs(summary.transactions.transferNet),
-            summary.transactions.currency
-          )}{' '}
-          in transfers and card payments not counted as income or expenses.{' '}
-          <Link
-            to="/transactions"
-            search={{
-              category: 'transfer,credit_card_payment',
-              startDate: dateRange.startDate,
-              endDate: dateRange.endDate,
-            }}
-            className="text-primary hover:underline"
-          >
-            Review
-          </Link>
-        </p>
-      )}
 
       {/* Income vs Expenses Chart */}
       <IncomeExpensesCard
