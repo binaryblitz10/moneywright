@@ -4,13 +4,18 @@ import { calculateNetWorth } from '../services/accounts'
 import { getInvestmentSummary } from '../services/investment-holdings'
 import { getDetectedSubscriptions } from '../services/transactions'
 import { fetchFxRates, getConversionRate } from '../services/fx-rates'
-import { getSpendingChanges, DEFAULT_BASELINE_MONTHS } from '../services/spending-changes'
+import {
+  getDataStartMonth,
+  getSpendingChanges,
+  DEFAULT_BASELINE_MONTHS,
+} from '../services/spending-changes'
 import {
   computeSavings,
   getCashFlow,
   getMonthCashFlow,
   getMonthCoverage,
   getMonthsRange,
+  getPreviousPeriod,
   toBreakdown,
 } from '../services/cashflow'
 
@@ -38,8 +43,14 @@ summaryRoutes.get('/', async (c) => {
   const effectiveStartDate = startDate || undefined
   const effectiveEndDate = endDate || undefined
 
+  // The same number of whole months just before the range, for "vs previous period"
+  const previousRange =
+    effectiveStartDate && effectiveEndDate
+      ? getPreviousPeriod(effectiveStartDate, effectiveEndDate)
+      : null
+
   // Fetch all summaries in parallel
-  const [netWorth, investments, cf] = await Promise.all([
+  const [netWorth, investments, cf, previousCf, dataStartMonth] = await Promise.all([
     calculateNetWorth(userId, profileId),
     getInvestmentSummary(userId, profileId),
     getCashFlow(userId, {
@@ -47,7 +58,15 @@ summaryRoutes.get('/', async (c) => {
       startDate: effectiveStartDate,
       endDate: effectiveEndDate,
     }),
+    previousRange ? getCashFlow(userId, { profileId, ...previousRange }) : null,
+    previousRange ? getDataStartMonth(userId, profileId) : null,
   ])
+
+  // Only compare against a previous period that every account has data for
+  const previousComparable =
+    previousRange !== null &&
+    dataStartMonth !== null &&
+    dataStartMonth <= previousRange.startDate.substring(0, 7)
 
   const savings = computeSavings(cf)
 
@@ -122,6 +141,15 @@ summaryRoutes.get('/', async (c) => {
       incomeBreakdown: toBreakdown(cf.byCategory, 'income'),
       categoryBreakdown: toBreakdown(cf.byCategory, 'expense'),
       excludedCategories: cf.excludedCategories,
+      // Spending in the previous period of the same length; null when there is no full data for it
+      previousPeriod:
+        previousRange && previousCf && previousComparable
+          ? {
+              ...previousRange,
+              totalExpenses: previousCf.expenses,
+              categoryBreakdown: toBreakdown(previousCf.byCategory, 'expense'),
+            }
+          : null,
     },
   })
 })

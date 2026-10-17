@@ -12,6 +12,8 @@ import { PieChart } from 'lucide-react'
 import { getCategoryFillColor } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from './utils'
+import { CategoryChange } from './category-change'
+import type { CategoryComparison } from './category-comparison'
 
 interface CategoryPieChartProps {
   categoryBreakdown: { category: string; total: number; count: number }[]
@@ -26,6 +28,8 @@ interface CategoryPieChartProps {
   averageLabel?: string
   /** Max categories to list beside the chart (default 6, matching the list view) */
   limit?: number
+  /** Show "vs previous period" labels: null shows "–" (no full data), undefined hides them */
+  comparison?: CategoryComparison | null
 }
 
 export function CategoryPieChart({
@@ -39,6 +43,7 @@ export function CategoryPieChart({
   totalLabel = 'Total Spent',
   averageLabel = 'Avg. Monthly',
   limit = 6,
+  comparison,
 }: CategoryPieChartProps) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
@@ -46,6 +51,7 @@ export function CategoryPieChart({
   const slices = categoryBreakdown
     .map((cat) => ({
       category: cat.category,
+      total: cat.total,
       name: getCategoryLabel(cat.category),
       value: showMonthlyAverage ? Math.round(cat.total / totalMonths) : cat.total,
       fill: getCategoryFillColor(getCategoryColor(cat.category)),
@@ -75,8 +81,18 @@ export function CategoryPieChart({
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
           {showMonthlyAverage ? averageLabel : totalLabel}
         </span>
-        <span className="text-base font-bold text-foreground tabular-nums">
-          {formatCurrency(displayTotal, currency)}
+        <span className="flex items-baseline gap-2">
+          {comparison !== undefined && (
+            <CategoryChange
+              current={total}
+              previous={comparison?.previousTotal}
+              periodLabel={comparison?.periodLabel}
+              currency={currency}
+            />
+          )}
+          <span className="text-base font-bold text-foreground tabular-nums">
+            {formatCurrency(displayTotal, currency)}
+          </span>
         </span>
       </div>
 
@@ -120,6 +136,15 @@ export function CategoryPieChart({
                   {formatCurrency(s.value, currency)}
                   {suffix && (
                     <span className="text-[10px] text-muted-foreground font-normal">{suffix}</span>
+                  )}
+                  {comparison !== undefined && (
+                    <CategoryChange
+                      className="block"
+                      current={s.total}
+                      previous={comparison?.previousByCategory.get(s.category)}
+                      periodLabel={comparison?.periodLabel}
+                      currency={currency}
+                    />
                   )}
                 </p>
               </div>

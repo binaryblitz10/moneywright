@@ -467,6 +467,7 @@ function DashboardPage() {
               getCategoryColor={getCategoryColor}
               startDate={dateRange.startDate}
               endDate={dateRange.endDate}
+              previousPeriod={summary?.transactions.previousPeriod}
             />
           )}
 

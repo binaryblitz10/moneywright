@@ -3,6 +3,7 @@ import {
   computeCashFlow,
   computeSavings,
   getMonthCoverage,
+  getPreviousPeriod,
   toBreakdown,
   type CashFlowTransaction,
 } from './cashflow'
@@ -164,5 +165,35 @@ describe('getMonthCoverage', () => {
 
   test('today on the last day of the month is not partial', () => {
     expect(getMonthCoverage('2026-10', undefined, '2026-10-31').isPartial).toBe(false)
+  })
+})
+
+describe('getPreviousPeriod', () => {
+  test('a part month compares with the whole month before', () => {
+    expect(getPreviousPeriod('2026-10-01', '2026-10-17')).toEqual({
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+    })
+  })
+
+  test('a financial year compares with the whole previous financial year', () => {
+    expect(getPreviousPeriod('2026-04-01', '2027-03-31')).toEqual({
+      startDate: '2025-04-01',
+      endDate: '2026-03-31',
+    })
+  })
+
+  test('mid-month dates still count whole months', () => {
+    expect(getPreviousPeriod('2026-08-15', '2026-09-10')).toEqual({
+      startDate: '2026-06-01',
+      endDate: '2026-07-31',
+    })
+  })
+
+  test('crosses year boundaries and leap years', () => {
+    expect(getPreviousPeriod('2024-03-01', '2024-04-30')).toEqual({
+      startDate: '2024-01-01',
+      endDate: '2024-02-29',
+    })
   })
 })

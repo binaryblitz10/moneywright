@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CategoryBreakdown } from './category-breakdown'
+import type { CategoryComparison } from './category-comparison'
 
 interface CategoryBreakdownDialogProps {
   open: boolean
@@ -28,6 +29,7 @@ interface CategoryBreakdownDialogProps {
   totalLabel?: string
   averageLabel?: string
   emptyTitle?: string
+  comparison?: CategoryComparison | null
 }
 
 export function CategoryBreakdownDialog({

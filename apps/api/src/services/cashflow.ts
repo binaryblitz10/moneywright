@@ -240,6 +240,34 @@ export function getMonthCoverage(
   return { isPartial, throughDate: isPartial ? end : null }
 }
 
+/** Month index (years * 12 + month) of a YYYY-MM-DD or YYYY-MM date */
+function monthIndex(date: string): number {
+  const [year = 0, month = 1] = date.split('-').map(Number)
+  return year * 12 + month - 1
+}
+
+/** YYYY-MM of a month index */
+function monthFromIndex(index: number): string {
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
+}
+
+/**
+ * The period just before a date range, in whole months: as many calendar months as the
+ * range touches, ending the month before the range starts. Months always count in full,
+ * so "this month" (part of October) compares with all of September.
+ */
+export function getPreviousPeriod(
+  startDate: string,
+  endDate: string
+): { startDate: string; endDate: string } {
+  const start = monthIndex(startDate)
+  const months = Math.max(1, monthIndex(endDate) - start + 1)
+  return {
+    startDate: `${monthFromIndex(start - months)}-01`,
+    endDate: monthLastDate(monthFromIndex(start - 1)),
+  }
+}
+
 /** Map a stored transaction row to the shape used by cash flow calculations */
 function toCashFlowTransaction(row: Transaction): CashFlowTransaction {
   return {

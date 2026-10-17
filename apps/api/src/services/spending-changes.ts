@@ -444,6 +444,17 @@ export function computeSpendingChanges(
 }
 
 /**
+ * First complete month with data from every account (see firstUsableMonth); null without accounts.
+ * Periods starting earlier only have part of the accounts' data, so they are never compared.
+ */
+export async function getDataStartMonth(
+  userId: string,
+  profileId?: string
+): Promise<string | null> {
+  return firstUsableMonth(await getAccountFirstStarts(userId, profileId))
+}
+
+/**
  * First YYYY-MM-DD each active bank/card account with statements has data from: its earliest
  * statement start, falling back to that statement's first transaction (then the account's
  * first transaction) when the period start is not stored.
@@ -564,8 +575,7 @@ export async function getSpendingChanges(
       month,
       baselineMonths,
       today,
-      dataStartMonth:
-        firstUsableMonth(await getAccountFirstStarts(userId, options.profileId)) ?? undefined,
+      dataStartMonth: (await getDataStartMonth(userId, options.profileId)) ?? undefined,
       excludeCategories: await getCashflowExcludedCategories(userId),
     }
   )

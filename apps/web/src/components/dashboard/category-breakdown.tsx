@@ -8,6 +8,8 @@ import { InlineEmptyState } from '@/components/ui/empty-state'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from './utils'
+import { CategoryChange } from './category-change'
+import type { CategoryComparison } from './category-comparison'
 
 interface CategoryBreakdownProps {
   categoryBreakdown: { category: string; total: number; count: number }[]
@@ -25,6 +27,8 @@ interface CategoryBreakdownProps {
   emptyTitle?: string
   /** Max categories to list (default 6); pass Infinity to list them all */
   limit?: number
+  /** Show "vs previous period" labels: null shows "–" (no full data), undefined hides them */
+  comparison?: CategoryComparison | null
 }
 
 export function CategoryBreakdown({
@@ -41,6 +45,7 @@ export function CategoryBreakdown({
   averageLabel = 'Avg. Monthly',
   emptyTitle = 'No spending data',
   limit = 6,
+  comparison,
 }: CategoryBreakdownProps) {
   // Sort by total (net refunds sink to the bottom) and take the top categories
   // (6 by default, to match subscriptions card)
@@ -76,8 +81,18 @@ export function CategoryBreakdown({
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
           {showMonthlyAverage ? averageLabel : totalLabel}
         </span>
-        <span className="text-base font-bold text-foreground tabular-nums">
-          {formatCurrency(displayTotal, currency)}
+        <span className="flex items-baseline gap-2">
+          {comparison !== undefined && (
+            <CategoryChange
+              current={total}
+              previous={comparison?.previousTotal}
+              periodLabel={comparison?.periodLabel}
+              currency={currency}
+            />
+          )}
+          <span className="text-base font-bold text-foreground tabular-nums">
+            {formatCurrency(displayTotal, currency)}
+          </span>
         </span>
       </div>
 
@@ -131,10 +146,20 @@ export function CategoryBreakdown({
                 {showMonthlyAverage && (
                   <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
                 )}
-                {isNetRefund && (
+                {isNetRefund ? (
                   <span className="block text-[10px] text-muted-foreground font-normal">
                     net refund
                   </span>
+                ) : (
+                  comparison !== undefined && (
+                    <CategoryChange
+                      className="block"
+                      current={cat.total}
+                      previous={comparison?.previousByCategory.get(cat.category)}
+                      periodLabel={comparison?.periodLabel}
+                      currency={currency}
+                    />
+                  )
                 )}
               </p>
             </Link>

@@ -1602,6 +1602,13 @@ export interface FinancialSummary {
     /** Totals can be negative (net refund) */
     categoryBreakdown: { category: string; total: number; count: number }[]
     excludedCategories: string[]
+    /** Spending in the same number of whole months just before the period; null without full data */
+    previousPeriod: {
+      startDate: string
+      endDate: string
+      totalExpenses: number
+      categoryBreakdown: { category: string; total: number; count: number }[]
+    } | null
   }
 }
 
