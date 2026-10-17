@@ -340,7 +340,6 @@ function DashboardPage() {
           }
           icon={Banknote}
           loading={summaryLoading}
-          trend={summary?.netWorth.total ? (summary.netWorth.total > 0 ? 'up' : 'down') : undefined}
         />
         <StatCard
           label="Income"
