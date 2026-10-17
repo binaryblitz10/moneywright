@@ -5,7 +5,6 @@ import {
   findGapsAndOverlaps,
   findMissingPeriods,
   findUnlinkedCardPayments,
-  findUnpairedTransfers,
   financialYearStart,
   reconcileStatement,
   resolveStatementPeriods,
@@ -157,44 +156,6 @@ describe('reconcileStatement', () => {
       txn('b', 'a1', '2026-01-09', 'debit', 882),
     ])
     expect(result.status).toBe('ok')
-  })
-})
-
-describe('findUnpairedTransfers', () => {
-  test('pairs opposite legs in different accounts within 3 days', () => {
-    const result = findUnpairedTransfers([
-      txn('out', 'a1', '2026-01-10', 'debit', 5000),
-      txn('in', 'a2', '2026-01-12', 'credit', 5000.5),
-    ])
-    expect(result).toEqual([])
-  })
-
-  test('flags a leg with no counterpart, wrong amount, same account or too far', () => {
-    const result = findUnpairedTransfers([
-      txn('t1', 'a1', '2026-01-10', 'debit', 5000),
-      txn('t2', 'a2', '2026-01-20', 'credit', 5000),
-      txn('t3', 'a1', '2026-02-01', 'debit', 100),
-      txn('t4', 'a1', '2026-02-01', 'credit', 100),
-    ])
-    expect(result.map((t) => t.id).sort()).toEqual(['t1', 't2', 't3', 't4'])
-  })
-
-  test('a counterpart pairs only once', () => {
-    const result = findUnpairedTransfers([
-      txn('d1', 'a1', '2026-01-10', 'debit', 2000),
-      txn('d2', 'a1', '2026-01-10', 'debit', 2000),
-      txn('c1', 'a2', '2026-01-10', 'credit', 2000),
-    ])
-    expect(result).toHaveLength(1)
-  })
-
-  test('card payment legs count as counterparts but are not reported', () => {
-    const result = findUnpairedTransfers([
-      txn('d', 'a1', '2026-01-10', 'debit', 2000),
-      txn('c', 'card', '2026-01-10', 'credit', 2000, 'credit_card_payment'),
-      txn('lonely', 'a1', '2026-01-15', 'debit', 999, 'credit_card_payment'),
-    ])
-    expect(result).toEqual([])
   })
 })
 

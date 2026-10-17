@@ -130,14 +130,6 @@ function collectIssues(report: DataHealthReport): Issue[] {
     }
   }
 
-  if (report.unpairedTransfers.count > 0) {
-    issues.push({
-      key: 'unpaired-transfers',
-      label: `${plural(report.unpairedTransfers.count, 'transfer')} without a matching entry`,
-      detail: `${formatCurrency(report.unpairedTransfers.total)} moved to or from an account you haven't tracked`,
-      target: { page: 'transactions', category: 'transfer' },
-    })
-  }
   if (report.unlinkedCardPayments.count > 0) {
     issues.push({
       key: 'unlinked-card-payments',

@@ -1,6 +1,5 @@
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { db, tables } from '../db'
-import { getCategoryKind } from '../lib/constants'
 import { getAccountsByUserId } from './accounts'
 import { getCashFlow } from './cashflow'
 import { LOW_CONFIDENCE_BELOW } from './transactions'
@@ -8,7 +7,7 @@ import { LOW_CONFIDENCE_BELOW } from './transactions'
 /**
  * Data health service
  * Answers "can I trust the numbers?": statement coverage, gaps and overlaps, balance
- * reconciliation, unpaired transfers, unlinked card payments and a cash bridge that
+ * reconciliation, unlinked card payments and a cash bridge that
  * ties the change in account balances back to income - expenses - invested.
  * The checks are pure functions over plain rows; getDataHealth only loads and assembles.
  */
@@ -17,8 +16,6 @@ import { LOW_CONFIDENCE_BELOW } from './transactions'
 const BALANCE_TOLERANCE = 1
 /** A statement older than this many days makes the account stale */
 const STALE_AFTER_DAYS = 45
-/** Transfer legs may post on different days */
-const TRANSFER_WINDOW_DAYS = 3
 const DAY_MS = 86_400_000
 
 export type AccountKind = 'bank' | 'card'
@@ -113,16 +110,6 @@ export interface MissingPeriodStatement {
   periodEnd: string | null
 }
 
-export interface UnpairedTransfer {
-  id: string
-  date: string
-  amount: number
-  type: 'credit' | 'debit'
-  summary: string | null
-  accountId: string
-  accountName: string
-}
-
 export interface UnlinkedCardPayment {
   id: string
   date: string
@@ -183,7 +170,6 @@ export interface DataHealthReport {
   latestData: string | null
   issueCount: number
   accounts: AccountCoverage[]
-  unpairedTransfers: { count: number; total: number; items: UnpairedTransfer[] }
   unlinkedCardPayments: { count: number; total: number; items: UnlinkedCardPayment[] }
   lowConfidence: { count: number; total: number }
   bridge: CashBridge
@@ -472,43 +458,6 @@ export function reconcileStatement(
 }
 
 /**
- * Transfers with no opposite-side counterpart in another tracked account.
- * `transfers` holds every non-hidden transfer-kind transaction; only those in the
- * 'transfer' category are reported. Each counterpart can pair only once.
- */
-export function findUnpairedTransfers<T extends TxnLite>(transfers: T[]): T[] {
-  const sorted = [...transfers].sort((a, b) => a.date.localeCompare(b.date))
-  const used = new Set<string>()
-  const unpaired: T[] = []
-
-  for (const txn of sorted) {
-    if (txn.category !== 'transfer' || used.has(txn.id)) continue
-
-    let best: T | undefined
-    let bestGap = Infinity
-    for (const other of sorted) {
-      if (other.id === txn.id || used.has(other.id)) continue
-      if (other.accountId === txn.accountId || other.type === txn.type) continue
-      if (Math.abs(other.amount - txn.amount) > BALANCE_TOLERANCE) continue
-      const gap = Math.abs(daysBetween(txn.date, other.date))
-      if (gap <= TRANSFER_WINDOW_DAYS && gap < bestGap) {
-        best = other
-        bestGap = gap
-      }
-    }
-
-    if (best) {
-      used.add(txn.id)
-      used.add(best.id)
-    } else {
-      unpaired.push(txn)
-    }
-  }
-
-  return unpaired
-}
-
-/**
  * Account balance at the end of `date`, from statements plus all transactions after them.
  * Uses the last statement ending on/before the date (closing balance), else the statement
  * containing the date (opening balance). Null when neither exists.
@@ -596,7 +545,6 @@ export async function getDataHealth(
       latestData: null,
       issueCount: 0,
       accounts: [],
-      unpairedTransfers: { count: 0, total: 0, items: [] },
       unlinkedCardPayments: { count: 0, total: 0, items: [] },
       lowConfidence: { count: 0, total: 0 },
       bridge: emptyBridge(start, options.endDate ?? today()),
@@ -730,18 +678,6 @@ export async function getDataHealth(
   const dataThrough = coveredTos.length ? coveredTos.reduce((a, b) => (a < b ? a : b)) : null
   const latestData = coveredTos.length ? coveredTos.reduce((a, b) => (a > b ? a : b)) : null
 
-  // Transfers: only transfer-kind rows can be a counterpart
-  const transferRows = txns.filter((t) => !t.isHidden && getCategoryKind(t.category) === 'transfer')
-  const unpaired = findUnpairedTransfers(transferRows).map<UnpairedTransfer>((t) => ({
-    id: t.id,
-    date: t.date,
-    amount: t.amount,
-    type: t.type,
-    summary: t.summary,
-    accountId: t.accountId,
-    accountName: nameById.get(t.accountId)!,
-  }))
-
   const linkedTargets = new Set(linkRows.flatMap((r) => (r.target ? [r.target] : [])))
   const bankAccountIds = new Set(accountIds.filter((id) => kindById.get(id) === 'bank'))
   const unlinked = findUnlinkedCardPayments(
@@ -783,7 +719,6 @@ export async function getDataHealth(
         a.reconciliation.length,
       0
     ) +
-    unpaired.length +
     unlinked.length +
     (lowConfidence.count > 0 ? 1 : 0)
 
@@ -792,11 +727,6 @@ export async function getDataHealth(
     latestData,
     issueCount,
     accounts: coverage,
-    unpairedTransfers: {
-      count: unpaired.length,
-      total: unpaired.reduce((s, t) => s + t.amount, 0),
-      items: unpaired,
-    },
     unlinkedCardPayments: {
       count: unlinked.length,
       total: unlinked.reduce((s, t) => s + t.amount, 0),

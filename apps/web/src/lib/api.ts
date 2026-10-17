@@ -1665,10 +1665,6 @@ export interface DataHealthTransfer {
   accountName: string
 }
 
-export interface DataHealthUnpairedTransfer extends DataHealthTransfer {
-  type: 'credit' | 'debit'
-}
-
 export interface DataHealthBridge {
   status: 'ok' | 'insufficient'
   startDate: string
@@ -1687,7 +1683,6 @@ export interface DataHealthReport {
   latestData: string | null
   issueCount: number
   accounts: DataHealthAccount[]
-  unpairedTransfers: { count: number; total: number; items: DataHealthUnpairedTransfer[] }
   unlinkedCardPayments: { count: number; total: number; items: DataHealthTransfer[] }
   lowConfidence: { count: number; total: number }
   bridge: DataHealthBridge
