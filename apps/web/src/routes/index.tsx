@@ -397,14 +397,7 @@ function DashboardPage() {
         onMonthClick={handleMonthClick}
       />
 
-      {/* What Changed - has its own month, ignores the timeframe picker */}
-      <WhatChangedCard
-        profileId={profileId}
-        enabled={queryEnabled}
-        getCategoryLabel={getCategoryLabel}
-      />
-
-      {/* Spending by Category & Subscriptions Row */}
+      {/* Spending by Category & Income by Category Row */}
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <SpendingByCategoryCard
           categoryStats={
@@ -441,8 +434,15 @@ function DashboardPage() {
         />
       </div>
 
+      {/* What Changed - has its own month, ignores the timeframe picker */}
+      <WhatChangedCard
+        profileId={profileId}
+        enabled={queryEnabled}
+        getCategoryLabel={getCategoryLabel}
+      />
+
       {/* Subscriptions */}
-      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+      <div className="mb-6">
         <SubscriptionsCard
           subscriptions={subscriptionsData?.subscriptions || []}
           totalMonthly={subscriptionsData?.totalMonthly || 0}
