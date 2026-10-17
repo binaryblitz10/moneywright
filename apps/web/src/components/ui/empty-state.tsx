@@ -137,11 +137,14 @@ export function InlineEmptyState({
   title,
   description,
   className,
+  descriptionClassName,
 }: {
   icon: LucideIcon
   title: string
-  description: string
+  description?: string
   className?: string
+  /** Overrides the description's narrow default width (for wide cards) */
+  descriptionClassName?: string
 }) {
   return (
     <div className={cn('flex flex-col items-center justify-center py-8 text-center', className)}>
@@ -149,7 +152,11 @@ export function InlineEmptyState({
         <Icon className="h-6 w-6 text-muted-foreground" />
       </div>
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
-      <p className="text-xs text-muted-foreground mt-1 max-w-50">{description}</p>
+      {description && (
+        <p className={cn('text-xs text-muted-foreground mt-1 max-w-50', descriptionClassName)}>
+          {description}
+        </p>
+      )}
     </div>
   )
 }

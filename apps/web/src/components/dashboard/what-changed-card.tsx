@@ -38,7 +38,7 @@ function shiftMonth(month: string, delta: number): string {
 
 function formatMonth(month: string): string {
   const [year = 0, mon = 1] = month.split('-').map(Number)
-  return new Date(year, mon - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  return new Date(year, mon - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 /** First and last day of a YYYY-MM month as YYYY-MM-DD */
@@ -59,7 +59,10 @@ type Item =
 export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatChangedCardProps) {
   // Undefined until the user navigates; the API then picks the latest complete month
   const [month, setMonth] = useState<string | undefined>(undefined)
-  const { data, isLoading } = useSpendingChanges({ profileId, month }, { enabled })
+  const { data, isLoading, isPlaceholderData } = useSpendingChanges(
+    { profileId, month },
+    { enabled }
+  )
 
   const currentMonth = new Date().toLocaleDateString('en-CA').substring(0, 7)
   const shownMonth = data?.month ?? month
@@ -101,15 +104,23 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
           )}
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      {/* Fixed body height (MAX_ITEMS rows plus the note) so changing months never resizes the card */}
+      <CardContent className="pt-0 min-h-82 flex flex-col">
         {isLoading || !data ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+          <div className="space-y-1">
+            {[...Array(MAX_ITEMS)].map((_, i) => (
+              <Skeleton key={i} className="h-14 w-full" />
             ))}
           </div>
         ) : (
-          <WhatChangedBody data={data} getCategoryLabel={getCategoryLabel} />
+          <div
+            className={cn(
+              'flex-1 flex flex-col transition-opacity duration-200',
+              isPlaceholderData && 'opacity-60'
+            )}
+          >
+            <WhatChangedBody data={data} getCategoryLabel={getCategoryLabel} />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -132,11 +143,9 @@ function WhatChangedBody({
 }) {
   if (data.status === 'insufficient_history') {
     return (
-      <InlineEmptyState
-        icon={Receipt}
-        title="Not enough history yet"
-        description={`Needs at least ${data.baselineMonthsRequired} earlier months of data to compare ${formatMonth(data.month)} (${data.baselineMonthsAvailable} available)`}
-      />
+      <div className="flex-1 flex items-center justify-center">
+        <InlineEmptyState icon={Receipt} title="Not enough history yet" />
+      </div>
     )
   }
 
@@ -149,11 +158,14 @@ function WhatChangedBody({
 
   if (items.length === 0) {
     return (
-      <InlineEmptyState
-        icon={Receipt}
-        title="No significant changes"
-        description={`Spending in ${formatMonth(data.month)} is in line with previous months`}
-      />
+      <div className="flex-1 flex items-center justify-center">
+        <InlineEmptyState
+          icon={Receipt}
+          descriptionClassName="max-w-md"
+          title="No significant changes"
+          description={`Spending in ${formatMonth(data.month)} is in line with previous months`}
+        />
+      </div>
     )
   }
 

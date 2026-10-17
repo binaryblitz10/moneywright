@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getSpendingChanges } from '@/lib/api'
 
 import type { SpendingChangesParams } from '@/lib/api'
@@ -24,5 +24,7 @@ export function useSpendingChanges(params: SpendingChangesParams, options?: { en
     queryKey: spendingChangesKeys.detail(params),
     queryFn: () => getSpendingChanges(params),
     enabled: options?.enabled ?? true,
+    // Keep the previous month on screen while the next one loads
+    placeholderData: keepPreviousData,
   })
 }
