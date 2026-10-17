@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -45,6 +45,11 @@ export function StatementEditDialog({
 
   const [periodStart, setPeriodStart] = useState(statement.periodStart ?? '')
   const [periodEnd, setPeriodEnd] = useState(statement.periodEnd ?? '')
+  const [periodError, setPeriodError] = useState<string | null>(null)
+  // Safari's date fields can show a typed date without firing a change event, so the
+  // dates are read from the fields themselves when saving
+  const periodStartRef = useRef<HTMLInputElement>(null)
+  const periodEndRef = useRef<HTMLInputElement>(null)
   const [totalDue, setTotalDue] = useState(
     toInputValue(summaryTotalDue ?? statement.closingBalance)
   )
@@ -60,12 +65,27 @@ export function StatementEditDialog({
   const canSave = !hasInvalidAmount && !hasInvalidPeriod && !updateMutation.isPending
 
   const handleSave = () => {
+    const startInput = periodStartRef.current
+    const endInput = periodEndRef.current
+    // badInput: something was typed that isn't a complete date, which would otherwise save as empty
+    if (startInput?.validity.badInput || endInput?.validity.badInput) {
+      setPeriodError('Enter complete dates, or clear the field.')
+      return
+    }
+    const start = startInput?.value ?? periodStart
+    const end = endInput?.value ?? periodEnd
+    if (start && end && start > end) {
+      setPeriodError('Period start must be on or before period end.')
+      return
+    }
+    setPeriodError(null)
+
     updateMutation.mutate(
       {
         statementId: statement.id,
         data: {
-          periodStart: periodStart || null,
-          periodEnd: periodEnd || null,
+          periodStart: start || null,
+          periodEnd: end || null,
           ...(isCreditCard
             ? { totalDue: parseAmount(totalDue) }
             : {
@@ -92,25 +112,31 @@ export function StatementEditDialog({
               <Label htmlFor="periodStart">Period start</Label>
               <Input
                 id="periodStart"
+                ref={periodStartRef}
                 type="date"
                 value={periodStart}
                 className={INPUT_CLASS}
                 onChange={(e) => setPeriodStart(e.target.value)}
+                onBlur={(e) => setPeriodStart(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="periodEnd">Period end</Label>
               <Input
                 id="periodEnd"
+                ref={periodEndRef}
                 type="date"
                 value={periodEnd}
                 className={INPUT_CLASS}
                 onChange={(e) => setPeriodEnd(e.target.value)}
+                onBlur={(e) => setPeriodEnd(e.target.value)}
               />
             </div>
           </div>
-          {hasInvalidPeriod && (
+          {hasInvalidPeriod ? (
             <p className="text-xs text-negative">Period start must be on or before period end.</p>
+          ) : (
+            periodError && <p className="text-xs text-negative">{periodError}</p>
           )}
 
           {isCreditCard ? (
