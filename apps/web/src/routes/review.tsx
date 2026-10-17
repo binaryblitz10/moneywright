@@ -125,23 +125,6 @@ function ReviewPage() {
           }
         />
 
-        <TransactionFiltersBar
-          filters={filters}
-          search={search}
-          categories={categories}
-          accounts={accounts || []}
-          statements={statements || []}
-          country={user?.country}
-          onFiltersChange={setFilters}
-          onSearchChange={setSearch}
-          onClearFilters={() => {
-            setFilters({})
-            setSearch('')
-          }}
-          getCategoryLabel={getCategoryLabel}
-          getStatementLabel={getStatementLabel}
-        />
-
         <Tabs
           value={activeTab}
           onValueChange={(value) =>
@@ -173,6 +156,23 @@ function ReviewPage() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        <TransactionFiltersBar
+          filters={filters}
+          search={search}
+          categories={categories}
+          accounts={accounts || []}
+          statements={statements || []}
+          country={user?.country}
+          onFiltersChange={setFilters}
+          onSearchChange={setSearch}
+          onClearFilters={() => {
+            setFilters({})
+            setSearch('')
+          }}
+          getCategoryLabel={getCategoryLabel}
+          getStatementLabel={getStatementLabel}
+        />
 
         {activeTab === 'duplicates' ? (
           <DuplicatesPanel {...panelProps} />
