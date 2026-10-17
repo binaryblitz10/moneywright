@@ -19,7 +19,8 @@ const RESIDUAL_ALERT = 10000
 const COLLAPSED_ROWS = 6
 
 type IssueTarget =
-  | { page: 'statements' }
+  /** Statements page narrowed to the statements (or account) behind the issue */
+  | { page: 'statements'; statementIds?: string[]; accountId?: string }
   | { page: 'transactions'; category?: string; statementId?: string }
   | { page: 'review' }
 
@@ -56,7 +57,7 @@ function plural(count: number, word: string): string {
 /** Flatten the report into one list of things to look at, most structural first */
 function collectIssues(report: DataHealthReport): Issue[] {
   const issues: Issue[] = []
-  let unverifiable = 0
+  const unverifiableIds: string[] = []
 
   for (const account of report.accounts) {
     if (account.isStale) {
@@ -67,7 +68,7 @@ function collectIssues(report: DataHealthReport): Issue[] {
           account.coveredTo === null
             ? 'No statements uploaded'
             : `Last statement ends ${formatLongDate(account.coveredTo)} (${plural(account.daysSinceLastStatement ?? 0, 'day')} ago)`,
-        target: { page: 'statements' },
+        target: { page: 'statements', accountId: account.accountId },
       })
     }
     for (const gap of account.gaps) {
@@ -75,7 +76,10 @@ function collectIssues(report: DataHealthReport): Issue[] {
         key: `gap-${gap.afterStatementId}-${gap.beforeStatementId}`,
         label: `${account.accountName}: missing statement`,
         detail: `${formatRange(gap.from, gap.to)} (${plural(gap.days, 'day')} not covered)`,
-        target: { page: 'statements' },
+        target: {
+          page: 'statements',
+          statementIds: [gap.afterStatementId, gap.beforeStatementId],
+        },
       })
     }
     for (const overlap of account.overlaps) {
@@ -83,7 +87,7 @@ function collectIssues(report: DataHealthReport): Issue[] {
         key: `overlap-${overlap.statementIds.join('-')}`,
         label: `${account.accountName}: overlapping statements`,
         detail: `${formatRange(overlap.from, overlap.to)} may be counted twice`,
-        target: { page: 'statements' },
+        target: { page: 'statements', statementIds: overlap.statementIds },
       })
     }
     for (const brk of account.balanceBreaks) {
@@ -91,7 +95,10 @@ function collectIssues(report: DataHealthReport): Issue[] {
         key: `break-${brk.previousStatementId}-${brk.nextStatementId}`,
         label: `${account.accountName}: balance doesn't carry over`,
         detail: `Closing ${formatCurrency(brk.previousClosing)} on ${formatLongDate(brk.afterDate)}, next statement opens at ${formatCurrency(brk.nextOpening)}`,
-        target: { page: 'statements' },
+        target: {
+          page: 'statements',
+          statementIds: [brk.previousStatementId, brk.nextStatementId],
+        },
       })
     }
     for (const missing of account.missingPeriod) {
@@ -102,12 +109,12 @@ function collectIssues(report: DataHealthReport): Issue[] {
           missing.periodStart && missing.periodEnd
             ? `${missing.filename}: assumed ${formatRange(missing.periodStart, missing.periodEnd)}; set the period to confirm`
             : `${missing.filename}: set the period so it counts towards coverage`,
-        target: { page: 'statements' },
+        target: { page: 'statements', statementIds: [missing.statementId] },
       })
     }
     for (const rec of account.reconciliation) {
       if (rec.status === 'unverifiable') {
-        unverifiable++
+        unverifiableIds.push(rec.statementId)
         continue
       }
       const deleted =
@@ -147,12 +154,12 @@ function collectIssues(report: DataHealthReport): Issue[] {
       target: { page: 'review' },
     })
   }
-  if (unverifiable > 0) {
+  if (unverifiableIds.length > 0) {
     issues.push({
       key: 'unverifiable',
-      label: `${plural(unverifiable, 'statement')} can't be checked`,
+      label: `${plural(unverifiableIds.length, 'statement')} can't be checked`,
       detail: 'Opening or closing balance is missing',
-      target: { page: 'statements' },
+      target: { page: 'statements', statementIds: unverifiableIds },
     })
   }
 
@@ -165,7 +172,11 @@ function IssueLink({ target, children }: { target: IssueTarget; children: React.
   switch (target.page) {
     case 'statements':
       return (
-        <Link to="/statements" className={className}>
+        <Link
+          to="/statements"
+          search={{ ids: target.statementIds?.join(','), accountId: target.accountId }}
+          className={className}
+        >
           {children}
         </Link>
       )

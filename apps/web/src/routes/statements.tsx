@@ -32,13 +32,20 @@ import type { Statement } from '@/lib/api'
 // Search params validation
 type StatementsSearchParams = {
   upload?: boolean
+  /** Comma-separated statement IDs to show (e.g. from a Data Health issue) */
+  ids?: string
+  /** Account to filter by on arrival */
+  accountId?: string
 }
 
 export const Route = createFileRoute('/statements')({
   component: StatementsPage,
   validateSearch: (search: Record<string, unknown>): StatementsSearchParams => {
     return {
-      upload: search.upload === true || search.upload === 'true',
+      upload: search.upload === true || search.upload === 'true' ? true : undefined,
+      ids: typeof search.ids === 'string' && search.ids ? search.ids : undefined,
+      accountId:
+        typeof search.accountId === 'string' && search.accountId ? search.accountId : undefined,
     }
   },
 })
@@ -58,7 +65,8 @@ function StatementsPage() {
     handleFamilyViewChange,
   } = useProfileSelection()
   const [showUploadDialog, setShowUploadDialog] = useState(false)
-  const [accountFilter, setAccountFilter] = useState<string | null>(null)
+  const [accountFilter, setAccountFilter] = useState<string | null>(searchParams.accountId ?? null)
+  const idFilter = searchParams.ids ? new Set(searchParams.ids.split(',')) : null
   const [sortOrder, setSortOrder] = useState<SortOption>(() => {
     const saved = localStorage.getItem(SORT_STORAGE_KEY)
     return (saved as SortOption) || 'period_desc'
@@ -116,9 +124,9 @@ function StatementsPage() {
 
   // Filter and sort statements
   const filteredAndSortedStatements = (() => {
-    const result = accountFilter
-      ? statements?.filter((s) => s.accountId === accountFilter)
-      : statements
+    const result = statements?.filter(
+      (s) => (!accountFilter || s.accountId === accountFilter) && (!idFilter || idFilter.has(s.id))
+    )
 
     if (!result) return result
 
@@ -197,6 +205,23 @@ function StatementsPage() {
             onAccountFilterChange={setAccountFilter}
             onSortChange={handleSortChange}
           />
+        )}
+
+        {idFilter && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-muted/40 px-4 py-2 text-sm">
+            <span className="text-muted-foreground">
+              Showing the {idFilter.size === 1 ? 'statement' : 'statements'} behind a Data Health
+              issue
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => navigate({ to: '/statements', search: {} })}
+            >
+              Show all
+            </Button>
+          </div>
         )}
 
         {/* Upload Dialog */}
