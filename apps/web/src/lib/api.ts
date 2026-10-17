@@ -1833,6 +1833,91 @@ export async function getMonthTransactions(
 }
 
 // ============================================
+// Spending Changes API
+// ============================================
+
+export interface SpendingChangeTopMerchant {
+  merchant: string
+  count: number
+  amount: number
+  delta: number
+}
+
+export interface SpendingCategoryChange {
+  category: string
+  label: string
+  current: number
+  baselineMedian: number
+  delta: number
+  deltaPct: number | null
+  direction: 'up' | 'down'
+  topMerchants: SpendingChangeTopMerchant[]
+}
+
+export interface SpendingMerchantChange {
+  merchant: string
+  category: string
+  current: number
+  baselineMedian: number
+  delta: number
+  deltaPct: number | null
+  direction: 'up' | 'down'
+}
+
+export interface SpendingLargeTransaction {
+  id: string
+  date: string
+  amount: number
+  summary: string
+  category: string
+  reason: 'above_p95' | 'new_merchant'
+}
+
+export type SpendingChangesResponse =
+  | {
+      status: 'insufficient_history'
+      currency: string
+      month: string
+      isPartial: boolean
+      baselineMonthsAvailable: number
+      baselineMonthsRequired: number
+    }
+  | {
+      status: 'ok'
+      currency: string
+      month: string
+      isPartial: boolean
+      note: string | null
+      baselineMonths: string[]
+      totals: { current: number; baselineMedian: number; delta: number; deltaPct: number | null }
+      categories: SpendingCategoryChange[]
+      merchants: SpendingMerchantChange[]
+      largeTransactions: SpendingLargeTransaction[]
+    }
+
+export interface SpendingChangesParams {
+  profileId?: string
+  /** YYYY-MM; omit for the latest complete month */
+  month?: string
+  baselineMonths?: number
+}
+
+/**
+ * Get spending changes for a month vs the median of the previous months
+ */
+export async function getSpendingChanges(
+  options: SpendingChangesParams = {}
+): Promise<SpendingChangesResponse> {
+  const params = new URLSearchParams()
+  if (options.profileId) params.set('profileId', options.profileId)
+  if (options.month) params.set('month', options.month)
+  if (options.baselineMonths) params.set('baselineMonths', options.baselineMonths.toString())
+
+  const response = await api.get(`/summary/changes?${params.toString()}`)
+  return response.data
+}
+
+// ============================================
 // Preferences API
 // ============================================
 

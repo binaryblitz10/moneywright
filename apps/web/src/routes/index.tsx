@@ -34,6 +34,7 @@ import {
   DashboardTimeframePicker,
   ExcludedCategoriesPicker,
   IncomeExpensesCard,
+  WhatChangedCard,
   SpendingByCategoryCard,
   IncomeByCategoryCard,
   SubscriptionsCard,
@@ -412,6 +413,13 @@ function DashboardPage() {
         trendsData={trendsData}
         isLoading={trendsLoading}
         onMonthClick={handleMonthClick}
+      />
+
+      {/* What Changed - has its own month, ignores the timeframe picker */}
+      <WhatChangedCard
+        profileId={profileId}
+        enabled={queryEnabled}
+        getCategoryLabel={getCategoryLabel}
       />
 
       {/* Spending by Category & Subscriptions Row */}

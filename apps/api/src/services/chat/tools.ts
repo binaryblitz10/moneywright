@@ -37,6 +37,7 @@ import { executeCode as runCodeInSandbox, isE2BConfigured } from './code-executo
 // Import existing service functions
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
+import { getSpendingChanges } from '../spending-changes'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
@@ -998,6 +999,30 @@ Refunds are already subtracted from expenses. Investments are NOT expenses. Alwa
             }
           }),
         }
+      },
+    }),
+
+    getSpendingChanges: tool({
+      description: `Explain what changed in spending: compares a month's spending per category and merchant against the MEDIAN of the previous months (default 6), and lists unusually large transactions.
+All figures are computed deterministically - quote them as given, do not recompute or re-derive them.
+Returns status 'insufficient_history' when fewer than 3 baseline months exist. If the month is still in progress (isPartial), spending so far is compared with full months without pro-rating - say so.`,
+      inputSchema: z.object({
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional()
+          .describe('Month to analyse as YYYY-MM (default: latest complete month with data)'),
+        baselineMonths: z
+          .number()
+          .optional()
+          .describe('Number of previous months in the baseline (default: 6, max 24)'),
+      }),
+      execute: async (params) => {
+        return getSpendingChanges(userId, {
+          profileId: profileIdForQuery,
+          month: params.month,
+          baselineMonths: params.baselineMonths,
+        })
       },
     }),
 

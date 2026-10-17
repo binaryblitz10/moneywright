@@ -4,6 +4,7 @@ import { calculateNetWorth } from '../services/accounts'
 import { getInvestmentSummary } from '../services/investment-holdings'
 import { getDetectedSubscriptions } from '../services/transactions'
 import { fetchFxRates, getConversionRate } from '../services/fx-rates'
+import { getSpendingChanges, DEFAULT_BASELINE_MONTHS } from '../services/spending-changes'
 import {
   computeSavings,
   getCashFlow,
@@ -204,6 +205,32 @@ summaryRoutes.get('/month-transactions', async (c) => {
     month,
     startDate: c.req.query('startDate') || undefined,
     endDate: c.req.query('endDate') || undefined,
+  })
+
+  return c.json(result)
+})
+
+/**
+ * GET /summary/changes
+ * Spending changes for a month vs the median of the previous months
+ * Query params:
+ *   - profileId (optional): Profile to analyse. If not provided, aggregates all profiles.
+ *   - month (optional): Month in YYYY-MM format. Defaults to the latest complete month with data.
+ *   - baselineMonths (optional): Number of previous months in the baseline (default 6)
+ */
+summaryRoutes.get('/changes', async (c) => {
+  const userId = c.get('userId')
+  const profileId = c.req.query('profileId') || undefined
+  const month = c.req.query('month') || undefined
+
+  if (month && !/^\d{4}-\d{2}$/.test(month)) {
+    return c.json({ error: 'validation_error', message: 'month must be in YYYY-MM format' }, 400)
+  }
+
+  const result = await getSpendingChanges(userId, {
+    profileId,
+    month,
+    baselineMonths: parseInt(c.req.query('baselineMonths') ?? '', 10) || DEFAULT_BASELINE_MONTHS,
   })
 
   return c.json(result)
