@@ -1256,6 +1256,13 @@ export function getCategoryKind(code: string): CategoryKind {
 }
 
 /**
+ * Category codes of a kind across both country lists
+ */
+export function getCategoryCodesByKind(kind: CategoryKind): string[] {
+  return [...CATEGORY_KIND_BY_CODE].filter(([, k]) => k === kind).map(([code]) => code)
+}
+
+/**
  * Check if a category code exists in any country's category list
  */
 export function isKnownCategory(code: string): boolean {

@@ -9,6 +9,7 @@ import {
   gte,
   lte,
   inArray,
+  notInArray,
   isNull,
   isNotNull,
 } from 'drizzle-orm'
@@ -17,6 +18,7 @@ import type { Transaction } from '../db'
 import { logger } from '../lib/logger'
 import { getDismissedDuplicates } from './preferences'
 import { decryptOptional } from '../lib/encryption'
+import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
 
 /**
  * Transaction service
@@ -83,6 +85,10 @@ export interface TransactionFilters {
   accountId?: string | string[]
   statementId?: string | string[]
   category?: string | string[]
+  /** Category kind; unknown codes count as expenses, matching getCategoryKind */
+  kind?: CategoryKind
+  /** Categories to leave out (e.g. the user's cash flow exclusions) */
+  excludeCategories?: string[]
   type?: 'credit' | 'debit'
   startDate?: string
   endDate?: string
@@ -194,6 +200,23 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
     } else if (categories.length > 1) {
       conditions.push(or(...categories.map((cat) => eq(tables.transactions.category, cat)))!)
     }
+  }
+
+  if (filters?.kind) {
+    const kind = filters.kind
+    if (kind === 'expense') {
+      // Expenses are everything not listed under another kind
+      const otherKinds: CategoryKind[] = ['income', 'investment', 'transfer']
+      conditions.push(
+        notInArray(tables.transactions.category, otherKinds.flatMap(getCategoryCodesByKind))
+      )
+    } else {
+      conditions.push(inArray(tables.transactions.category, getCategoryCodesByKind(kind)))
+    }
+  }
+
+  if (filters?.excludeCategories?.length) {
+    conditions.push(notInArray(tables.transactions.category, filters.excludeCategories))
   }
 
   if (filters?.type) {

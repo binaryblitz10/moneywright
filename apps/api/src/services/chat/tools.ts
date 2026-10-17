@@ -38,6 +38,7 @@ import { executeCode as runCodeInSandbox, isE2BConfigured } from './code-executo
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
+import { getCashflowExcludedCategories } from '../preferences'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
@@ -310,12 +311,18 @@ export function createTools(context: ToolContext) {
 
 **Filters** (all optional):
 - startDate/endDate: ISO dates (YYYY-MM-DD)
+- kind: 'expense' | 'income' | 'investment' | 'transfer' - the same labels the dashboard uses. With kind set, card bill payments and own-account transfers are already left out (unless kind is 'transfer'), as are categories the user excluded from cash flow
 - category: Transaction category
-- type: 'credit' | 'debit'
+- type: 'credit' | 'debit'. Refunds are credits under kind 'expense', so use kind 'expense' + type 'debit' for purchases
 - minAmount/maxAmount: Amount range
 - search: Search in description
 - accountId: Specific account
-- isSubscription: Only recurring`,
+- isSubscription: Only recurring
+
+**Sorting and limit**:
+- sortBy: 'date' (default) or 'amount'; sortOrder: 'desc' (default) or 'asc'
+- limit: return only the first N matches after sorting (totalCount still counts every match)
+- Example - five largest purchases this year: kind 'expense', type 'debit', sortBy 'amount', limit 5`,
       inputSchema: z.object({
         // Pagination
         queryId: z.string().optional().describe('Query ID from previous call to fetch next page'),
@@ -323,6 +330,11 @@ export function createTools(context: ToolContext) {
         // Filters (only used on first call, ignored when queryId is provided)
         startDate: z.string().nullable().optional().describe('Start date (YYYY-MM-DD)'),
         endDate: z.string().nullable().optional().describe('End date (YYYY-MM-DD)'),
+        kind: z
+          .enum(['expense', 'income', 'investment', 'transfer'])
+          .nullable()
+          .optional()
+          .describe('Dashboard label: expense, income, investment or transfer'),
         category: z.string().nullable().optional().describe('Transaction category'),
         type: z.enum(['credit', 'debit']).nullable().optional().describe('Transaction type'),
         minAmount: z.number().nullable().optional().describe('Minimum amount'),
@@ -330,6 +342,15 @@ export function createTools(context: ToolContext) {
         search: z.string().nullable().optional().describe('Search in description'),
         accountId: z.string().nullable().optional().describe('Filter by account ID'),
         isSubscription: z.boolean().nullable().optional().describe('Only subscriptions'),
+        sortBy: z.enum(['date', 'amount']).nullable().optional().describe('Sort column'),
+        sortOrder: z.enum(['asc', 'desc']).nullable().optional().describe('Sort direction'),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .nullable()
+          .optional()
+          .describe('Return only the first N matches'),
       }),
       execute: async (params) => {
         const page = params.page || 1
@@ -369,6 +390,9 @@ export function createTools(context: ToolContext) {
           profileId: profileIdForQuery,
           startDate: params.startDate ?? undefined,
           endDate: params.endDate ?? undefined,
+          kind: params.kind ?? undefined,
+          // Match the dashboard: a kind leaves out the user's cash flow exclusions
+          excludeCategories: params.kind ? await getCashflowExcludedCategories(userId) : undefined,
           category: params.category ?? undefined,
           type: params.type ?? undefined,
           minAmount: params.minAmount ?? undefined,
@@ -378,8 +402,12 @@ export function createTools(context: ToolContext) {
           isSubscription: params.isSubscription ?? undefined,
         }
 
-        // Fetch all matching transactions (up to a reasonable limit)
-        const { transactions, total } = await getTransactions(userId, filters, { limit: 10000 })
+        // Fetch matching transactions (all of them up to a reasonable cap, or the first N)
+        const { transactions, total } = await getTransactions(userId, filters, {
+          limit: params.limit ?? 10000,
+          sortBy: params.sortBy ?? 'date',
+          sortOrder: params.sortOrder ?? 'desc',
+        })
 
         // Store in cache
         const queryId = generateQueryId('txn')
