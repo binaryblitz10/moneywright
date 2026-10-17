@@ -454,12 +454,14 @@ export function reconcileStatement(
     closingBalance: statement.closingBalance,
     deletedTransactionCount: statement.deletedTransactionCount,
   }
-  if (statement.openingBalance === null || statement.closingBalance === null) {
+  // A card statement with no previous balance (e.g. a new card) has no opening line: treat it as 0
+  const openingBalance = statement.openingBalance ?? (kind === 'card' ? 0 : null)
+  if (openingBalance === null || statement.closingBalance === null) {
     return { ...base, status: 'unverifiable', expectedClosing: null, difference: null }
   }
 
   const movement = txns.reduce((sum, t) => sum + signedAmount(kind, t.type, t.amount), 0)
-  const expectedClosing = statement.openingBalance + movement
+  const expectedClosing = openingBalance + movement
   const difference = statement.closingBalance - expectedClosing
   return {
     ...base,

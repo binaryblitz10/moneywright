@@ -150,6 +150,14 @@ describe('reconcileStatement', () => {
       reconcileStatement('bank', stmt('s', '2026-01-01', '2026-01-31', null, 10), txns).status
     ).toBe('unverifiable')
   })
+
+  test('card statement without an opening balance starts from 0', () => {
+    const result = reconcileStatement('card', stmt('s', '2026-01-01', '2026-01-31', null, 1031), [
+      txn('a', 'a1', '2026-01-05', 'debit', 149),
+      txn('b', 'a1', '2026-01-09', 'debit', 882),
+    ])
+    expect(result.status).toBe('ok')
+  })
 })
 
 describe('findUnpairedTransfers', () => {
