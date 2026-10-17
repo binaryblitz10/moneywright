@@ -33,6 +33,7 @@ import categoryRoutes from './routes/categories'
 import investmentRoutes from './routes/investments'
 import llmRoutes from './routes/llm'
 import summaryRoutes from './routes/summary'
+import dataHealthRoutes from './routes/data-health'
 import constantsRoutes from './routes/constants'
 import preferencesRoutes from './routes/preferences'
 import { migrateExcludedCategoryPreferences } from './services/preferences'
@@ -141,6 +142,7 @@ app.route('/api/categories', categoryRoutes)
 app.route('/api/investments', investmentRoutes)
 app.route('/api/llm', llmRoutes)
 app.route('/api/summary', summaryRoutes)
+app.route('/api/data-health', dataHealthRoutes)
 app.route('/api/constants', constantsRoutes)
 app.route('/api/preferences', preferencesRoutes)
 app.route('/api/chat', chatRoutes)

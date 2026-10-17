@@ -25,7 +25,7 @@ import {
 import { TransactionFiltersBar, TransactionEditForm } from '@/components/transactions'
 import { CategorizationPanel, DuplicatesPanel } from '@/components/review'
 
-type ReviewTab = 'duplicates' | 'categorization'
+type ReviewTab = 'duplicates' | 'categorization' | 'low_confidence'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
@@ -34,7 +34,8 @@ interface ReviewSearchParams {
 export const Route = createFileRoute('/review')({
   component: ReviewPage,
   validateSearch: (search: Record<string, unknown>): ReviewSearchParams => ({
-    tab: search.tab === 'categorization' ? 'categorization' : undefined,
+    tab:
+      search.tab === 'categorization' || search.tab === 'low_confidence' ? search.tab : undefined,
   }),
 })
 
@@ -145,7 +146,9 @@ function ReviewPage() {
           value={activeTab}
           onValueChange={(value) =>
             navigate({
-              search: { tab: value === 'categorization' ? 'categorization' : undefined },
+              search: {
+                tab: value === 'categorization' || value === 'low_confidence' ? value : undefined,
+              },
             })
           }
         >
@@ -162,13 +165,23 @@ function ReviewPage() {
                 <span className="text-xs text-muted-foreground">{categorizationCount}</span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="low_confidence">
+              Low confidence
+              {counts && (
+                <span className="text-xs text-muted-foreground">{counts.lowConfidence}</span>
+              )}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {activeTab === 'duplicates' ? (
           <DuplicatesPanel {...panelProps} />
         ) : (
-          <CategorizationPanel {...panelProps} />
+          <CategorizationPanel
+            key={activeTab}
+            queue={activeTab === 'low_confidence' ? 'low_confidence' : 'categorization'}
+            {...panelProps}
+          />
         )}
 
         <Dialog

@@ -22,7 +22,17 @@ type StatusFilter = 'all' | 'pending' | 'other'
 
 const LIMIT = 25
 
-export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps) {
+interface CategorizationPanelProps extends ReviewPanelProps {
+  /** 'low_confidence' lists large transactions the model categorized with low confidence */
+  queue?: 'categorization' | 'low_confidence'
+}
+
+export function CategorizationPanel({
+  filters,
+  queue = 'categorization',
+  ...tableProps
+}: CategorizationPanelProps) {
+  const isLowConfidence = queue === 'low_confidence'
   const [status, setStatus] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<SortBy>('date')
@@ -32,7 +42,7 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
 
   const { data: counts } = useReviewCounts(filters.profileId)
   const { data, isLoading, isPlaceholderData } = useTransactions(
-    { ...filters, reviewStatus: status },
+    { ...filters, reviewStatus: isLowConfidence ? 'low_confidence' : status },
     { page, limit: LIMIT, sortBy, sortOrder }
   )
 
@@ -54,29 +64,39 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        <strong className="font-medium text-foreground">Pending</strong> transactions never finished
-        categorization. <strong className="font-medium text-foreground">Other</strong> transactions
-        were categorized, but only into the fallback "Other" category. Set a category to move them
-        out of this list. To re-run categorization, recategorize from the statement.
-      </p>
+      {isLowConfidence ? (
+        <p className="text-sm text-muted-foreground">
+          Transactions of ₹5,000 or more that were categorized with low confidence. Set or re-select
+          a category (edit, or bulk edit) to confirm it and move it out of this list.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">
+            <strong className="font-medium text-foreground">Pending</strong> transactions never
+            finished categorization. <strong className="font-medium text-foreground">Other</strong>{' '}
+            transactions were categorized, but only into the fallback "Other" category. Set a
+            category to move them out of this list. To re-run categorization, recategorize from the
+            statement.
+          </p>
 
-      <div className="flex items-center gap-2">
-        {statuses.map((s) => (
-          <Button
-            key={s.value}
-            size="sm"
-            variant={status === s.value ? 'secondary' : 'outline'}
-            className="h-8"
-            onClick={() => changeStatus(s.value)}
-          >
-            {s.label}
-            {s.count !== undefined && (
-              <span className="ml-2 text-xs text-muted-foreground">{s.count}</span>
-            )}
-          </Button>
-        ))}
-      </div>
+          <div className="flex items-center gap-2">
+            {statuses.map((s) => (
+              <Button
+                key={s.value}
+                size="sm"
+                variant={status === s.value ? 'secondary' : 'outline'}
+                className="h-8"
+                onClick={() => changeStatus(s.value)}
+              >
+                {s.label}
+                {s.count !== undefined && (
+                  <span className="ml-2 text-xs text-muted-foreground">{s.count}</span>
+                )}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-4 py-2 shadow-sm">
@@ -130,7 +150,11 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
         <EmptyState
           icon={CheckCheck}
           title="All clear"
-          description="Every transaction has a category."
+          description={
+            isLowConfidence
+              ? 'No large transactions are waiting for a category check.'
+              : 'Every transaction has a category.'
+          }
         />
       )}
 

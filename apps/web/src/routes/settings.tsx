@@ -19,6 +19,7 @@ import {
   AboutSection,
   PinSection,
   CategorizationHintsSection,
+  DataHealthSection,
 } from '@/components/settings'
 
 export const Route = createFileRoute('/settings')({
@@ -74,6 +75,9 @@ function SettingsPage() {
 
         {/* Default Categorization Hints */}
         <CategorizationHintsSection />
+
+        {/* Data Health - checks across all profiles */}
+        <DataHealthSection profileId={undefined} />
 
         {/* Profiles Section */}
         <ProfilesSection profiles={profiles} />

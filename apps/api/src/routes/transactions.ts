@@ -137,7 +137,10 @@ function parseTransactionFilters(c: Context): TransactionFilters {
     includeHidden: c.req.query('includeHidden') === 'true',
     onlyHidden: c.req.query('onlyHidden') === 'true',
     reviewStatus:
-      reviewStatus === 'pending' || reviewStatus === 'other' || reviewStatus === 'all'
+      reviewStatus === 'pending' ||
+      reviewStatus === 'other' ||
+      reviewStatus === 'low_confidence' ||
+      reviewStatus === 'all'
         ? reviewStatus
         : undefined,
   }

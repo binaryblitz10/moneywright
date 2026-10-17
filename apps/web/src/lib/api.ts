@@ -855,8 +855,8 @@ export interface TransactionFilters {
   isSubscription?: boolean
   includeHidden?: boolean
   onlyHidden?: boolean
-  /** Review queues: never categorized ('pending'), only in the fallback 'other' category, or either ('all') */
-  reviewStatus?: 'pending' | 'other' | 'all'
+  /** Review queues: never categorized ('pending'), only in the fallback 'other' category, low model confidence on a larger amount ('low_confidence'), or pending/other ('all') */
+  reviewStatus?: 'pending' | 'other' | 'low_confidence' | 'all'
 }
 
 /**
@@ -1010,6 +1010,7 @@ export interface ReviewCounts {
   duplicateGroups: number
   pending: number
   other: number
+  lowConfidence: number
 }
 
 /**
@@ -1584,6 +1585,121 @@ export interface FinancialSummary {
     categoryBreakdown: { category: string; total: number; count: number }[]
     excludedCategories: string[]
   }
+}
+
+/**
+ * Data health: statement coverage, reconciliation and cash bridge checks
+ */
+export interface DataHealthGap {
+  from: string
+  to: string
+  days: number
+  afterStatementId: string
+  beforeStatementId: string
+}
+
+export interface DataHealthOverlap {
+  from: string
+  to: string
+  days: number
+  statementIds: [string, string]
+}
+
+export interface DataHealthBalanceBreak {
+  afterDate: string
+  previousStatementId: string
+  nextStatementId: string
+  previousClosing: number
+  nextOpening: number
+  difference: number
+}
+
+export interface DataHealthMissingPeriod {
+  statementId: string
+  filename: string
+  /** Effective (inferred) dates; null when they could not be derived */
+  periodStart: string | null
+  periodEnd: string | null
+}
+
+export interface DataHealthReconciliation {
+  statementId: string
+  filename: string
+  periodStart: string
+  periodEnd: string
+  periodInferred: boolean
+  status: 'ok' | 'mismatch' | 'unverifiable'
+  openingBalance: number | null
+  closingBalance: number | null
+  expectedClosing: number | null
+  difference: number | null
+  deletedTransactionCount: number
+}
+
+export interface DataHealthAccount {
+  accountId: string
+  accountName: string
+  type: string
+  statementCount: number
+  coveredFrom: string | null
+  coveredTo: string | null
+  daysSinceLastStatement: number | null
+  isStale: boolean
+  gaps: DataHealthGap[]
+  overlaps: DataHealthOverlap[]
+  balanceBreaks: DataHealthBalanceBreak[]
+  /** Statements stored without period dates */
+  missingPeriod: DataHealthMissingPeriod[]
+  /** Only statements that need attention */
+  reconciliation: DataHealthReconciliation[]
+}
+
+export interface DataHealthTransfer {
+  id: string
+  date: string
+  amount: number
+  summary: string | null
+  accountId: string
+  accountName: string
+}
+
+export interface DataHealthUnpairedTransfer extends DataHealthTransfer {
+  type: 'credit' | 'debit'
+}
+
+export interface DataHealthBridge {
+  status: 'ok' | 'insufficient'
+  startDate: string
+  endDate: string
+  missingAccounts: Array<{ accountId: string; accountName: string }>
+  netChange: number | null
+  income: number
+  expenses: number
+  invested: number
+  explained: number
+  residual: number | null
+}
+
+export interface DataHealthReport {
+  dataThrough: string | null
+  latestData: string | null
+  issueCount: number
+  accounts: DataHealthAccount[]
+  unpairedTransfers: { count: number; total: number; items: DataHealthUnpairedTransfer[] }
+  unlinkedCardPayments: { count: number; total: number; items: DataHealthTransfer[] }
+  lowConfidence: { count: number; total: number }
+  bridge: DataHealthBridge
+}
+
+export interface DataHealthParams {
+  profileId?: string
+  startDate?: string
+  endDate?: string
+}
+
+export async function getDataHealth(params: DataHealthParams = {}): Promise<DataHealthReport> {
+  const response = await api.get('/data-health', { params })
+  return response.data
 }
 
 /**

@@ -14,6 +14,7 @@ export { DangerZoneSection } from './danger-zone-section'
 export { AboutSection } from './about-section'
 export { PinSection } from './pin-section'
 export { CategorizationHintsSection } from './categorization-hints-section'
+export { DataHealthSection } from './data-health-section'
 
 // Individual components
 export { ProviderCard } from './provider-card'

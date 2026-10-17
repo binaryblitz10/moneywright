@@ -94,11 +94,16 @@ export interface TransactionFilters {
   // Review queues (never manually categorized):
   // 'pending' = categorization never completed (no summary),
   // 'other' = categorized but only into the fallback 'other' category,
-  // 'all' = either
+  // 'low_confidence' = categorized with low model confidence on a larger amount,
+  // 'all' = pending or other
   reviewStatus?: ReviewStatus
 }
 
-export type ReviewStatus = 'pending' | 'other' | 'all'
+export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all'
+
+/** Low-confidence review queue: categorizations the model was unsure of, on amounts that matter */
+export const LOW_CONFIDENCE_BELOW = 0.7
+export const LOW_CONFIDENCE_MIN_AMOUNT = 5000
 
 /**
  * Pagination options
@@ -217,13 +222,19 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
       isNotNull(tables.transactions.summary),
       eq(tables.transactions.category, 'other')
     )!
+    const isLowConfidence = and(
+      sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`,
+      sql`${tables.transactions.amount} >= ${LOW_CONFIDENCE_MIN_AMOUNT}`
+    )!
     conditions.push(eq(tables.transactions.isManuallyCategorized, false))
     conditions.push(
       filters.reviewStatus === 'pending'
         ? isPending
         : filters.reviewStatus === 'other'
           ? isOther
-          : or(isPending, isOther)!
+          : filters.reviewStatus === 'low_confidence'
+            ? isLowConfidence
+            : or(isPending, isOther)!
     )
   }
 
@@ -419,13 +430,16 @@ export interface ReviewCounts {
   duplicateGroups: number
   pending: number
   other: number
+  lowConfidence: number
 }
 
 /**
  * Count the items waiting in each review queue, for the given profile or for everyone
  */
 export async function getReviewCounts(userId: string, profileId?: string): Promise<ReviewCounts> {
-  const countFor = async (reviewStatus: 'pending' | 'other'): Promise<number> => {
+  const countFor = async (
+    reviewStatus: 'pending' | 'other' | 'low_confidence'
+  ): Promise<number> => {
     const [row] = await db
       .select({ count: sql<number>`count(*)` })
       .from(tables.transactions)
@@ -433,13 +447,14 @@ export async function getReviewCounts(userId: string, profileId?: string): Promi
     return Number(row?.count || 0)
   }
 
-  const [pending, other, duplicateGroups] = await Promise.all([
+  const [pending, other, lowConfidence, duplicateGroups] = await Promise.all([
     countFor('pending'),
     countFor('other'),
+    countFor('low_confidence'),
     findDuplicateGroups(userId, { profileId }),
   ])
 
-  return { duplicateGroups: duplicateGroups.length, pending, other }
+  return { duplicateGroups: duplicateGroups.length, pending, other, lowConfidence }
 }
 
 /**

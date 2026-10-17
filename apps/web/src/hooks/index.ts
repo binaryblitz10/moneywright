@@ -138,3 +138,6 @@ export { useIsMobile } from './use-mobile'
 export { useDebounce } from './useDebounce'
 export { useProfileSelection } from './useProfileSelection'
 export { useUpdateChecker } from './useUpdateChecker'
+
+// Data health hooks
+export { dataHealthKeys, useDataHealth } from './useDataHealth'
