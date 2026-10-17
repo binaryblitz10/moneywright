@@ -7,6 +7,7 @@ import { logger } from '../lib/logger'
  */
 export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
+  DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',

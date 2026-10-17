@@ -106,6 +106,9 @@ export {
   useCurrencyConverter,
 } from './useSummary'
 
+// Dashboard widget visibility
+export { useDashboardWidgets } from './useDashboardWidgets'
+
 // Onboarding hooks
 export {
   useCountrySelection,

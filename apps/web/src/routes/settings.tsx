@@ -20,6 +20,7 @@ import {
   PinSection,
   CategorizationHintsSection,
   DataHealthSection,
+  DashboardWidgetsSection,
 } from '@/components/settings'
 
 export const Route = createFileRoute('/settings')({
@@ -75,6 +76,9 @@ function SettingsPage() {
 
         {/* Default Categorization Hints */}
         <CategorizationHintsSection />
+
+        {/* Dashboard Widgets - which cards and sections the dashboard shows */}
+        <DashboardWidgetsSection />
 
         {/* Data Health - checks across all profiles */}
         <DataHealthSection profileId={undefined} />

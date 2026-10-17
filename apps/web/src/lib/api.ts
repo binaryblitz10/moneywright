@@ -1942,6 +1942,8 @@ export const PREFERENCE_KEYS = {
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   // Other preferences
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
+  // Dashboard widgets switched off in Settings (JSON array of widget ids)
+  DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
   // Data health checks the user chose to ignore (JSON array of issue keys)
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   // Profile selection

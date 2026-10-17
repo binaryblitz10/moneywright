@@ -8,17 +8,28 @@ import {
   usePreferences,
   useSetPreference,
   useProfileSelection,
+  useDashboardWidgets,
 } from '@/hooks'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Upload, TrendingUp, Wallet, CreditCard, Banknote, PiggyBank } from 'lucide-react'
+import {
+  Upload,
+  TrendingUp,
+  Wallet,
+  CreditCard,
+  Banknote,
+  PiggyBank,
+  LayoutGrid,
+} from 'lucide-react'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from '@/lib/api'
 import type { MonthlyTrendData } from '@/lib/api'
 import { categoriesOfKind } from '@/lib/category-kinds'
+import { DASHBOARD_WIDGETS, type DashboardWidgetId } from '@/lib/dashboard-widgets'
+import { cn } from '@/lib/utils'
 
 import {
   type DashboardTimeframeSelection,
@@ -45,6 +56,15 @@ import {
 export const Route = createFileRoute('/')({
   component: DashboardPage,
 })
+
+/** Stat grid columns for the number of visible cards, so hidden cards leave no gaps */
+const STAT_GRID_COLUMNS: Record<number, string> = {
+  1: 'md:grid-cols-1 lg:grid-cols-1',
+  2: 'lg:grid-cols-2',
+  3: 'lg:grid-cols-3',
+  4: 'lg:grid-cols-2 xl:grid-cols-4',
+  5: 'lg:grid-cols-2 xl:grid-cols-5',
+}
 
 /**
  * Elapsed months between two YYYY-MM-DD dates, for the "/mo" averages.
@@ -77,6 +97,10 @@ function DashboardPage() {
     isAuthenticated
   )
   const setPreferenceMutation = useSetPreference()
+
+  // Widgets switched off in Settings stay hidden; nothing shows until the choice is known
+  const { isVisible } = useDashboardWidgets(isAuthenticated)
+  const show = (id: DashboardWidgetId) => !preferencesLoading && isVisible(id)
 
   // Dashboard-wide timeframe: one selection drives every date-based widget.
   // The last selection is remembered as a user preference.
@@ -227,7 +251,7 @@ function DashboardPage() {
   const { data: trendsData, isLoading: trendsLoading } = useMonthlyTrends(profileId, {
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
-    enabled: timeframeQueriesEnabled,
+    enabled: timeframeQueriesEnabled && show('income_vs_expenses'),
   })
 
   // Fetch month transactions for modal
@@ -252,7 +276,7 @@ function DashboardPage() {
   const { data: subscriptionsData, isLoading: subscriptionsLoading } = useQuery({
     queryKey: ['subscriptions', profileId ?? 'family'],
     queryFn: () => getSubscriptions(profileId),
-    enabled: queryEnabled,
+    enabled: queryEnabled && show('subscriptions'),
   })
 
   // Handlers
@@ -298,6 +322,10 @@ function DashboardPage() {
     : []
   const hasData = summary && (allAccounts.length > 0 || accountsCount > 0)
 
+  const statCardCount = DASHBOARD_WIDGETS.filter((w) => w.group === 'cards' && show(w.id)).length
+  const showCategoryCards = show('spending_by_category') || show('income_by_category')
+  const allWidgetsHidden = !preferencesLoading && DASHBOARD_WIDGETS.every((w) => !isVisible(w.id))
+
   return (
     <AppLayout>
       <PageHeader
@@ -327,133 +355,175 @@ function DashboardPage() {
       />
 
       {/* Main Stats Grid */}
-      <StatCardGrid className="mb-6 lg:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          label="Net Worth"
-          formatValue={formatCurrency}
-          value={summary?.netWorth.total}
-          currency={summary?.netWorth.currency}
-          subtitle={
-            summary
-              ? `${formatCompact(summary.netWorth.totalAssets, summary.netWorth.currency)} assets - ${formatCompact(summary.netWorth.totalLiabilities, summary.netWorth.currency)} liabilities`
-              : 'Across all accounts'
-          }
-          icon={Banknote}
-          loading={summaryLoading}
-        />
-        <StatCard
-          label="Income"
-          formatValue={formatCurrency}
-          value={summary?.transactions.totalIncome}
-          currency={summary?.transactions.currency}
-          subtitle={transactionCountSubtitle(summary?.transactions.incomeCount)}
-          icon={Wallet}
-          loading={summaryLoading}
-          transactionsLink={categoriesLink(summary?.transactions.incomeBreakdown)}
-        />
-        <StatCard
-          label="Expenses"
-          formatValue={formatCurrency}
-          value={summary?.transactions.totalExpenses}
-          currency={summary?.transactions.currency}
-          subtitle={transactionCountSubtitle(summary?.transactions.expenseCount)}
-          icon={CreditCard}
-          loading={summaryLoading}
-          transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
-        />
-        <StatCard
-          label="Savings Rate"
-          value={savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100}
-          formatValue={(rate) => `${Math.round(rate)}%`}
-          subtitle={savingsSubtitle}
-          icon={PiggyBank}
-          loading={summaryLoading}
-        />
-        <StatCard
-          label="Investments"
-          formatValue={formatCurrency}
-          value={investedAmount === undefined ? undefined : Math.abs(investedAmount)}
-          currency={summary?.transactions.currency}
-          subtitle={
-            investedAmount !== undefined && investedAmount < 0
-              ? `Net withdrawn · ${selectedTimeframeLabel}`
-              : `Invested · ${selectedTimeframeLabel}`
-          }
-          icon={TrendingUp}
-          loading={summaryLoading}
-          transactionsLink={{
-            category: 'investment',
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-          }}
-        />
-      </StatCardGrid>
+      {statCardCount > 0 && (
+        <StatCardGrid className={cn('mb-6', STAT_GRID_COLUMNS[statCardCount])}>
+          {show('net_worth') && (
+            <StatCard
+              label="Net Worth"
+              formatValue={formatCurrency}
+              value={summary?.netWorth.total}
+              currency={summary?.netWorth.currency}
+              subtitle={
+                summary
+                  ? `${formatCompact(summary.netWorth.totalAssets, summary.netWorth.currency)} assets - ${formatCompact(summary.netWorth.totalLiabilities, summary.netWorth.currency)} liabilities`
+                  : 'Across all accounts'
+              }
+              icon={Banknote}
+              loading={summaryLoading}
+            />
+          )}
+          {show('income') && (
+            <StatCard
+              label="Income"
+              formatValue={formatCurrency}
+              value={summary?.transactions.totalIncome}
+              currency={summary?.transactions.currency}
+              subtitle={transactionCountSubtitle(summary?.transactions.incomeCount)}
+              icon={Wallet}
+              loading={summaryLoading}
+              transactionsLink={categoriesLink(summary?.transactions.incomeBreakdown)}
+            />
+          )}
+          {show('expenses') && (
+            <StatCard
+              label="Expenses"
+              formatValue={formatCurrency}
+              value={summary?.transactions.totalExpenses}
+              currency={summary?.transactions.currency}
+              subtitle={transactionCountSubtitle(summary?.transactions.expenseCount)}
+              icon={CreditCard}
+              loading={summaryLoading}
+              transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
+            />
+          )}
+          {show('savings_rate') && (
+            <StatCard
+              label="Savings Rate"
+              value={
+                savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100
+              }
+              formatValue={(rate) => `${Math.round(rate)}%`}
+              subtitle={savingsSubtitle}
+              icon={PiggyBank}
+              loading={summaryLoading}
+            />
+          )}
+          {show('investments') && (
+            <StatCard
+              label="Investments"
+              formatValue={formatCurrency}
+              value={investedAmount === undefined ? undefined : Math.abs(investedAmount)}
+              currency={summary?.transactions.currency}
+              subtitle={
+                investedAmount !== undefined && investedAmount < 0
+                  ? `Net withdrawn · ${selectedTimeframeLabel}`
+                  : `Invested · ${selectedTimeframeLabel}`
+              }
+              icon={TrendingUp}
+              loading={summaryLoading}
+              transactionsLink={{
+                category: 'investment',
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+              }}
+            />
+          )}
+        </StatCardGrid>
+      )}
 
       {/* Income vs Expenses Chart */}
-      <IncomeExpensesCard
-        trendsData={trendsData}
-        isLoading={trendsLoading}
-        onMonthClick={handleMonthClick}
-      />
+      {show('income_vs_expenses') && (
+        <IncomeExpensesCard
+          trendsData={trendsData}
+          isLoading={trendsLoading}
+          onMonthClick={handleMonthClick}
+        />
+      )}
 
       {/* Spending by Category & Income by Category Row */}
-      <div className="grid gap-4 lg:grid-cols-2 mb-6">
-        <SpendingByCategoryCard
-          categoryStats={
-            summary
-              ? {
-                  categoryBreakdown: summary.transactions.categoryBreakdown,
-                  totalDebits: summary.transactions.totalExpenses,
-                  currency: summary.transactions.currency,
-                }
-              : undefined
-          }
-          isLoading={summaryLoading}
-          showMonthlyAverage={showMonthlyAverage}
-          onShowMonthlyAverageChange={setShowMonthlyAverage}
-          totalMonths={categoryTotalMonths}
-          getCategoryLabel={getCategoryLabel}
-          getCategoryColor={getCategoryColor}
-          startDate={dateRange.startDate}
-          endDate={dateRange.endDate}
-        />
+      {showCategoryCards && (
+        <div
+          className={cn(
+            'grid gap-4 mb-6',
+            show('spending_by_category') && show('income_by_category') && 'lg:grid-cols-2'
+          )}
+        >
+          {show('spending_by_category') && (
+            <SpendingByCategoryCard
+              categoryStats={
+                summary
+                  ? {
+                      categoryBreakdown: summary.transactions.categoryBreakdown,
+                      totalDebits: summary.transactions.totalExpenses,
+                      currency: summary.transactions.currency,
+                    }
+                  : undefined
+              }
+              isLoading={summaryLoading}
+              showMonthlyAverage={showMonthlyAverage}
+              onShowMonthlyAverageChange={setShowMonthlyAverage}
+              totalMonths={categoryTotalMonths}
+              getCategoryLabel={getCategoryLabel}
+              getCategoryColor={getCategoryColor}
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+            />
+          )}
 
-        <IncomeByCategoryCard
-          incomeBreakdown={summary?.transactions.incomeBreakdown}
-          totalIncome={summary?.transactions.totalIncome ?? 0}
-          currency={summary?.transactions.currency ?? 'INR'}
-          isLoading={summaryLoading}
-          showMonthlyAverage={showMonthlyAverage}
-          onShowMonthlyAverageChange={setShowMonthlyAverage}
-          totalMonths={categoryTotalMonths}
-          getCategoryLabel={getCategoryLabel}
-          getCategoryColor={getCategoryColor}
-          startDate={dateRange.startDate}
-          endDate={dateRange.endDate}
-        />
-      </div>
+          {show('income_by_category') && (
+            <IncomeByCategoryCard
+              incomeBreakdown={summary?.transactions.incomeBreakdown}
+              totalIncome={summary?.transactions.totalIncome ?? 0}
+              currency={summary?.transactions.currency ?? 'INR'}
+              isLoading={summaryLoading}
+              showMonthlyAverage={showMonthlyAverage}
+              onShowMonthlyAverageChange={setShowMonthlyAverage}
+              totalMonths={categoryTotalMonths}
+              getCategoryLabel={getCategoryLabel}
+              getCategoryColor={getCategoryColor}
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+            />
+          )}
+        </div>
+      )}
 
       {/* What Changed - has its own month, ignores the timeframe picker */}
-      <WhatChangedCard
-        profileId={profileId}
-        enabled={queryEnabled}
-        getCategoryLabel={getCategoryLabel}
-      />
+      {show('what_changed') && (
+        <WhatChangedCard
+          profileId={profileId}
+          enabled={queryEnabled}
+          getCategoryLabel={getCategoryLabel}
+        />
+      )}
 
       {/* Subscriptions */}
-      <div className="mb-6">
-        <SubscriptionsCard
-          subscriptions={subscriptionsData?.subscriptions || []}
-          totalMonthly={subscriptionsData?.totalMonthly || 0}
-          currency={subscriptionsData?.currency || 'INR'}
-          getCategoryLabel={getCategoryLabel}
-          isLoading={subscriptionsLoading}
-          countryCode={user?.country?.toLowerCase() || 'in'}
-        />
-      </div>
+      {show('subscriptions') && (
+        <div className="mb-6">
+          <SubscriptionsCard
+            subscriptions={subscriptionsData?.subscriptions || []}
+            totalMonthly={subscriptionsData?.totalMonthly || 0}
+            currency={subscriptionsData?.currency || 'INR'}
+            getCategoryLabel={getCategoryLabel}
+            isLoading={subscriptionsLoading}
+            countryCode={user?.country?.toLowerCase() || 'in'}
+          />
+        </div>
+      )}
 
       {/* Account Balances */}
-      <AccountBalancesCard accounts={allAccounts} />
+      {show('account_balances') && <AccountBalancesCard accounts={allAccounts} />}
+
+      {/* Every widget switched off in Settings */}
+      {allWidgetsHidden && hasData && (
+        <EmptyState
+          icon={LayoutGrid}
+          title="All dashboard widgets are hidden"
+          description="Turn widgets back on in Settings to see them here."
+          action={{ label: 'Open Settings', href: '/settings' }}
+          size="lg"
+        />
+      )}
 
       {/* Empty State */}
       {!summaryLoading && !hasData && (
