@@ -21,7 +21,7 @@ export function IncomeExpensesCard({
     <Card className="mb-6 border-border-subtle hover:border-border-hover transition-colors">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          Income vs Expenses
+          Cash Flow & Savings Rate
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">

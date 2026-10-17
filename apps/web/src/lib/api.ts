@@ -1571,6 +1571,10 @@ export interface FinancialSummary {
     totalIncome: number
     totalExpenses: number
     investedAmount: number
+    /** income - expenses (investments are not expenses) */
+    surplus: number
+    /** surplus / income as a fraction; null when there is no income */
+    savingsRate: number | null
     transferNet: number
     incomeCount: number
     expenseCount: number
@@ -1606,7 +1610,16 @@ export interface MonthlyTrendData {
   monthLabel: string
   income: number
   expenses: number
+  invested: number
   net: number
+  /** income - expenses */
+  surplus: number
+  /** surplus / income as a fraction; null when the month has no income */
+  savingsRate: number | null
+  /** The range ends before the month does (month in progress or clipped) */
+  isPartial: boolean
+  /** YYYY-MM-DD the partial month runs through; null for complete months */
+  throughDate: string | null
 }
 
 /**
@@ -1614,6 +1627,13 @@ export interface MonthlyTrendData {
  */
 export interface MonthlyTrendsResponse {
   trends: MonthlyTrendData[]
+  totals: {
+    income: number
+    expenses: number
+    invested: number
+    surplus: number
+    savingsRate: number | null
+  }
   currency: string
   excludedCategories: string[]
 }

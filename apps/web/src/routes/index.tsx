@@ -14,7 +14,7 @@ import { ProfileSelector } from '@/components/domain/profile-selector'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Upload, TrendingUp, Wallet, CreditCard, Banknote } from 'lucide-react'
+import { Upload, TrendingUp, Wallet, CreditCard, Banknote, PiggyBank } from 'lucide-react'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from '@/lib/api'
 import type { MonthlyTrendData } from '@/lib/api'
@@ -259,6 +259,20 @@ function DashboardPage() {
     setSelectedMonth(month)
   }, [])
 
+  // Savings rate = (income - expenses) / income; call out when investing exceeded the surplus
+  const savingsRate = summary?.transactions.savingsRate
+  const savingsSubtitle = (() => {
+    const t = summary?.transactions
+    if (!t) return selectedTimeframeLabel
+    if (t.savingsRate === null) return `No income · ${selectedTimeframeLabel}`
+    if (t.surplus < 0) {
+      return `${formatCurrency(-t.surplus, t.currency)} overspent · ${selectedTimeframeLabel}`
+    }
+    return t.investedAmount > t.surplus
+      ? `Invested ${formatCurrency(t.investedAmount - t.surplus, t.currency)} more than saved`
+      : `${formatCurrency(t.surplus, t.currency)} saved · ${selectedTimeframeLabel}`
+  })()
+
   // Link a card to the exact categories its total is built from (refunds and
   // reversals included), so the transactions page's net amount equals the card
   const categoriesLink = (breakdown?: { category: string }[]) =>
@@ -312,7 +326,7 @@ function DashboardPage() {
       />
 
       {/* Main Stats Grid */}
-      <StatCardGrid className="mb-6">
+      <StatCardGrid className="mb-6 lg:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Net Worth"
           value={summary?.netWorth.total}
@@ -343,6 +357,14 @@ function DashboardPage() {
           icon={CreditCard}
           loading={summaryLoading}
           transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
+        />
+        <StatCard
+          label="Savings Rate"
+          value={savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100}
+          formatValue={(rate) => `${rate.toFixed(1)}%`}
+          subtitle={savingsSubtitle}
+          icon={PiggyBank}
+          loading={summaryLoading}
         />
         <StatCard
           label="Investments"

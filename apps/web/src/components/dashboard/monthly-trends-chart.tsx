@@ -1,7 +1,9 @@
 import { useMemo, useCallback } from 'react'
 import {
-  AreaChart,
-  Area,
+  ComposedChart,
+  Bar,
+  Cell,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,6 +13,15 @@ import {
 import type { MonthlyTrendData } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { TrendingDown, TrendingUp, Activity } from 'lucide-react'
+
+// Colours match the Tailwind emerald/rose/blue/violet 500 shades (also --chart-1/4/5)
+const INCOME_COLOR = 'rgb(16, 185, 129)'
+const EXPENSES_COLOR = 'rgb(244, 63, 94)'
+const INVESTED_COLOR = 'var(--chart-4)'
+const RATE_COLOR = 'var(--chart-5)'
+
+// Months the range doesn't fully cover are drawn lighter
+const PARTIAL_OPACITY = 0.45
 
 interface MonthlyTrendsChartProps {
   data: MonthlyTrendData[]
@@ -49,28 +60,39 @@ function formatFullCurrency(amount: number, currency: string): string {
   }).format(amount)
 }
 
+function formatPercent(rate: number | null): string {
+  return rate === null ? '—' : `${(rate * 100).toFixed(1)}%`
+}
+
+// "Oct 26 (to 15 Oct)" for months cut short by the range, otherwise the plain label
+function describeMonth(m: MonthlyTrendData): string {
+  if (!m.isPartial || !m.throughDate) return m.monthLabel
+  const through = new Date(`${m.throughDate}T00:00:00`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  })
+  return `${m.monthLabel} (to ${through})`
+}
+
 // Custom Tooltip Component
 function CustomTooltip({
   active,
   payload,
-  label,
   currency,
 }: {
   active?: boolean
-  payload?: Array<{ value: number; dataKey: string; color: string }>
-  label?: string
+  payload?: Array<{ payload: MonthlyTrendData }>
   currency: string
 }) {
   if (!active || !payload || !payload.length) return null
 
-  const income = payload.find((p) => p.dataKey === 'income')?.value || 0
-  const expenses = payload.find((p) => p.dataKey === 'expenses')?.value || 0
-  const net = income - expenses
+  const month = payload[0]!.payload
+  const { income, expenses, invested, surplus, savingsRate } = month
 
   return (
     <div className="rounded-xl border border-border-subtle bg-surface-elevated/95 backdrop-blur-xl p-4 shadow-2xl shadow-black/20">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-        {label}
+        {describeMonth(month)}
       </p>
       <div className="space-y-2.5">
         <div className="flex items-center justify-between gap-8">
@@ -91,24 +113,42 @@ function CustomTooltip({
             {formatFullCurrency(expenses, currency)}
           </span>
         </div>
+        <div className="flex items-center justify-between gap-8">
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" />
+            <span className="text-sm text-muted-foreground">Invested</span>
+          </div>
+          <span className="text-sm font-semibold text-blue-400 tabular-nums">
+            {formatFullCurrency(invested, currency)}
+          </span>
+        </div>
         <div className="h-px bg-linear-to-r from-transparent via-border-subtle to-transparent my-1" />
         <div className="flex items-center justify-between gap-8">
           <div className="flex items-center gap-2">
-            {net >= 0 ? (
+            {surplus >= 0 ? (
               <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
             ) : (
               <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
             )}
-            <span className="text-sm font-medium text-foreground">Net</span>
+            <span className="text-sm font-medium text-foreground">Surplus</span>
           </div>
           <span
             className={cn(
               'text-sm font-bold tabular-nums',
-              net >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'
             )}
           >
-            {net >= 0 ? '+' : ''}
-            {formatFullCurrency(net, currency)}
+            {surplus >= 0 ? '+' : ''}
+            {formatFullCurrency(surplus, currency)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-8">
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full bg-violet-500 shadow-sm shadow-violet-500/50" />
+            <span className="text-sm text-muted-foreground">Savings rate</span>
+          </div>
+          <span className="text-sm font-semibold text-violet-400 tabular-nums">
+            {formatPercent(savingsRate)}
           </span>
         </div>
       </div>
@@ -117,9 +157,9 @@ function CustomTooltip({
 }
 
 // Custom Legend
-function CustomLegend() {
+function CustomLegend({ hasPartial }: { hasPartial: boolean }) {
   return (
-    <div className="flex items-center justify-center gap-6 mb-4">
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-4">
       <div className="flex items-center gap-2">
         <div className="h-2 w-6 rounded-full bg-linear-to-r from-emerald-500/80 to-emerald-400" />
         <span className="text-xs font-medium text-muted-foreground">Income</span>
@@ -128,6 +168,17 @@ function CustomLegend() {
         <div className="h-2 w-6 rounded-full bg-linear-to-r from-rose-500/80 to-rose-400" />
         <span className="text-xs font-medium text-muted-foreground">Expenses</span>
       </div>
+      <div className="flex items-center gap-2">
+        <div className="h-2 w-6 rounded-full bg-linear-to-r from-blue-500/80 to-blue-400" />
+        <span className="text-xs font-medium text-muted-foreground">Invested</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="h-0.5 w-6 rounded-full bg-violet-500" />
+        <span className="text-xs font-medium text-muted-foreground">Savings rate</span>
+      </div>
+      {hasPartial && (
+        <span className="text-xs text-muted-foreground">* Partial month (lighter bars)</span>
+      )}
     </div>
   )
 }
@@ -207,11 +258,27 @@ export function MonthlyTrendsChart({
   // Calculate max value for Y-axis domain
   const maxValue = useMemo(() => {
     if (!data.length) return 100000
-    const max = Math.max(...data.flatMap((d) => [d.income, d.expenses]))
+    const max = Math.max(...data.flatMap((d) => [d.income, d.expenses, d.invested]))
     // Round up to a nice number
     const magnitude = Math.pow(10, Math.floor(Math.log10(max)))
     return Math.ceil(max / magnitude) * magnitude
   }, [data])
+
+  // Savings rate in percent for the right axis; very negative months are clamped to keep the axis readable
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        axisLabel: d.isPartial ? `${d.monthLabel}*` : d.monthLabel,
+        savingsRatePct: d.savingsRate === null ? null : Math.max(d.savingsRate * 100, -100),
+      })),
+    [data]
+  )
+  const hasPartial = data.some((d) => d.isPartial)
+  const rateMin = useMemo(() => {
+    const lowest = Math.min(0, ...chartData.map((d) => d.savingsRatePct ?? 0))
+    return Math.floor(lowest / 25) * 25
+  }, [chartData])
 
   // Handle chart click
   const handleChartClick = useCallback(
@@ -235,7 +302,7 @@ export function MonthlyTrendsChart({
   }
 
   // Check if all data points are zero
-  const hasData = data.some((d) => d.income > 0 || d.expenses > 0)
+  const hasData = data.some((d) => d.income > 0 || d.expenses > 0 || d.invested > 0)
 
   if (!data.length || !hasData) {
     return (
@@ -247,49 +314,16 @@ export function MonthlyTrendsChart({
 
   return (
     <div className={cn('w-full', className)}>
-      <CustomLegend />
+      <CustomLegend hasPartial={hasPartial} />
       <div className="[&_svg]:outline-none [&_svg:focus]:outline-none [&_g:focus]:outline-none [&_path:focus]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
         <ResponsiveContainer width="100%" height={240}>
-          <AreaChart
-            data={data}
-            margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 8, right: 0, left: -16, bottom: 0 }}
+            barGap={2}
             onClick={handleChartClick as unknown as undefined}
             style={{ cursor: onMonthClick ? 'pointer' : 'default', outline: 'none' }}
           >
-            <defs>
-              {/* Income gradient */}
-              <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgb(16, 185, 129)" stopOpacity={0.4} />
-                <stop offset="50%" stopColor="rgb(16, 185, 129)" stopOpacity={0.15} />
-                <stop offset="100%" stopColor="rgb(16, 185, 129)" stopOpacity={0} />
-              </linearGradient>
-              {/* Expenses gradient */}
-              <linearGradient id="expensesGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgb(244, 63, 94)" stopOpacity={0.4} />
-                <stop offset="50%" stopColor="rgb(244, 63, 94)" stopOpacity={0.15} />
-                <stop offset="100%" stopColor="rgb(244, 63, 94)" stopOpacity={0} />
-              </linearGradient>
-              {/* Glow filters */}
-              <filter id="incomeGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feFlood floodColor="rgb(16, 185, 129)" floodOpacity="0.5" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge>
-                  <feMergeNode in="glow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-              <filter id="expensesGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feFlood floodColor="rgb(244, 63, 94)" floodOpacity="0.5" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge>
-                  <feMergeNode in="glow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="var(--border-subtle)"
@@ -298,7 +332,7 @@ export function MonthlyTrendsChart({
             />
 
             <XAxis
-              dataKey="monthLabel"
+              dataKey="axisLabel"
               axisLine={false}
               tickLine={false}
               tick={{
@@ -312,6 +346,7 @@ export function MonthlyTrendsChart({
             />
 
             <YAxis
+              yAxisId="amount"
               axisLine={false}
               tickLine={false}
               tick={{
@@ -324,43 +359,76 @@ export function MonthlyTrendsChart({
               width={60}
             />
 
+            <YAxis
+              yAxisId="rate"
+              orientation="right"
+              axisLine={false}
+              tickLine={false}
+              tick={{
+                fill: 'var(--muted-foreground)',
+                fontSize: 11,
+                fontWeight: 500,
+              }}
+              tickFormatter={(value) => `${value}%`}
+              domain={[rateMin, 100]}
+              width={44}
+            />
+
             <Tooltip
               content={<CustomTooltip currency={currency} />}
-              cursor={{
-                stroke: 'var(--border-hover)',
-                strokeWidth: 1,
-                strokeDasharray: '4 4',
-              }}
+              cursor={{ fill: 'var(--surface-hover)', fillOpacity: 0.4 }}
             />
 
-            {/* Expenses area (behind) */}
-            <Area
-              type="monotone"
-              dataKey="expenses"
-              stroke="rgb(244, 63, 94)"
-              strokeWidth={2}
-              fill="url(#expensesGradient)"
-              filter="url(#expensesGlow)"
-              animationDuration={1200}
-              animationEasing="ease-out"
-              dot={false}
-              activeDot={false}
-            />
-
-            {/* Income area (front) */}
-            <Area
-              type="monotone"
+            <Bar
+              yAxisId="amount"
               dataKey="income"
-              stroke="rgb(16, 185, 129)"
+              fill={INCOME_COLOR}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={18}
+              animationDuration={800}
+            >
+              {chartData.map((d) => (
+                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
+              ))}
+            </Bar>
+            <Bar
+              yAxisId="amount"
+              dataKey="expenses"
+              fill={EXPENSES_COLOR}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={18}
+              animationDuration={800}
+            >
+              {chartData.map((d) => (
+                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
+              ))}
+            </Bar>
+            <Bar
+              yAxisId="amount"
+              dataKey="invested"
+              fill={INVESTED_COLOR}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={18}
+              animationDuration={800}
+            >
+              {chartData.map((d) => (
+                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
+              ))}
+            </Bar>
+
+            {/* Savings rate (null months leave a gap) */}
+            <Line
+              yAxisId="rate"
+              type="linear"
+              dataKey="savingsRatePct"
+              stroke={RATE_COLOR}
               strokeWidth={2}
-              fill="url(#incomeGradient)"
-              filter="url(#incomeGlow)"
-              animationDuration={1000}
-              animationEasing="ease-out"
-              dot={false}
-              activeDot={false}
+              dot={{ r: 3, fill: RATE_COLOR, strokeWidth: 0 }}
+              activeDot={{ r: 4 }}
+              connectNulls={false}
+              animationDuration={800}
             />
-          </AreaChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

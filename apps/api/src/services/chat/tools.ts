@@ -36,7 +36,7 @@ import { executeCode as runCodeInSandbox, isE2BConfigured } from './code-executo
 
 // Import existing service functions
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
-import { getCashFlow, getMonthsRange } from '../cashflow'
+import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
@@ -968,7 +968,7 @@ Refunds are already subtracted from expenses. Investments are NOT expenses. Alwa
 
     getMonthlyTrends: tool({
       description:
-        'Get monthly income, expense and investment trends (same numbers as the dashboard chart).',
+        'Get monthly income, expense, invested, surplus and savings rate (same numbers as the dashboard chart). Savings rate = (income - expenses) / income; investments are not expenses, so money invested is not counted against the savings rate. savingsRate is a percentage (null when there is no income). isPartial means the month is incomplete (month in progress), so compare it with care.',
       inputSchema: z.object({
         months: z.number().optional().default(12).describe('Number of months (default: 12)'),
       }),
@@ -982,14 +982,21 @@ Refunds are already subtracted from expenses. Investments are NOT expenses. Alwa
 
         return {
           currency: result.currency,
-          trends: result.months.map((m) => ({
-            month: m.month,
-            monthLabel: m.monthLabel,
-            income: roundMoney(m.income),
-            expenses: roundMoney(m.expenses),
-            invested: roundMoney(m.invested),
-            net: roundMoney(m.income - m.expenses),
-          })),
+          trends: result.months.map((m) => {
+            const savings = computeSavings(m)
+            return {
+              month: m.month,
+              monthLabel: m.monthLabel,
+              income: roundMoney(m.income),
+              expenses: roundMoney(m.expenses),
+              invested: roundMoney(m.invested),
+              net: roundMoney(savings.surplus),
+              surplus: roundMoney(savings.surplus),
+              savingsRate:
+                savings.savingsRate === null ? null : Math.round(savings.savingsRate * 1000) / 10,
+              isPartial: getMonthCoverage(m.month, undefined).isPartial,
+            }
+          }),
         }
       },
     }),

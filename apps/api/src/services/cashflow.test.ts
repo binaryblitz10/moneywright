@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { computeCashFlow, toBreakdown, type CashFlowTransaction } from './cashflow'
+import {
+  computeCashFlow,
+  computeSavings,
+  getMonthCoverage,
+  toBreakdown,
+  type CashFlowTransaction,
+} from './cashflow'
 
 const DATE = '2026-09-10'
 
@@ -90,5 +96,73 @@ describe('computeCashFlow', () => {
     ])
     expect(result.invested).toBe(-3000)
     expect(result.investmentCount).toBe(2)
+  })
+})
+
+describe('computeSavings', () => {
+  test('surplus, rate and unallocated when investing more than saved', () => {
+    const s = computeSavings({ income: 1416724.5, expenses: 1042867.32, invested: 831803.61 })
+    expect(s.surplus).toBeCloseTo(373857.18, 2)
+    expect(s.savingsRate).toBeCloseTo(0.2639, 3)
+    expect(s.unallocated).toBeCloseTo(-457946.43, 2)
+  })
+
+  test('investments are not expenses', () => {
+    const s = computeSavings({ income: 100, expenses: 60, invested: 40 })
+    expect(s.surplus).toBe(40)
+    expect(s.unallocated).toBe(0)
+  })
+
+  test('negative surplus gives a negative rate', () => {
+    expect(computeSavings({ income: 100, expenses: 150, invested: 0 }).savingsRate).toBe(-0.5)
+  })
+
+  test('zero or negative income gives a null rate', () => {
+    expect(computeSavings({ income: 0, expenses: 50, invested: 0 }).savingsRate).toBeNull()
+    expect(computeSavings({ income: -10, expenses: 0, invested: 0 }).savingsRate).toBeNull()
+  })
+})
+
+describe('getMonthCoverage', () => {
+  const today = '2026-10-17'
+
+  test('month in progress is partial through today', () => {
+    expect(getMonthCoverage('2026-10', undefined, today)).toEqual({
+      isPartial: true,
+      throughDate: '2026-10-17',
+    })
+  })
+
+  test('month clipped by an explicit range end is partial', () => {
+    expect(getMonthCoverage('2026-08', '2026-08-15', today)).toEqual({
+      isPartial: true,
+      throughDate: '2026-08-15',
+    })
+  })
+
+  test('range ending on the last day of the month is not partial', () => {
+    expect(getMonthCoverage('2026-08', '2026-08-31', today).isPartial).toBe(false)
+    expect(getMonthCoverage('2026-02', '2026-02-28', '2026-10-17').isPartial).toBe(false)
+  })
+
+  test('leap February boundary', () => {
+    expect(getMonthCoverage('2028-02', '2028-02-28', '2028-06-01').isPartial).toBe(true)
+    expect(getMonthCoverage('2028-02', '2028-02-29', '2028-06-01').isPartial).toBe(false)
+  })
+
+  test('earlier months of a range are complete', () => {
+    expect(getMonthCoverage('2026-09', undefined, today)).toEqual({
+      isPartial: false,
+      throughDate: null,
+    })
+  })
+
+  test('future range end is capped at today', () => {
+    expect(getMonthCoverage('2026-10', '2027-03-31', today).throughDate).toBe('2026-10-17')
+    expect(getMonthCoverage('2026-11', '2027-03-31', today).isPartial).toBe(true)
+  })
+
+  test('today on the last day of the month is not partial', () => {
+    expect(getMonthCoverage('2026-10', undefined, '2026-10-31').isPartial).toBe(false)
   })
 })

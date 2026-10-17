@@ -194,6 +194,52 @@ export function computeCashFlow(
   return { ...buildTotals(byCategory), byCategory, months }
 }
 
+/** Surplus and savings figures derived from income, expenses and invested */
+export interface SavingsMetrics {
+  /** income - expenses (investments are not expenses) */
+  surplus: number
+  /** surplus / income as a fraction; null when income <= 0 */
+  savingsRate: number | null
+  /** surplus - invested; negative means investing drew down existing cash */
+  unallocated: number
+}
+
+/** Savings metrics for a period or month */
+export function computeSavings(totals: {
+  income: number
+  expenses: number
+  invested: number
+}): SavingsMetrics {
+  const surplus = totals.income - totals.expenses
+  return {
+    surplus,
+    savingsRate: totals.income > 0 ? surplus / totals.income : null,
+    unallocated: surplus - totals.invested,
+  }
+}
+
+/** Last day of a YYYY-MM month as YYYY-MM-DD */
+function monthLastDate(month: string): string {
+  const [year, monthNum] = month.split('-').map(Number)
+  const lastDay = new Date(year!, monthNum!, 0).getDate()
+  return `${month}-${String(lastDay).padStart(2, '0')}`
+}
+
+/**
+ * Whether a month is only partly covered because the range ends before its last day,
+ * and if so the date it runs through. The range end is the requested end date capped
+ * at today (a future end date such as a financial year end doesn't make a month whole).
+ */
+export function getMonthCoverage(
+  month: string,
+  rangeEnd: string | undefined,
+  today: string = formatLocalDate(new Date())
+): { isPartial: boolean; throughDate: string | null } {
+  const end = rangeEnd && rangeEnd < today ? rangeEnd : today
+  const isPartial = end < monthLastDate(month)
+  return { isPartial, throughDate: isPartial ? end : null }
+}
+
 /** Map a stored transaction row to the shape used by cash flow calculations */
 function toCashFlowTransaction(row: Transaction): CashFlowTransaction {
   return {

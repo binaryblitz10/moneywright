@@ -4,7 +4,14 @@ import { calculateNetWorth } from '../services/accounts'
 import { getInvestmentSummary } from '../services/investment-holdings'
 import { getDetectedSubscriptions } from '../services/transactions'
 import { fetchFxRates, getConversionRate } from '../services/fx-rates'
-import { getCashFlow, getMonthCashFlow, getMonthsRange, toBreakdown } from '../services/cashflow'
+import {
+  computeSavings,
+  getCashFlow,
+  getMonthCashFlow,
+  getMonthCoverage,
+  getMonthsRange,
+  toBreakdown,
+} from '../services/cashflow'
 
 const summaryRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -40,6 +47,8 @@ summaryRoutes.get('/', async (c) => {
       endDate: effectiveEndDate,
     }),
   ])
+
+  const savings = computeSavings(cf)
 
   // Calculate true net worth: (cash assets + investments) - liabilities
   const totalAssets = netWorth.totalAssets + investments.totalCurrent
@@ -103,6 +112,8 @@ summaryRoutes.get('/', async (c) => {
       totalIncome: cf.income,
       totalExpenses: cf.expenses,
       investedAmount: cf.invested,
+      surplus: savings.surplus,
+      savingsRate: savings.savingsRate,
       transferNet: cf.transferNet,
       incomeCount: cf.incomeCount,
       expenseCount: cf.expenseCount,
@@ -116,7 +127,7 @@ summaryRoutes.get('/', async (c) => {
 
 /**
  * GET /summary/monthly-trends
- * Get monthly income/expense trends
+ * Get monthly income/expense/invested trends with surplus and savings rate
  * Query params:
  *   - profileId (optional): Profile to get trends for. If not provided, aggregates all profiles.
  *   - months (optional): Number of months to fetch (default: 12, max: 120)
@@ -136,15 +147,32 @@ summaryRoutes.get('/monthly-trends', async (c) => {
   const range = startDate ? { startDate, endDate: endDate || undefined } : getMonthsRange(months)
 
   const cf = await getCashFlow(userId, { profileId, ...range, groupByMonth: true })
+  const periodSavings = computeSavings(cf)
 
   return c.json({
-    trends: cf.months.map((m) => ({
-      month: m.month,
-      monthLabel: m.monthLabel,
-      income: m.income,
-      expenses: m.expenses,
-      net: m.income - m.expenses,
-    })),
+    trends: cf.months.map((m) => {
+      const savings = computeSavings(m)
+      const coverage = getMonthCoverage(m.month, range.endDate)
+      return {
+        month: m.month,
+        monthLabel: m.monthLabel,
+        income: m.income,
+        expenses: m.expenses,
+        invested: m.invested,
+        net: savings.surplus,
+        surplus: savings.surplus,
+        savingsRate: savings.savingsRate,
+        isPartial: coverage.isPartial,
+        throughDate: coverage.throughDate,
+      }
+    }),
+    totals: {
+      income: cf.income,
+      expenses: cf.expenses,
+      invested: cf.invested,
+      surplus: periodSavings.surplus,
+      savingsRate: periodSavings.savingsRate,
+    },
     currency: cf.currency,
     excludedCategories: cf.excludedCategories,
   })
