@@ -10,15 +10,6 @@ export * from './types'
 // Query Cache
 export * from './query-cache'
 
-// Code Executor
-export {
-  executeCode,
-  isE2BConfigured,
-  type CodeExecutionResult,
-  type ChartConfig,
-  type TableOutput,
-} from './code-executor'
-
 // Tools
 export { createTools, isTavilyConfigured } from './tools'
 

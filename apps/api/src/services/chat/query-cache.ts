@@ -2,13 +2,12 @@
  * Chat Query Cache Service
  *
  * Stores query results for data registry pattern.
- * Allows displaying full data in chat history and E2B code execution.
+ * Allows displaying full data in chat history.
  *
  * Flow:
  * 1. Tool (e.g., queryTransactions) stores filters + full results here
  * 2. LLM receives only summary + sample + queryId + schema
  * 3. Frontend fetches full data by queryId to display in data-table
- * 4. executeCode tool fetches full data by queryId, injects into E2B sandbox
  *
  * Note: Cache entries are permanent (no expiration) since they're used in chat history.
  */
@@ -132,7 +131,7 @@ export async function getQueryCache<T = unknown>(queryId: string): Promise<Cache
 }
 
 /**
- * Get only the data from cache (for E2B injection)
+ * Get only the data from cache
  * More efficient than getQueryCache when you only need the data
  */
 export async function getQueryData<T = unknown>(queryId: string): Promise<T[] | null> {

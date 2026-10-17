@@ -735,13 +735,12 @@ export const chatMessages = pgTable(
 
 /**
  * Chat Query Cache table - stores query results for data registry pattern
- * Allows E2B code execution to access full data without bloating AI context
+ * Lets the UI show full results without bloating AI context
  *
  * Data flow:
  * 1. Tool (e.g., queryTransactions) stores filters + full results here
  * 2. LLM receives only summary + sample + queryId
- * 3. executeCode tool fetches full data by queryId, injects into E2B sandbox
- * 4. Frontend fetches full data by queryId to display in data-table
+ * 3. Frontend fetches full data by queryId to display in data-table
  *
  * Note: Entries are permanent (no expiration) since they're used in chat history.
  */

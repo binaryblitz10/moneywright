@@ -32,7 +32,6 @@ import {
   buildAccountsSchema,
   getQueryCache,
 } from './query-cache'
-import { executeCode as runCodeInSandbox, isE2BConfigured } from './code-executor'
 
 // Import existing service functions
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
@@ -1644,77 +1643,6 @@ Use this ONLY when you need the original document text to answer specific questi
           lender: loan.lender,
           loanAccountNumber: loan.loanAccountNumber,
           rawText: loan.rawText,
-        }
-      },
-    }),
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // CODE EXECUTION TOOL (E2B)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    executeCode: tool({
-      description: `Execute Python code in a sandboxed environment for custom analysis or charts.
-
-**IMPORTANT**: First call a data tool (getTransactions, getHoldings, etc.) to get a queryId.
-
-**Available variables** (auto-injected based on queryIds):
-- data_<queryId>: List of dicts with full data
-- df_<queryId>: Pandas DataFrame
-
-**Your code MUST set a 'result' variable.**
-
-**Output formats:**
-- chart: { "type": "bar|line|pie|area", "data": [...], "config": {"xKey", "yKey", "title"} }
-- table: { "columns": [...], "rows": [...] }
-- value: any JSON-serializable value`,
-      inputSchema: z.object({
-        code: z.string().describe('Python code to execute (must set result variable)'),
-        queryIds: z.array(z.string()).describe('Query IDs from previous tool calls'),
-        outputType: z.enum(['chart', 'table', 'value']).describe('Expected output format'),
-      }),
-      execute: async (params) => {
-        if (!isE2BConfigured()) {
-          return {
-            error: 'Code execution is not available. E2B_API_KEY is not configured.',
-          }
-        }
-
-        // Validate query IDs
-        for (const queryId of params.queryIds) {
-          const cached = await getQueryCache(queryId)
-          if (!cached) {
-            return {
-              error: `Query ${queryId} not found. Run a data tool first.`,
-            }
-          }
-          if (cached.profileId !== profileId) {
-            return {
-              error: `Query ${queryId} does not belong to this profile.`,
-            }
-          }
-        }
-
-        const result = await runCodeInSandbox({
-          code: params.code,
-          queryIds: params.queryIds,
-          profileId,
-          outputType: params.outputType,
-        })
-
-        if (!result.success) {
-          return {
-            error: result.error,
-            logs: result.logs,
-          }
-        }
-
-        switch (result.outputType) {
-          case 'chart':
-            return { success: true, outputType: 'chart', chart: result.chart }
-          case 'table':
-            return { success: true, outputType: 'table', table: result.table }
-          default:
-            return { success: true, outputType: 'value', value: result.value }
         }
       },
     }),
