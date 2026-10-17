@@ -565,6 +565,10 @@ export interface Account {
   latestBalance: number | null
   /** Date of the latest statement (YYYY-MM-DD) */
   latestStatementDate: string | null
+  /** Closing balance as printed on the latest statement */
+  statementBalance?: number | null
+  /** Credit card payments made after the latest statement (0 when none) */
+  paymentsSinceStatement?: number
 }
 
 /**
@@ -1515,6 +1519,8 @@ export interface AccountBalanceInfo {
   currency: string
   latestBalance: number | null
   latestStatementDate: string | null
+  statementBalance?: number | null
+  paymentsSinceStatement?: number
   isLiability: boolean
 }
 

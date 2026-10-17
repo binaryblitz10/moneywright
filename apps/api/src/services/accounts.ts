@@ -1,10 +1,11 @@
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, gt } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Account } from '../db'
 import { encryptOptional, decryptOptional } from '../lib/encryption'
 import { getAccountTypesForCountry, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
 import { getLoanLiabilities, type LoanLiabilityInfo } from './loans'
+import { computeCardBalance, type LinkedCardPayment } from './card-balance'
 
 /**
  * Account service
@@ -77,8 +78,73 @@ export async function getAccountsByUserId(
  * Account with balance info
  */
 export interface AccountWithBalance extends AccountResponse {
+  /** Statement closing balance, adjusted for linked card payments made since the statement */
   latestBalance: number | null
   latestStatementDate: string | null
+  /** Closing balance as printed on the latest statement */
+  statementBalance?: number | null
+  /** Total of linked credit card payments made after the statement (0 when none) */
+  paymentsSinceStatement?: number
+}
+
+/**
+ * Latest balance for an account: the closing balance of the most recent completed statement.
+ * For credit cards, linked bank payments made after the statement end are subtracted.
+ */
+async function getLatestAccountBalance(
+  account: Pick<Account, 'id' | 'type'>,
+  userId: string
+): Promise<{
+  balance: number | null
+  statementBalance: number | null
+  paymentsSinceStatement: number
+  statementDate: string | null
+}> {
+  const [latestStatement] = await db
+    .select({
+      closingBalance: tables.statements.closingBalance,
+      periodEnd: tables.statements.periodEnd,
+    })
+    .from(tables.statements)
+    .where(
+      and(eq(tables.statements.accountId, account.id), eq(tables.statements.status, 'completed'))
+    )
+    .orderBy(desc(tables.statements.periodEnd))
+    .limit(1)
+
+  const statementBalance = latestStatement?.closingBalance
+    ? Number(latestStatement.closingBalance)
+    : null
+  const statementDate = latestStatement?.periodEnd ?? null
+
+  let payments: LinkedCardPayment[] = []
+  if (account.type === 'credit_card' && statementBalance !== null && statementDate) {
+    const rows = await db
+      .select({ date: tables.transactions.date, amount: tables.transactions.amount })
+      .from(tables.transactions)
+      .where(
+        and(
+          eq(tables.transactions.userId, userId),
+          eq(tables.transactions.linkedEntityType, 'credit_card'),
+          eq(tables.transactions.linkedEntityId, account.id),
+          eq(tables.transactions.type, 'debit'),
+          eq(tables.transactions.isHidden, false),
+          gt(tables.transactions.date, statementDate)
+        )
+      )
+    payments = rows.map((r) => ({
+      date: String(r.date),
+      amount: typeof r.amount === 'string' ? parseFloat(r.amount) : Number(r.amount),
+    }))
+  }
+
+  const result = computeCardBalance(statementBalance, statementDate, payments)
+  return {
+    balance: account.type === 'credit_card' ? result.balance : statementBalance,
+    statementBalance,
+    paymentsSinceStatement: result.paymentsSinceStatement,
+    statementDate,
+  }
 }
 
 /**
@@ -105,24 +171,14 @@ export async function getAccountsWithBalances(
   const accountsWithBalances: AccountWithBalance[] = []
 
   for (const account of accounts) {
-    const [latestStatement] = await db
-      .select({
-        closingBalance: tables.statements.closingBalance,
-        periodEnd: tables.statements.periodEnd,
-      })
-      .from(tables.statements)
-      .where(
-        and(eq(tables.statements.accountId, account.id), eq(tables.statements.status, 'completed'))
-      )
-      .orderBy(desc(tables.statements.periodEnd))
-      .limit(1)
+    const latest = await getLatestAccountBalance(account, userId)
 
     accountsWithBalances.push({
       ...toAccountResponse(account),
-      latestBalance: latestStatement?.closingBalance
-        ? Number(latestStatement.closingBalance)
-        : null,
-      latestStatementDate: latestStatement?.periodEnd ?? null,
+      latestBalance: latest.balance,
+      latestStatementDate: latest.statementDate,
+      statementBalance: latest.statementBalance,
+      paymentsSinceStatement: latest.paymentsSinceStatement,
     })
   }
 
@@ -422,8 +478,10 @@ export interface AccountBalanceInfo {
   type: string
   institution: string | null
   currency: string
-  latestBalance: number | null
+  latestBalance: number | null // adjusted for card payments since the statement
   latestStatementDate: string | null
+  statementBalance?: number | null
+  paymentsSinceStatement?: number
   isLiability: boolean // true for credit cards (balance = money owed)
 }
 
@@ -468,20 +526,10 @@ export async function calculateNetWorth(
 
   // For each account, get the latest statement with a closing balance
   for (const account of accounts) {
-    const [latestStatement] = await db
-      .select({
-        closingBalance: tables.statements.closingBalance,
-        periodEnd: tables.statements.periodEnd,
-      })
-      .from(tables.statements)
-      .where(
-        and(eq(tables.statements.accountId, account.id), eq(tables.statements.status, 'completed'))
-      )
-      .orderBy(desc(tables.statements.periodEnd))
-      .limit(1)
+    const latest = await getLatestAccountBalance(account, userId)
 
     const isLiability = account.type === 'credit_card'
-    const balance = latestStatement?.closingBalance ? Number(latestStatement.closingBalance) : null
+    const balance = latest.balance
 
     accountBalances.push({
       accountId: account.id,
@@ -490,7 +538,9 @@ export async function calculateNetWorth(
       institution: account.institution,
       currency: account.currency,
       latestBalance: balance,
-      latestStatementDate: latestStatement?.periodEnd ?? null,
+      latestStatementDate: latest.statementDate,
+      statementBalance: latest.statementBalance,
+      paymentsSinceStatement: latest.paymentsSinceStatement,
       isLiability,
     })
 

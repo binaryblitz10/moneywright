@@ -204,6 +204,11 @@ export function CreditCardDisplay({
           </p>
           {balanceDate && <p className="text-xs text-muted-foreground">as of {balanceDate}</p>}
         </div>
+        {(account.paymentsSinceStatement ?? 0) > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {formatCurrency(account.paymentsSinceStatement!)} paid since statement
+          </p>
+        )}
       </div>
     </div>
   )

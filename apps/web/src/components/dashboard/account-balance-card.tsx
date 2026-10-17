@@ -48,6 +48,12 @@ export function AccountBalanceCard({ account }: AccountBalanceCardProps) {
               {account.isLiability ? '-' : ''}
               {formatCurrency(account.latestBalance!, account.currency)}
             </p>
+            {(account.paymentsSinceStatement ?? 0) > 0 && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {formatCurrency(account.paymentsSinceStatement!, account.currency)} paid since
+                statement
+              </p>
+            )}
             {account.latestStatementDate && (
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {formatDate(account.latestStatementDate)}
