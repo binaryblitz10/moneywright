@@ -46,8 +46,8 @@ export function TransactionStats({
         : {
             label: 'Net Amount',
             value: netAmount,
-            subtitle: netAmount >= 0 ? 'Surplus' : 'Deficit',
-            trend: netAmount >= 0 ? ('up' as const) : ('down' as const),
+            subtitle: 'Net cash movement',
+            trend: undefined,
           }
 
   return (
