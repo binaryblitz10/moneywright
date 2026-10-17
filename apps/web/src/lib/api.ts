@@ -1860,7 +1860,7 @@ export interface SpendingCategoryChange {
   category: string
   label: string
   current: number
-  baselineMedian: number
+  baselineAverage: number
   delta: number
   deltaPct: number | null
   direction: 'up' | 'down'
@@ -1871,7 +1871,7 @@ export interface SpendingMerchantChange {
   merchant: string
   category: string
   current: number
-  baselineMedian: number
+  baselineAverage: number
   delta: number
   deltaPct: number | null
   direction: 'up' | 'down'
@@ -1902,7 +1902,7 @@ export type SpendingChangesResponse =
       isPartial: boolean
       note: string | null
       baselineMonths: string[]
-      totals: { current: number; baselineMedian: number; delta: number; deltaPct: number | null }
+      totals: { current: number; baselineAverage: number; delta: number; deltaPct: number | null }
       categories: SpendingCategoryChange[]
       merchants: SpendingMerchantChange[]
       largeTransactions: SpendingLargeTransaction[]
@@ -1916,7 +1916,7 @@ export interface SpendingChangesParams {
 }
 
 /**
- * Get spending changes for a month vs the median of the previous months
+ * Get spending changes for a month vs the average of the previous months
  */
 export async function getSpendingChanges(
   options: SpendingChangesParams = {}

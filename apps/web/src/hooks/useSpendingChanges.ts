@@ -16,7 +16,7 @@ export const spendingChangesKeys = {
 }
 
 /**
- * Fetch spending changes for a month vs the median of previous months
+ * Fetch spending changes for a month vs the average of previous months
  * Omit month for the latest complete month with data; undefined profileId is family view
  */
 export function useSpendingChanges(params: SpendingChangesParams, options?: { enabled?: boolean }) {

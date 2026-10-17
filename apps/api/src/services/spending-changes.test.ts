@@ -3,7 +3,7 @@ import {
   computeSpendingChanges,
   firstUsableMonth,
   isSignificantChange,
-  median,
+  average,
   merchantKey,
   percentile,
   pickDefaultMonth,
@@ -46,11 +46,11 @@ function ok(result: ReturnType<typeof computeSpendingChanges>): SpendingChangesR
   return result
 }
 
-describe('median / percentile', () => {
-  test('median of odd, even and empty lists', () => {
-    expect(median([3, 1, 2])).toBe(2)
-    expect(median([1, 2, 3, 10])).toBe(2.5)
-    expect(median([])).toBe(0)
+describe('average / percentile', () => {
+  test('average of a list and of an empty list', () => {
+    expect(average([3, 1, 2])).toBe(2)
+    expect(average([1, 2, 3, 10])).toBe(4)
+    expect(average([])).toBe(0)
   })
 
   test('percentile interpolates', () => {
@@ -90,7 +90,7 @@ describe('months', () => {
 })
 
 describe('isSignificantChange', () => {
-  test('needs max(3000, 25% of the median)', () => {
+  test('needs max(3000, 25% of the average)', () => {
     expect(isSignificantChange(23000, 20000)).toBe(false) // +3000 but < 5000
     expect(isSignificantChange(25000, 20000)).toBe(true)
     expect(isSignificantChange(15000, 20000)).toBe(true)
@@ -129,13 +129,14 @@ describe('computeSpendingChanges', () => {
         ['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'],
         {
           month: '2026-08',
+          baselineMonths: 6,
           today: TODAY,
           dataStartMonth: '2026-04',
         }
       )
     )
     expect(result.baselineMonths).toEqual(['2026-04', '2026-05', '2026-06', '2026-07'])
-    expect(result.totals.baselineMedian).toBe(20000)
+    expect(result.totals.baselineAverage).toBe(20000)
   })
 
   test('too few baseline months after the data start is insufficient history', () => {
@@ -165,14 +166,15 @@ describe('computeSpendingChanges', () => {
     const result = ok(
       computeSpendingChanges(txns, ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08'], {
         month: '2026-08',
+        baselineMonths: 6,
         today: TODAY,
       })
     )
     expect(result.baselineMonths).toEqual(['2026-04', '2026-05', '2026-06', '2026-07'])
   })
 
-  test('detects a category increase against the median with zeros for empty months', () => {
-    // Median over Mar-Aug window (6 months, but data starts April -> 5 months): 20000
+  test('detects a category increase against the average with zeros for empty months', () => {
+    // Average of the previous 3 months (Jun-Aug): 20000
     const txns = [...steadyBaseline(), txn('2026-09-05', 28000, 'Swiggy party')]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     expect(result.month).toBe('2026-09')
@@ -182,15 +184,15 @@ describe('computeSpendingChanges', () => {
     expect(result.categories[0]).toMatchObject({
       category: 'food_dining',
       current: 28000,
-      baselineMedian: 20000,
+      baselineAverage: 20000,
       delta: 8000,
       direction: 'up',
     })
     expect(result.categories[0]!.deltaPct).toBeCloseTo(0.4)
-    expect(result.totals).toMatchObject({ current: 28000, baselineMedian: 20000, delta: 8000 })
+    expect(result.totals).toMatchObject({ current: 28000, baselineAverage: 20000, delta: 8000 })
   })
 
-  test('a category with spend in few baseline months has a median of 0 and is new', () => {
+  test('a category with spend in few baseline months has a average of 0 and is new', () => {
     const txns = [
       ...steadyBaseline(),
       txn('2026-05-03', 9000, 'Croma tv', 'shopping'),
@@ -198,9 +200,24 @@ describe('computeSpendingChanges', () => {
     ]
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     const shopping = result.categories.find((c) => c.category === 'shopping')!
-    expect(shopping.baselineMedian).toBe(0)
+    expect(shopping.baselineAverage).toBe(0)
     expect(shopping.deltaPct).toBeNull()
     expect(shopping.current).toBe(12000)
+  })
+
+  test('the baseline is the average of the previous 3 months, so one big month raises it', () => {
+    const txns = [
+      txn('2026-06-10', 20000, 'Swiggy'),
+      txn('2026-07-10', 20000, 'Swiggy'),
+      txn('2026-08-10', 50000, 'Swiggy party'),
+      txn('2026-09-10', 30000, 'Swiggy'),
+    ]
+    const result = ok(
+      computeSpendingChanges(txns, ['2026-06', '2026-07', '2026-08', '2026-09'], { today: TODAY })
+    )
+    expect(result.baselineMonths).toEqual(['2026-06', '2026-07', '2026-08'])
+    expect(result.totals.baselineAverage).toBe(30000)
+    expect(result.categories).toHaveLength(0)
   })
 
   test('detects a decrease and ignores small changes', () => {
@@ -270,7 +287,7 @@ describe('computeSpendingChanges', () => {
       merchant: 'Croma',
       category: 'shopping',
       current: 9000,
-      baselineMedian: 0,
+      baselineAverage: 0,
     })
   })
 

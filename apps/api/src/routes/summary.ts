@@ -212,11 +212,11 @@ summaryRoutes.get('/month-transactions', async (c) => {
 
 /**
  * GET /summary/changes
- * Spending changes for a month vs the median of the previous months
+ * Spending changes for a month vs the average of the previous months
  * Query params:
  *   - profileId (optional): Profile to analyse. If not provided, aggregates all profiles.
  *   - month (optional): Month in YYYY-MM format. Defaults to the latest complete month with data.
- *   - baselineMonths (optional): Number of previous months in the baseline (default 6)
+ *   - baselineMonths (optional): Number of previous months in the baseline (default 3)
  */
 summaryRoutes.get('/changes', async (c) => {
   const userId = c.get('userId')

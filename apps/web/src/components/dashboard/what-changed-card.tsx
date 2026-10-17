@@ -1,6 +1,6 @@
 /**
  * What Changed card component
- * Spending changes for one month against the median of the previous months
+ * Spending changes for one month against the average of the previous months
  */
 
 import { useState } from 'react'
@@ -131,7 +131,7 @@ function getSubtitle(data: SpendingChangesResponse): string {
   if (data.status === 'insufficient_history') return formatMonth(data.month)
   const count = data.baselineMonths.length
   const partial = data.isPartial ? ' (month to date)' : ''
-  return `${formatMonth(data.month)}${partial} vs median of previous ${count} month${count === 1 ? '' : 's'}`
+  return `${formatMonth(data.month)}${partial} vs average of previous ${count} month${count === 1 ? '' : 's'}`
 }
 
 function WhatChangedBody({
@@ -223,7 +223,7 @@ function CategoryChangeRow({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
         <p className="text-xs text-muted-foreground truncate">
-          vs {formatCurrency(change.baselineMedian, currency)}
+          vs {formatCurrency(change.baselineAverage, currency)}
           {drivers && ` · ${drivers}`}
         </p>
       </div>

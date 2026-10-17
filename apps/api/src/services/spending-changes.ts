@@ -7,20 +7,20 @@ import { getCashflowExcludedCategories } from './preferences'
 
 /**
  * Spending changes service
- * Compares a month's spending per category and merchant against the median of the
+ * Compares a month's spending per category and merchant against the average of the
  * previous months, and flags unusually large transactions. All figures are computed
  * here so callers (dashboard, Penny) quote them instead of recomputing.
  */
 
 /** Smallest absolute change worth reporting */
 const MIN_CHANGE_AMOUNT = 3000
-/** Smallest relative change worth reporting (fraction of the baseline median) */
+/** Smallest relative change worth reporting (fraction of the baseline average) */
 const MIN_CHANGE_FRACTION = 0.25
 /** Debits at or above this amount can be flagged as large transactions */
 const LARGE_TXN_AMOUNT = 10000
 /** Baseline months needed before a comparison is meaningful */
 export const MIN_BASELINE_MONTHS = 3
-export const DEFAULT_BASELINE_MONTHS = 6
+export const DEFAULT_BASELINE_MONTHS = 3
 export const MAX_BASELINE_MONTHS = 24
 
 const MAX_CATEGORY_CHANGES = 8
@@ -46,7 +46,7 @@ export interface TopMerchant {
   count: number
   /** Net spend this month */
   amount: number
-  /** This month's spend minus the merchant's median over the baseline */
+  /** This month's spend minus the merchant's average over the baseline */
   delta: number
 }
 
@@ -54,9 +54,9 @@ export interface CategoryChange {
   category: string
   label: string
   current: number
-  baselineMedian: number
+  baselineAverage: number
   delta: number
-  /** Null when the baseline median is 0 */
+  /** Null when the baseline average is 0 */
   deltaPct: number | null
   direction: 'up' | 'down'
   topMerchants: TopMerchant[]
@@ -67,7 +67,7 @@ export interface MerchantChange {
   /** Category with the most spend for this merchant this month */
   category: string
   current: number
-  baselineMedian: number
+  baselineAverage: number
   delta: number
   deltaPct: number | null
   direction: 'up' | 'down'
@@ -113,7 +113,7 @@ export interface SpendingChangesReport {
   baselineMonths: string[]
   totals: {
     current: number
-    baselineMedian: number
+    baselineAverage: number
     delta: number
     deltaPct: number | null
   }
@@ -127,12 +127,10 @@ export type SpendingChangesResult = SpendingChangesReport | InsufficientHistoryR
 /** API response: the result plus the display currency */
 export type SpendingChangesResponse = SpendingChangesResult & { currency: string }
 
-/** Median of a list of numbers; 0 for an empty list */
-export function median(values: number[]): number {
+/** Average of a list of numbers; 0 for an empty list */
+export function average(values: number[]): number {
   if (values.length === 0) return 0
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  return values.reduce((sum, v) => sum + v, 0) / values.length
 }
 
 /** Percentile (0-1) with linear interpolation; null for an empty list */
@@ -181,15 +179,15 @@ export function pickDefaultMonth(monthsWithData: string[], today: string): strin
   return complete[complete.length - 1] ?? shiftMonth(currentMonth, -1)
 }
 
-/** Whether a change is big enough to report: >= max(3000, 25% of the median) */
-export function isSignificantChange(current: number, baselineMedian: number): boolean {
-  const delta = current - baselineMedian
-  if (baselineMedian <= 0) return current >= MIN_CHANGE_AMOUNT
-  return Math.abs(delta) >= Math.max(MIN_CHANGE_AMOUNT, MIN_CHANGE_FRACTION * baselineMedian)
+/** Whether a change is big enough to report: >= max(3000, 25% of the average) */
+export function isSignificantChange(current: number, baselineAverage: number): boolean {
+  const delta = current - baselineAverage
+  if (baselineAverage <= 0) return current >= MIN_CHANGE_AMOUNT
+  return Math.abs(delta) >= Math.max(MIN_CHANGE_AMOUNT, MIN_CHANGE_FRACTION * baselineAverage)
 }
 
-function changePct(delta: number, baselineMedian: number): number | null {
-  return baselineMedian > 0 ? delta / baselineMedian : null
+function changePct(delta: number, baselineAverage: number): number | null {
+  return baselineAverage > 0 ? delta / baselineAverage : null
 }
 
 /** Net spend (debits - credits) keyed by month then group key */
@@ -211,8 +209,8 @@ function sumByMonth(
   return result
 }
 
-/** Baseline median per key; months without spend for a key count as 0 */
-function baselineMedians(
+/** Baseline average per key; months without spend for a key count as 0 */
+function baselineAverages(
   sums: Map<string, Map<string, number>>,
   baselineMonths: string[]
 ): Map<string, number> {
@@ -220,11 +218,11 @@ function baselineMedians(
   for (const month of baselineMonths) {
     for (const key of sums.get(month)?.keys() ?? []) keys.add(key)
   }
-  const medians = new Map<string, number>()
+  const averages = new Map<string, number>()
   for (const key of keys) {
-    medians.set(key, median(baselineMonths.map((month) => sums.get(month)?.get(key) ?? 0)))
+    averages.set(key, average(baselineMonths.map((month) => sums.get(month)?.get(key) ?? 0)))
   }
-  return medians
+  return averages
 }
 
 const CATEGORY_LABELS = new Map<string, string>(
@@ -293,29 +291,29 @@ export function computeSpendingChanges(
   // Totals
   const monthlyTotals = sumByMonth(spending, () => 'total')
   const totalCurrent = monthlyTotals.get(month)?.get('total') ?? 0
-  const totalMedian = median(baselineMonths.map((m) => monthlyTotals.get(m)?.get('total') ?? 0))
+  const totalAverage = average(baselineMonths.map((m) => monthlyTotals.get(m)?.get('total') ?? 0))
 
   // Categories
   const categorySums = sumByMonth(spending, (txn) => txn.category)
-  const categoryMedians = baselineMedians(categorySums, baselineMonths)
+  const categoryAverages = baselineAverages(categorySums, baselineMonths)
   const currentByCategory = categorySums.get(month) ?? new Map<string, number>()
 
   // Merchants, overall and within each category (for the per-category drivers)
   const merchantSums = sumByMonth(spending, merchantKey)
-  const merchantMedians = baselineMedians(merchantSums, baselineMonths)
+  const merchantAverages = baselineAverages(merchantSums, baselineMonths)
   const currentByMerchant = merchantSums.get(month) ?? new Map<string, number>()
   const scopedKey = (txn: ChangeTransaction) => `${txn.category}\u0000${merchantKey(txn)}`
   const scopedSums = sumByMonth(spending, scopedKey)
-  const scopedMedians = baselineMedians(scopedSums, baselineMonths)
+  const scopedAverages = baselineAverages(scopedSums, baselineMonths)
   const currentScoped = scopedSums.get(month) ?? new Map<string, number>()
 
-  const categoryKeys = new Set([...currentByCategory.keys(), ...categoryMedians.keys()])
+  const categoryKeys = new Set([...currentByCategory.keys(), ...categoryAverages.keys()])
   const categories: CategoryChange[] = []
   for (const category of categoryKeys) {
     const cur = currentByCategory.get(category) ?? 0
-    const med = categoryMedians.get(category) ?? 0
-    if (!isSignificantChange(cur, med)) continue
-    const delta = cur - med
+    const avg = categoryAverages.get(category) ?? 0
+    if (!isSignificantChange(cur, avg)) continue
+    const delta = cur - avg
     const direction = delta > 0 ? 'up' : 'down'
 
     const inCategory = current.filter((txn) => txn.category === category)
@@ -328,14 +326,14 @@ export function computeSpendingChanges(
     }
     const drivers: Array<TopMerchant & { key: string }> = []
     const scopedKeys = new Set(
-      [...currentScoped.keys(), ...scopedMedians.keys()].filter((k) =>
+      [...currentScoped.keys(), ...scopedAverages.keys()].filter((k) =>
         k.startsWith(`${category}\u0000`)
       )
     )
     for (const sk of scopedKeys) {
       const key = sk.substring(category.length + 1)
       const amount = currentScoped.get(sk) ?? 0
-      const merchantDelta = amount - (scopedMedians.get(sk) ?? 0)
+      const merchantDelta = amount - (scopedAverages.get(sk) ?? 0)
       // Only merchants pushing in the same direction as the category explain the change
       if (direction === 'up' ? merchantDelta <= 0 : merchantDelta >= 0) continue
       // A merchant that vanished this month has no transactions to show
@@ -355,9 +353,9 @@ export function computeSpendingChanges(
       category,
       label: categoryLabel(category),
       current: cur,
-      baselineMedian: med,
+      baselineAverage: avg,
       delta,
-      deltaPct: changePct(delta, med),
+      deltaPct: changePct(delta, avg),
       direction,
       topMerchants: drivers
         .slice(0, MAX_TOP_MERCHANTS)
@@ -377,19 +375,19 @@ export function computeSpendingChanges(
     categorySpendByMerchant.set(key, byCat)
   }
   const merchants: MerchantChange[] = []
-  for (const key of new Set([...currentByMerchant.keys(), ...merchantMedians.keys()])) {
+  for (const key of new Set([...currentByMerchant.keys(), ...merchantAverages.keys()])) {
     const cur = currentByMerchant.get(key) ?? 0
-    const med = merchantMedians.get(key) ?? 0
-    if (!isSignificantChange(cur, med)) continue
+    const avg = merchantAverages.get(key) ?? 0
+    if (!isSignificantChange(cur, avg)) continue
     const topCategory = [...(categorySpendByMerchant.get(key) ?? [])].sort((a, b) => b[1] - a[1])[0]
-    const delta = cur - med
+    const delta = cur - avg
     merchants.push({
       merchant: merchantNames.get(key) ?? key,
       category: topCategory?.[0] ?? '',
       current: cur,
-      baselineMedian: med,
+      baselineAverage: avg,
       delta,
-      deltaPct: changePct(delta, med),
+      deltaPct: changePct(delta, avg),
       direction: delta > 0 ? 'up' : 'down',
     })
   }
@@ -424,7 +422,7 @@ export function computeSpendingChanges(
   }
   largeTransactions.sort((a, b) => b.amount - a.amount)
 
-  const totalDelta = totalCurrent - totalMedian
+  const totalDelta = totalCurrent - totalAverage
   return {
     status: 'ok',
     month,
@@ -435,9 +433,9 @@ export function computeSpendingChanges(
     baselineMonths,
     totals: {
       current: totalCurrent,
-      baselineMedian: totalMedian,
+      baselineAverage: totalAverage,
       delta: totalDelta,
-      deltaPct: changePct(totalDelta, totalMedian),
+      deltaPct: changePct(totalDelta, totalAverage),
     },
     categories: categories.slice(0, MAX_CATEGORY_CHANGES),
     merchants: merchants.slice(0, MAX_MERCHANT_CHANGES),
@@ -510,7 +508,7 @@ async function getAccountFirstStarts(userId: string, profileId?: string): Promis
 }
 
 /**
- * Spending changes for a month against the median of previous months
+ * Spending changes for a month against the average of previous months
  */
 export async function getSpendingChanges(
   userId: string,

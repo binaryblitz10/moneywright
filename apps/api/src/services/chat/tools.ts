@@ -1036,7 +1036,7 @@ Refunds are already subtracted from expenses. Investments are NOT expenses. Alwa
     }),
 
     getSpendingChanges: tool({
-      description: `Explain what changed in spending: compares a month's spending per category and merchant against the MEDIAN of the previous months (default 6), and lists unusually large transactions.
+      description: `Explain what changed in spending: compares a month's spending per category and merchant against the AVERAGE of the previous months (default 3), and lists unusually large transactions.
 All figures are computed deterministically - quote them as given, do not recompute or re-derive them.
 Returns status 'insufficient_history' when fewer than 3 baseline months exist. If the month is still in progress (isPartial), spending so far is compared with full months without pro-rating - say so.`,
       inputSchema: z.object({
@@ -1048,7 +1048,7 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
         baselineMonths: z
           .number()
           .optional()
-          .describe('Number of previous months in the baseline (default: 6, max 24)'),
+          .describe('Number of previous months in the baseline (default: 3, max 24)'),
       }),
       execute: async (params) => {
         return getSpendingChanges(userId, {
