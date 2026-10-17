@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import type { MonthlyTrendData } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { formatAxisAmount } from './utils'
 import { TrendingDown, TrendingUp, Activity } from 'lucide-react'
 
 // Colours match the Tailwind emerald/rose/blue/violet 500 shades (also --chart-1/4/5)
@@ -31,25 +32,6 @@ interface MonthlyTrendsChartProps {
   onMonthClick?: (month: MonthlyTrendData) => void
 }
 
-// Format currency for display
-function formatCurrency(amount: number, currency: string): string {
-  if (Math.abs(amount) >= 10000000) {
-    return `${currency === 'INR' ? '₹' : '$'}${(amount / 10000000).toFixed(1)}Cr`
-  }
-  if (Math.abs(amount) >= 100000) {
-    return `${currency === 'INR' ? '₹' : '$'}${(amount / 100000).toFixed(1)}L`
-  }
-  if (Math.abs(amount) >= 1000) {
-    return `${currency === 'INR' ? '₹' : '$'}${(amount / 1000).toFixed(1)}K`
-  }
-  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 // Format full currency for tooltip
 function formatFullCurrency(amount: number, currency: string): string {
   return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
@@ -61,7 +43,7 @@ function formatFullCurrency(amount: number, currency: string): string {
 }
 
 function formatPercent(rate: number | null): string {
-  return rate === null ? '—' : `${(rate * 100).toFixed(1)}%`
+  return rate === null ? '—' : `${Math.round(rate * 100)}%`
 }
 
 // "Oct 26 (to 15 Oct)" for months cut short by the range, otherwise the plain label
@@ -354,7 +336,7 @@ export function MonthlyTrendsChart({
                 fontSize: 11,
                 fontWeight: 500,
               }}
-              tickFormatter={(value) => formatCurrency(value, currency)}
+              tickFormatter={(value) => formatAxisAmount(value, currency)}
               domain={[0, maxValue]}
               width={60}
             />

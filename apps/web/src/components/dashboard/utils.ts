@@ -33,6 +33,24 @@ export function formatCompact(amount: number, currency: string = 'INR'): string 
   return formatCurrency(amount, currency)
 }
 
+const AXIS_UNITS = [
+  { size: 10000000, suffix: 'Cr' },
+  { size: 100000, suffix: 'L' },
+  { size: 1000, suffix: 'K' },
+]
+
+/**
+ * Format a chart axis amount without decimals: uses the largest unit that gives a
+ * whole number (1,50,000 -> ₹150K, 2,00,000 -> ₹2L), else the full amount
+ */
+export function formatAxisAmount(amount: number, currency: string = 'INR'): string {
+  const rounded = Math.round(amount)
+  const unit = AXIS_UNITS.find((u) => Math.abs(rounded) >= u.size && rounded % u.size === 0)
+  if (!unit) return formatCurrency(rounded, currency)
+  const sign = rounded < 0 ? '-' : ''
+  return `${sign}${currency === 'INR' ? '₹' : '$'}${Math.abs(rounded) / unit.size}${unit.suffix}`
+}
+
 /**
  * Date formatter for display
  */

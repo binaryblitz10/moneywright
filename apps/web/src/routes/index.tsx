@@ -330,6 +330,7 @@ function DashboardPage() {
       <StatCardGrid className="mb-6 lg:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Net Worth"
+          formatValue={formatCurrency}
           value={summary?.netWorth.total}
           currency={summary?.netWorth.currency}
           subtitle={
@@ -343,6 +344,7 @@ function DashboardPage() {
         />
         <StatCard
           label="Income"
+          formatValue={formatCurrency}
           value={summary?.transactions.totalIncome}
           currency={summary?.transactions.currency}
           subtitle={transactionCountSubtitle(summary?.transactions.incomeCount)}
@@ -352,6 +354,7 @@ function DashboardPage() {
         />
         <StatCard
           label="Expenses"
+          formatValue={formatCurrency}
           value={summary?.transactions.totalExpenses}
           currency={summary?.transactions.currency}
           subtitle={transactionCountSubtitle(summary?.transactions.expenseCount)}
@@ -362,13 +365,14 @@ function DashboardPage() {
         <StatCard
           label="Savings Rate"
           value={savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100}
-          formatValue={(rate) => `${rate.toFixed(1)}%`}
+          formatValue={(rate) => `${Math.round(rate)}%`}
           subtitle={savingsSubtitle}
           icon={PiggyBank}
           loading={summaryLoading}
         />
         <StatCard
           label="Investments"
+          formatValue={formatCurrency}
           value={investedAmount === undefined ? undefined : Math.abs(investedAmount)}
           currency={summary?.transactions.currency}
           subtitle={

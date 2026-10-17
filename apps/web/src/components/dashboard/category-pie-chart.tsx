@@ -112,7 +112,7 @@ export function CategoryPieChart({
                       style={{ backgroundColor: s.fill }}
                     />
                     <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {((s.value / sliceTotal) * 100).toFixed(1)}%
+                      {Math.round((s.value / sliceTotal) * 100)}%
                     </span>
                   </div>
                 </div>
