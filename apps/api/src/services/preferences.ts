@@ -8,6 +8,7 @@ import { logger } from '../lib/logger'
 export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
+  DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const

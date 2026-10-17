@@ -1926,6 +1926,8 @@ export const PREFERENCE_KEYS = {
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   // Other preferences
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
+  // Data health checks the user chose to ignore (JSON array of issue keys)
+  DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   // Profile selection
   SELECTED_PROFILE: 'selected_profile',
   // Chat preferences

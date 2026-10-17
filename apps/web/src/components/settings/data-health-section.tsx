@@ -2,14 +2,15 @@
  * Data health card: how complete and trustworthy the imported data is
  */
 
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, EyeOff, RotateCcw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { useDataHealth } from '@/hooks'
+import { useDataHealth, usePreferences, useSetPreference } from '@/hooks'
+import { PREFERENCE_KEYS } from '@/lib/api'
 import type { DataHealthBridge, DataHealthReport } from '@/lib/api'
 import { formatCurrency } from '@/components/dashboard/utils'
 
@@ -17,6 +18,8 @@ import { formatCurrency } from '@/components/dashboard/utils'
 const RESIDUAL_ALERT = 10000
 /** Issue rows shown before "Show all" */
 const COLLAPSED_ROWS = 6
+/** Ignore key for the cash bridge, which is not one of the issue rows */
+const BRIDGE_KEY = 'cash-bridge'
 
 type IssueTarget =
   /** Statements page narrowed to the statements (or account) behind the issue */
@@ -158,6 +161,39 @@ function collectIssues(report: DataHealthReport): Issue[] {
   return issues
 }
 
+function parseIgnored(value: string | undefined): string[] {
+  if (!value) return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed.filter((key): key is string => typeof key === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+interface IgnoreButtonProps {
+  ignored: boolean
+  onClick: () => void
+}
+
+function IgnoreButton({ ignored, onClick }: IgnoreButtonProps) {
+  const Icon = ignored ? RotateCcw : EyeOff
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
+      title={ignored ? 'Stop ignoring this check' : 'Ignore this check'}
+      aria-label={ignored ? 'Stop ignoring this check' : 'Ignore this check'}
+      onClick={onClick}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </Button>
+  )
+}
+
 function IssueLink({ target, children }: { target: IssueTarget; children: React.ReactNode }) {
   const className =
     'group flex items-center justify-between gap-3 rounded-lg px-2 py-2 -mx-2 transition-colors hover:bg-muted/50'
@@ -252,11 +288,35 @@ export function DataHealthSection({
   enabled = true,
 }: DataHealthSectionProps) {
   const { data: report, isLoading } = useDataHealth(profileId, { startDate, enabled })
+  const { data: preferences } = usePreferences()
+  const setPreferenceMutation = useSetPreference()
   const [expanded, setExpanded] = useState(false)
+  const [showIgnored, setShowIgnored] = useState(false)
+
+  const ignoredKeys = useMemo(
+    () => parseIgnored(preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS]),
+    [preferences]
+  )
+  const toggleIgnored = useCallback(
+    (key: string) => {
+      const next = ignoredKeys.includes(key)
+        ? ignoredKeys.filter((k) => k !== key)
+        : [...ignoredKeys, key]
+      setPreferenceMutation.mutate({
+        key: PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS,
+        value: JSON.stringify(next),
+      })
+    },
+    [ignoredKeys, setPreferenceMutation]
+  )
 
   if (!enabled) return null
 
-  const issues = report ? collectIssues(report) : []
+  const allIssues = report ? collectIssues(report) : []
+  const issues = allIssues.filter((issue) => !ignoredKeys.includes(issue.key))
+  const ignoredIssues = allIssues.filter((issue) => ignoredKeys.includes(issue.key))
+  const bridgeIgnored = ignoredKeys.includes(BRIDGE_KEY)
+  const ignoredCount = ignoredIssues.length + (bridgeIgnored ? 1 : 0)
   const visible = expanded ? issues : issues.slice(0, COLLAPSED_ROWS)
 
   return (
@@ -294,13 +354,18 @@ export function DataHealthSection({
             ) : (
               <div className="divide-y divide-border-subtle">
                 {visible.map((issue) => (
-                  <IssueLink key={issue.key} target={issue.target}>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{issue.label}</p>
-                      <p className="text-xs text-muted-foreground">{issue.detail}</p>
+                  <div key={issue.key} className="group/row flex items-center gap-1">
+                    <div className="min-w-0 flex-1">
+                      <IssueLink target={issue.target}>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{issue.label}</p>
+                          <p className="text-xs text-muted-foreground">{issue.detail}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                      </IssueLink>
                     </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                  </IssueLink>
+                    <IgnoreButton ignored={false} onClick={() => toggleIgnored(issue.key)} />
+                  </div>
                 ))}
                 {issues.length > COLLAPSED_ROWS && (
                   <div className="pt-2">
@@ -317,7 +382,46 @@ export function DataHealthSection({
               </div>
             )}
 
-            <CashBridge bridge={report.bridge} />
+            {!bridgeIgnored && (
+              <div className="group/row flex items-start gap-1">
+                <div className="min-w-0 flex-1">
+                  <CashBridge bridge={report.bridge} />
+                </div>
+                <IgnoreButton ignored={false} onClick={() => toggleIgnored(BRIDGE_KEY)} />
+              </div>
+            )}
+
+            {ignoredCount > 0 && (
+              <div className="space-y-2 border-t border-border-subtle pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-0 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowIgnored((value) => !value)}
+                >
+                  {showIgnored ? 'Hide ignored' : `${ignoredCount} ignored`}
+                </Button>
+                {showIgnored && (
+                  <div className="divide-y divide-border-subtle">
+                    {ignoredIssues.map((issue) => (
+                      <div key={issue.key} className="group/row flex items-center gap-1 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-muted-foreground">{issue.label}</p>
+                          <p className="text-xs text-muted-foreground">{issue.detail}</p>
+                        </div>
+                        <IgnoreButton ignored onClick={() => toggleIgnored(issue.key)} />
+                      </div>
+                    ))}
+                    {bridgeIgnored && (
+                      <div className="group/row flex items-center gap-1 py-2">
+                        <p className="min-w-0 flex-1 text-sm text-muted-foreground">Cash bridge</p>
+                        <IgnoreButton ignored onClick={() => toggleIgnored(BRIDGE_KEY)} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </CardContent>
