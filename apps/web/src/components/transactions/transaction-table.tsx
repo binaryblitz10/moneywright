@@ -96,6 +96,19 @@ function getNameInitial(name: string): string {
   return letter ? letter.toUpperCase() : '?'
 }
 
+/**
+ * Title Case a transaction name. Mixed-case words (YouTube) and short all-caps words
+ * (IRCTC, LIC) are kept; lowercase and long all-caps words are capitalised.
+ */
+function toTitleCase(name: string): string {
+  return name.replace(/\S+/g, (word) => {
+    const isLower = word === word.toLowerCase()
+    const isLongUpper = word === word.toUpperCase() && word.replace(/[^A-Za-z]/g, '').length > 5
+    if (!isLower && !isLongUpper) return word
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  })
+}
+
 export function TransactionTable({
   transactions,
   accounts,
@@ -283,7 +296,7 @@ export function TransactionTable({
                       {/* Title row with category badge inline */}
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium text-foreground text-sm">
-                          {txn.summary || txn.originalDescription}
+                          {toTitleCase(txn.summary || txn.originalDescription)}
                         </p>
                         {/* Category badge - inline */}
                         <span
