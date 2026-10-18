@@ -23,7 +23,7 @@ import {
 /**
  * Period report
  * One month, or consecutive months, against the same number of months just before:
- * totals, every category and shop, per-account flows, where the savings went and
+ * totals, every category and merchant, per-account flows, where the savings went and
  * the data problems that touch the period.
  */
 
@@ -97,7 +97,7 @@ export interface PeriodReportData {
   expenseCategories: ComparedRow[]
   incomeCategories: ComparedRow[]
   investmentCategories: ComparedRow[]
-  shops: ComparedRow[]
+  merchants: ComparedRow[]
   accounts: AccountFlowRow[]
 }
 
@@ -175,7 +175,7 @@ function categoryGroups(
     : null
 }
 
-function shopGroups(transactions: ReportTransaction[]): TotalsGroup[] {
+function merchantGroups(transactions: ReportTransaction[]): TotalsGroup[] {
   return computeTotals(
     transactions.filter((t) => getCategoryKind(t.category) === 'expense'),
     { kind: 'expense', groupBy: 'merchant' }
@@ -236,7 +236,7 @@ export function computePeriodReport(input: {
       categoryGroups(currentCf, 'investment')!,
       categoryGroups(previousCf, 'investment')
     ),
-    shops: compareGroups(shopGroups(current), previous ? shopGroups(previous) : null),
+    merchants: compareGroups(merchantGroups(current), previous ? merchantGroups(previous) : null),
     accounts,
   }
 }

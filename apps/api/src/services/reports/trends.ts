@@ -5,6 +5,7 @@ import { categoryLabel, merchantKey, merchantName } from '../spending-changes'
 import { signedForKind } from '../transaction-totals'
 import {
   loadReportTransactions,
+  localToday,
   monthEndDate,
   monthsBetween,
   toReportAccount,
@@ -14,11 +15,11 @@ import {
 
 /**
  * Spending trends report
- * Expense spend (net of refunds, like the dashboard) month by month: by category, by shop
+ * Expense spend (net of refunds, like the dashboard) month by month: by category, by merchant
  * and by the account it went through.
  */
 
-/** A shop's trend needs a change of at least this share of the earlier average... */
+/** A merchant's trend needs a change of at least this share of the earlier average... */
 export const TREND_MIN_CHANGE_FRACTION = 0.2
 /** ...and at least this much per month */
 export const TREND_MIN_CHANGE_AMOUNT = 500
@@ -40,7 +41,7 @@ export interface AccountMonthlyRow extends MonthlyRow {
   last4: string | null
 }
 
-export interface ShopTrendRow extends MonthlyRow {
+export interface MerchantTrendRow extends MonthlyRow {
   /** Debits, refunds not counted */
   payments: number
   /** Debits / payments; null without payments */
@@ -53,7 +54,7 @@ export interface TrendsData {
   /** YYYY-MM, chronological */
   months: string[]
   categories: MonthlyRow[]
-  shops: ShopTrendRow[]
+  merchants: MerchantTrendRow[]
   accounts: AccountMonthlyRow[]
   /** Per month, all expenses */
   monthTotals: number[]
@@ -127,6 +128,8 @@ export function computeTrends(input: {
   months: string[]
   accounts: ReportAccount[]
   excludeCategories: string[]
+  /** The last month is still in progress, so it is left out of the trend */
+  lastMonthPartial?: boolean
 }): TrendsData {
   const { months } = input
   const excluded = new Set(input.excludeCategories)
@@ -134,7 +137,7 @@ export function computeTrends(input: {
   const accountsById = new Map(input.accounts.map((a) => [a.id, a] as const))
 
   const categories = new Map<string, Bucket>()
-  const shops = new Map<string, Bucket>()
+  const merchants = new Map<string, Bucket>()
   const accounts = new Map<string, Bucket>()
 
   for (const txn of input.transactions) {
@@ -142,7 +145,7 @@ export function computeTrends(input: {
     if (index === undefined) continue
     if (excluded.has(txn.category) || getCategoryKind(txn.category) !== 'expense') continue
     addTo(categories, txn.category, categoryLabel(txn.category), index, months.length, txn)
-    addTo(shops, merchantKey(txn), merchantName(txn), index, months.length, txn)
+    addTo(merchants, merchantKey(txn), merchantName(txn), index, months.length, txn)
     addTo(
       accounts,
       txn.accountId,
@@ -172,12 +175,12 @@ export function computeTrends(input: {
   return {
     months,
     categories: byTotal([...categories].map(([key, bucket]) => toRow(key, bucket))),
-    shops: byTotal(
-      [...shops].map(([key, bucket]) => ({
+    merchants: byTotal(
+      [...merchants].map(([key, bucket]) => ({
         ...toRow(key, bucket),
         payments: bucket.payments,
         averagePerPayment: bucket.payments > 0 ? bucket.debits / bucket.payments : null,
-        trend: computeTrend(bucket.months),
+        trend: computeTrend(input.lastMonthPartial ? bucket.months.slice(0, -1) : bucket.months),
       }))
     ),
     accounts: byTotal(
@@ -218,6 +221,7 @@ export async function getTrendsReport(
       months,
       accounts: accounts.map(toReportAccount),
       excludeCategories,
+      lastMonthPartial: to === localToday().substring(0, 7),
     }),
     from,
     to,

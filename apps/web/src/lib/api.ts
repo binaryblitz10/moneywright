@@ -2892,6 +2892,8 @@ export interface ReportBounds {
   /** Null without data */
   earliestMonth: string | null
   lastCompleteMonth: string
+  /** The month in progress; it shows the data so far */
+  currentMonth: string
 }
 
 export interface ReportComparison {
@@ -2983,7 +2985,7 @@ export interface PeriodReport {
   expenseCategories: ReportComparedRow[]
   incomeCategories: ReportComparedRow[]
   investmentCategories: ReportComparedRow[]
-  shops: ReportComparedRow[]
+  merchants: ReportComparedRow[]
   accounts: ReportAccountFlowRow[]
   savings: ReportSavingsBreakdown
   warnings: { count: number; items: ReportWarning[] }
@@ -2999,7 +3001,7 @@ export interface ReportMonthlyRow {
   average: number
 }
 
-export interface ReportShopTrendRow extends ReportMonthlyRow {
+export interface ReportMerchantTrendRow extends ReportMonthlyRow {
   payments: number
   averagePerPayment: number | null
   trend: 'rising' | 'falling' | 'steady' | null
@@ -3015,7 +3017,7 @@ export interface TrendsReport {
   to: string
   months: string[]
   categories: ReportMonthlyRow[]
-  shops: ReportShopTrendRow[]
+  merchants: ReportMerchantTrendRow[]
   accounts: ReportAccountMonthlyRow[]
   monthTotals: number[]
   total: number
@@ -3087,7 +3089,7 @@ export async function getPeriodReport(params: ReportRangeParams): Promise<Period
   return response.data
 }
 
-/** Spending trends: category, shop and account spend month by month */
+/** Spending trends: category, merchant and account spend month by month */
 export async function getTrendsReport(params: ReportRangeParams): Promise<TrendsReport> {
   const response = await api.get('/reports/trends', { params })
   return response.data

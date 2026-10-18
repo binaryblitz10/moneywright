@@ -75,14 +75,6 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
 
   return (
     <div className="space-y-6">
-      {comparisonLabel === null && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Info className="h-4 w-4 shrink-0" />
-          No earlier data to compare. Changes appear once an earlier period has data from every
-          account.
-        </p>
-      )}
-
       <StatCardGrid className="lg:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Put in this period"
@@ -161,7 +153,7 @@ function MonthlyChart({ report }: InvestmentsReportViewProps) {
   )
 
   return (
-    <ReportCard title="Money put in" description="Investment payments by month">
+    <ReportCard title="Money put in">
       <div className="px-2 sm:px-0">
         <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-2">
           <LegendItem color={PUT_IN_COLOR} label="Put in" />
@@ -269,10 +261,7 @@ function PlatformsTable({ report }: InvestmentsReportViewProps) {
   const money = (value: number | null) => (value === null ? '–' : formatCurrency(value, currency))
 
   return (
-    <ReportCard
-      title="By platform"
-      description="Payments are matched to a platform by the name in the transaction"
-    >
+    <ReportCard title="By platform">
       {platforms.length === 0 ? (
         <InlineEmptyState
           icon={Info}
@@ -368,7 +357,7 @@ function AllocationCard({ report }: InvestmentsReportViewProps) {
   if (allocation.length === 0) return null
 
   return (
-    <ReportCard title="Allocation" description="Current value by type of investment">
+    <ReportCard title="Allocation">
       <ul className="space-y-3 px-2">
         {allocation.map((row, index) => (
           <li key={row.type}>

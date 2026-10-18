@@ -27,7 +27,7 @@ const current = [
   txn('2026-09-12', 1000, 'food_dining', 'Swiggy', 'credit', 'card'),
   txn('2026-09-15', 20000, 'rent', 'Landlord'),
   txn('2026-09-20', 10000, 'investment', 'Zerodha'),
-  txn('2026-09-25', 7000, 'shopping', 'Excluded shop'),
+  txn('2026-09-25', 7000, 'shopping', 'Excluded merchant'),
 ]
 const previous = [
   txn('2026-08-01', 80000, 'salary', 'Employer', 'credit'),
@@ -84,11 +84,11 @@ describe('computePeriodReport', () => {
     })
   })
 
-  test('shops are expense-only, net of refunds', () => {
-    const swiggy = report.shops.find((s) => s.label === 'Swiggy')
+  test('merchants are expense-only, net of refunds', () => {
+    const swiggy = report.merchants.find((s) => s.label === 'Swiggy')
     expect(swiggy).toMatchObject({ current: 4000, previous: 2000, count: 2 })
-    expect(report.shops.find((s) => s.label === 'Zerodha')).toBeUndefined()
-    expect(report.shops.find((s) => s.label === 'Excluded shop')).toBeUndefined()
+    expect(report.merchants.find((s) => s.label === 'Zerodha')).toBeUndefined()
+    expect(report.merchants.find((s) => s.label === 'Excluded merchant')).toBeUndefined()
   })
 
   test('accounts with no transactions are left out', () => {

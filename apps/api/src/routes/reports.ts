@@ -42,7 +42,7 @@ async function parseRange(
  * The months a report can cover
  * Query params:
  *   - profileId (optional): Limit to one profile
- * Returns { earliestMonth, lastCompleteMonth } (YYYY-MM; earliestMonth is null without data)
+ * Returns { earliestMonth, lastCompleteMonth, currentMonth } (YYYY-MM; earliestMonth is null without data)
  */
 reportRoutes.get('/months', async (c) => {
   const userId = c.get('userId')
@@ -51,9 +51,9 @@ reportRoutes.get('/months', async (c) => {
 
 /**
  * GET /reports/period
- * Totals, categories, shops and accounts for complete months vs the months before
+ * Totals, categories, merchants and accounts for a range of months vs the whole months before
  * Query params:
- *   - from, to (required): First and last month (YYYY-MM); to must be a finished month
+ *   - from, to (required): First and last month (YYYY-MM); to may be the current month, which shows the data so far
  *   - profileId (optional): Limit to one profile
  */
 reportRoutes.get('/period', async (c) => {
@@ -66,7 +66,7 @@ reportRoutes.get('/period', async (c) => {
 
 /**
  * GET /reports/trends
- * Month-by-month spending by category, shop and account
+ * Month-by-month spending by category, merchant and account
  * Query params: same as /reports/period
  */
 reportRoutes.get('/trends', async (c) => {

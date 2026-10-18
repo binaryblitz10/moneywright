@@ -57,7 +57,7 @@ describe('computeTrends', () => {
     txn('2026-08-10', 20000, 'rent', 'Landlord'),
     txn('2026-07-01', 90000, 'salary', 'Employer', 'credit'),
     txn('2026-08-20', 5000, 'investment', 'Zerodha'),
-    txn('2026-09-09', 4000, 'shopping', 'Excluded shop'),
+    txn('2026-09-09', 4000, 'shopping', 'Excluded merchant'),
     txn('2026-06-30', 999, 'rent', 'Before range'),
   ]
   const result = computeTrends({ transactions, months, accounts, excludeCategories: ['shopping'] })
@@ -73,15 +73,15 @@ describe('computeTrends', () => {
     expect(result.average).toBeCloseTo(25000 / 3)
   })
 
-  test('shops carry payments, average per payment, monthly series and trend', () => {
-    const swiggy = result.shops.find((s) => s.label === 'Swiggy')!
+  test('merchants carry payments, average per payment, monthly series and trend', () => {
+    const swiggy = result.merchants.find((s) => s.label === 'Swiggy')!
     expect(swiggy.payments).toBe(3)
     expect(swiggy.total).toBe(5000)
     expect(swiggy.averagePerPayment).toBeCloseTo(5500 / 3)
     expect(swiggy.months).toEqual([1000, 1500, 2500])
     expect(swiggy.trend).toBe('rising')
-    expect(result.shops.map((s) => s.label)).not.toContain('Zerodha')
-    expect(result.shops.map((s) => s.label)).not.toContain('Employer')
+    expect(result.merchants.map((s) => s.label)).not.toContain('Zerodha')
+    expect(result.merchants.map((s) => s.label)).not.toContain('Employer')
   })
 
   test('accounts split spend by where it went', () => {
@@ -98,6 +98,6 @@ describe('computeTrends', () => {
       accounts,
       excludeCategories: [],
     })
-    expect(one.shops[0]!.trend).toBeNull()
+    expect(one.merchants[0]!.trend).toBeNull()
   })
 })

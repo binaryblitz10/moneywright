@@ -1,5 +1,5 @@
 /**
- * Period report tab: totals, categories, shops and accounts for complete months
+ * Period report tab: totals, categories, merchants and accounts for complete months
  * against the same number of months just before
  */
 
@@ -40,7 +40,7 @@ import { ChangeAmount, ChangeLine, ChangePct, type GoodWhen } from './change-ind
 import { NUM_CLASS, ReportCard, TH_CLASS } from './report-card'
 import { formatRange } from './report-utils'
 
-const TOP_SHOPS = 15
+const TOP_MERCHANTS = 15
 
 interface PeriodReportViewProps {
   report: PeriodReport
@@ -96,14 +96,6 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
 
   return (
     <div className="space-y-6">
-      {comparisonLabel === null && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Info className="h-4 w-4 shrink-0" />
-          No earlier data to compare. Changes appear once an earlier period has data from every
-          account.
-        </p>
-      )}
-
       <StatCardGrid className="lg:grid-cols-2 xl:grid-cols-5">
         {statCard('Income', 'income', Wallet, 'up')}
         {statCard('Expenses', 'expenses', CreditCard, 'down')}
@@ -152,7 +144,7 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
         />
       )}
 
-      <ShopsTable report={report} />
+      <MerchantsTable report={report} />
 
       <AccountsTable report={report} />
 
@@ -215,18 +207,11 @@ function SavingsBreakdownCard({
   }
 
   return (
-    <ReportCard
-      title="Where your savings went"
-      description="What was left after expenses, and where it ended up"
-    >
+    <ReportCard title="Where your savings went">
       <div className="px-2 sm:px-2">
-        <Row label="Surplus" hint="Income minus expenses" value={signed(savings.surplus)} strong />
-        <Row label="Invested" hint="Put into investments" value={signed(savings.invested)} />
-        <Row
-          label="Added to bank accounts"
-          hint="Change in bank balances"
-          value={signed(savings.bankChange)}
-        />
+        <Row label="Surplus" value={signed(savings.surplus)} strong />
+        <Row label="Invested" value={signed(savings.invested)} />
+        <Row label="Added to bank accounts" value={signed(savings.bankChange)} />
         <Row
           label="Card dues paid down"
           hint="Negative when card balances grew"
@@ -367,29 +352,29 @@ function CategoryTable({
   )
 }
 
-function ShopsTable({ report }: { report: PeriodReport }) {
+function MerchantsTable({ report }: { report: PeriodReport }) {
   const [showAll, setShowAll] = useState(false)
   const { currency, period } = report
   const compared = period.comparison !== null
-  // Shops with no spending now only matter for the comparison, so they come after the rest
-  const shops = report.shops.filter((s) => s.current !== 0)
-  const visible = showAll ? shops : shops.slice(0, TOP_SHOPS)
+  // Merchants with no spending now only matter for the comparison, so they come after the rest
+  const merchants = report.merchants.filter((s) => s.current !== 0)
+  const visible = showAll ? merchants : merchants.slice(0, TOP_MERCHANTS)
 
-  if (shops.length === 0) return null
+  if (merchants.length === 0) return null
 
   return (
     <ReportCard
-      title="Shops"
+      title="Merchants"
       description={
-        showAll || shops.length <= TOP_SHOPS
-          ? `${shops.length} shops`
-          : `Top ${TOP_SHOPS} of ${shops.length} shops`
+        showAll || merchants.length <= TOP_MERCHANTS
+          ? `${merchants.length} merchants`
+          : `Top ${TOP_MERCHANTS} of ${merchants.length} merchants`
       }
     >
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className={TH_CLASS}>Shop</TableHead>
+            <TableHead className={TH_CLASS}>Merchant</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Payments</TableHead>
             <PeriodHead report={report} which="current" />
             {compared && <PeriodHead report={report} which="previous" />}
@@ -422,10 +407,10 @@ function ShopsTable({ report }: { report: PeriodReport }) {
           ))}
         </TableBody>
       </Table>
-      {shops.length > TOP_SHOPS && (
+      {merchants.length > TOP_MERCHANTS && (
         <div className="mt-2 flex justify-center">
           <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? 'Show top 15' : `Show all ${shops.length}`}
+            {showAll ? 'Show top 15' : `Show all ${merchants.length}`}
           </Button>
         </div>
       )}
@@ -463,10 +448,7 @@ function AccountsTable({ report }: { report: PeriodReport }) {
     account ? account[key] : null
 
   return (
-    <ReportCard
-      title="By account"
-      description="Money in, money out and invested through each account"
-    >
+    <ReportCard title="By account">
       <Table>
         <TableHeader>
           <TableRow>
@@ -535,10 +517,6 @@ function WarningsCard({ warnings }: { warnings: PeriodReport['warnings'] }) {
             <Link to="/statements">Statements</Link>
           </Button>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {warnings.count} {warnings.count === 1 ? 'thing' : 'things'} that may make this period's
-          numbers off
-        </p>
         <ul className="mt-3 space-y-2">
           {warnings.items.map((item, index) => (
             <li key={index} className="text-sm">

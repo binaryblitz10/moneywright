@@ -1,5 +1,5 @@
 /**
- * Spending trends tab: expense spend month by month, by category (heatmap), shop and account
+ * Spending trends tab: expense spend month by month, by category (heatmap), merchant and account
  */
 
 import { useState } from 'react'
@@ -19,11 +19,11 @@ import {
 import { formatCurrency } from '@/components/dashboard/utils'
 import { getCategoryColorClasses, getCategoryFillColor } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
-import type { ReportShopTrendRow, TrendsReport } from '@/lib/api'
+import type { ReportMerchantTrendRow, TrendsReport } from '@/lib/api'
 import { NUM_CLASS, ReportCard, TH_CLASS } from './report-card'
 import { formatMonthName, monthDates } from './report-utils'
 
-const TOP_SHOPS = 15
+const TOP_MERCHANTS = 15
 /** Share of the cell colour at a row's smallest and largest month */
 const MIN_SHADE = 8
 const MAX_SHADE = 60
@@ -47,7 +47,7 @@ export function SpendingTrendsView({ report, getCategoryColor }: SpendingTrendsV
   return (
     <div className="space-y-6">
       <CategoryHeatmap report={report} getCategoryColor={getCategoryColor} />
-      <ShopsTable report={report} />
+      <MerchantsTable report={report} />
       <AccountsMatrix report={report} />
     </div>
   )
@@ -79,10 +79,7 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
   }
 
   return (
-    <ReportCard
-      title="Spending by category"
-      description="Darker months are that category's highest. Click a figure to see its transactions."
-    >
+    <ReportCard title="Spending by category" description="Click a figure to see its transactions">
       <Table>
         <TableHeader>
           <TableRow>
@@ -175,7 +172,7 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
   )
 }
 
-/** Small bars, one per month, scaled to the shop's highest month */
+/** Small bars, one per month, scaled to the merchant's highest month */
 function Sparkline({ values }: { values: number[] }) {
   const max = Math.max(...values, 0)
   const width = 6
@@ -214,7 +211,7 @@ const TREND_STYLES = {
   steady: { label: 'Steady', className: 'bg-surface-elevated text-muted-foreground' },
 } as const
 
-function TrendPill({ trend }: { trend: ReportShopTrendRow['trend'] }) {
+function TrendPill({ trend }: { trend: ReportMerchantTrendRow['trend'] }) {
   if (trend === null) return <span className="text-muted-foreground">–</span>
   const style = TREND_STYLES[trend]
   return (
@@ -229,29 +226,29 @@ function TrendPill({ trend }: { trend: ReportShopTrendRow['trend'] }) {
   )
 }
 
-function ShopsTable({ report }: { report: TrendsReport }) {
+function MerchantsTable({ report }: { report: TrendsReport }) {
   const [showAll, setShowAll] = useState(false)
   const { currency } = report
-  // Shops that only had refunds have nothing to trend
-  const shops = report.shops.filter((s) => s.payments > 0)
-  const visible = showAll ? shops : shops.slice(0, TOP_SHOPS)
+  // Merchants that only had refunds have nothing to trend
+  const merchants = report.merchants.filter((s) => s.payments > 0)
+  const visible = showAll ? merchants : merchants.slice(0, TOP_MERCHANTS)
   const showTrend = report.months.length >= 2
 
-  if (shops.length === 0) return null
+  if (merchants.length === 0) return null
 
   return (
     <ReportCard
-      title="Shops"
+      title="Merchants"
       description={
-        showAll || shops.length <= TOP_SHOPS
-          ? `${shops.length} shops`
-          : `Top ${TOP_SHOPS} of ${shops.length} shops`
+        showAll || merchants.length <= TOP_MERCHANTS
+          ? `${merchants.length} merchants`
+          : `Top ${TOP_MERCHANTS} of ${merchants.length} merchants`
       }
     >
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className={TH_CLASS}>Shop</TableHead>
+            <TableHead className={TH_CLASS}>Merchant</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Payments</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Per payment</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
@@ -261,39 +258,41 @@ function ShopsTable({ report }: { report: TrendsReport }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {visible.map((shop) => (
-            <TableRow key={shop.key}>
-              <TableCell className="max-w-56 truncate font-medium">{shop.label}</TableCell>
+          {visible.map((merchant) => (
+            <TableRow key={merchant.key}>
+              <TableCell className="max-w-56 truncate font-medium">{merchant.label}</TableCell>
               <TableCell className={cn(NUM_CLASS, 'text-muted-foreground')}>
-                {shop.payments}
+                {merchant.payments}
               </TableCell>
               <TableCell className={NUM_CLASS}>
-                {shop.averagePerPayment === null
+                {merchant.averagePerPayment === null
                   ? '–'
-                  : formatCurrency(shop.averagePerPayment, currency)}
+                  : formatCurrency(merchant.averagePerPayment, currency)}
               </TableCell>
-              <TableCell className={NUM_CLASS}>{formatCurrency(shop.average, currency)}</TableCell>
+              <TableCell className={NUM_CLASS}>
+                {formatCurrency(merchant.average, currency)}
+              </TableCell>
               <TableCell className={cn(NUM_CLASS, 'font-medium')}>
-                {formatCurrency(shop.total, currency)}
+                {formatCurrency(merchant.total, currency)}
               </TableCell>
               {showTrend && (
                 <TableCell>
-                  <Sparkline values={shop.months} />
+                  <Sparkline values={merchant.months} />
                 </TableCell>
               )}
               {showTrend && (
                 <TableCell>
-                  <TrendPill trend={shop.trend} />
+                  <TrendPill trend={merchant.trend} />
                 </TableCell>
               )}
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {shops.length > TOP_SHOPS && (
+      {merchants.length > TOP_MERCHANTS && (
         <div className="mt-2 flex justify-center">
           <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? 'Show top 15' : `Show all ${shops.length}`}
+            {showAll ? 'Show top 15' : `Show all ${merchants.length}`}
           </Button>
         </div>
       )}
@@ -306,10 +305,7 @@ function AccountsMatrix({ report }: { report: TrendsReport }) {
   if (report.accounts.length === 0) return null
 
   return (
-    <ReportCard
-      title="Spending by account"
-      description="Which card or bank account the spending went through"
-    >
+    <ReportCard title="Spending by account">
       <Table>
         <TableHeader>
           <TableRow>
