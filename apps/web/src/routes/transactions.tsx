@@ -32,6 +32,7 @@ import {
   TransactionEditForm,
   TransactionBulkEditForm,
   Pagination,
+  PaginationSummary,
 } from '@/components/transactions'
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -354,7 +355,7 @@ function TransactionsPage() {
           </div>
         )}
 
-        {/* Pagination - Always visible */}
+        {/* Selection toggle and result count */}
         {!transactionsLoading && transactions.length > 0 && (
           <div className="flex items-center gap-3">
             <Button
@@ -370,15 +371,7 @@ function TransactionsPage() {
               )}
               {selectionMode ? 'Cancel' : 'Select'}
             </Button>
-            <div className="flex-1">
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                total={total}
-                limit={limit}
-                onPageChange={setPage}
-              />
-            </div>
+            <PaginationSummary page={page} total={total} limit={limit} />
           </div>
         )}
 
@@ -424,6 +417,11 @@ function TransactionsPage() {
                   }
             }
           />
+        )}
+
+        {/* Pagination - bottom of the page, centred */}
+        {!transactionsLoading && transactions.length > 0 && (
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </div>
     </AppLayout>

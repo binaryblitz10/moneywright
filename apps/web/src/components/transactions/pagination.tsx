@@ -9,24 +9,33 @@ interface PaginationProps {
   onPageChange: (page: number) => void
 }
 
-export function Pagination({ page, totalPages, total, limit, onPageChange }: PaginationProps) {
+type PaginationControlsProps = Pick<PaginationProps, 'page' | 'totalPages' | 'onPageChange'>
+
+/** "Showing 1 to 25 of 388 transactions" */
+export function PaginationSummary({
+  page,
+  total,
+  limit,
+}: Pick<PaginationProps, 'page' | 'total' | 'limit'>) {
   return (
-    <div className="flex items-center justify-between">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Showing{' '}
-        <span className="font-medium text-zinc-700 dark:text-zinc-200">
-          {(page - 1) * limit + 1}
-        </span>{' '}
-        to{' '}
-        <span className="font-medium text-zinc-700 dark:text-zinc-200">
-          {Math.min(page * limit, total)}
-        </span>{' '}
-        of{' '}
-        <span className="font-medium text-zinc-700 dark:text-zinc-200">
-          {total.toLocaleString()}
-        </span>{' '}
-        transactions
-      </p>
+    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      Showing{' '}
+      <span className="font-medium text-zinc-700 dark:text-zinc-200">{(page - 1) * limit + 1}</span>{' '}
+      to{' '}
+      <span className="font-medium text-zinc-700 dark:text-zinc-200">
+        {Math.min(page * limit, total)}
+      </span>{' '}
+      of{' '}
+      <span className="font-medium text-zinc-700 dark:text-zinc-200">{total.toLocaleString()}</span>{' '}
+      transactions
+    </p>
+  )
+}
+
+/** Previous / page indicator / Next, centred */
+export function Pagination({ page, totalPages, onPageChange }: PaginationControlsProps) {
+  return (
+    <div className="flex items-center justify-center">
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
