@@ -30,6 +30,7 @@ import {
   formatRange,
   resolveRange,
   type MonthRange,
+  type PresetKey,
   type ReportTab,
 } from '@/components/reports'
 
@@ -41,6 +42,7 @@ const searchSchema = z.object({
   tab: z.enum(REPORT_TABS).catch('period'),
   from: monthParam,
   to: monthParam,
+  preset: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/reports')({
@@ -50,7 +52,7 @@ export const Route = createFileRoute('/reports')({
 
 function ReportsPage() {
   const navigate = useNavigate({ from: '/reports' })
-  const { tab, from, to } = Route.useSearch()
+  const { tab, from, to, preset } = Route.useSearch()
   const { isAuthenticated, user } = useAuth()
   const {
     activeProfileId: profileId,
@@ -84,9 +86,10 @@ function ReportsPage() {
   const trends = useTrendsReport(params, tab === 'trends')
   const investments = useInvestmentsReport(params, tab === 'investments')
 
-  const setRange = (next: MonthRange) => navigate({ search: { tab, ...next }, replace: true })
+  const setRange = (next: MonthRange, nextPreset?: PresetKey) =>
+    navigate({ search: { tab, ...next, preset: nextPreset }, replace: true })
   const setTab = (next: string) =>
-    navigate({ search: { tab: next as ReportTab, from, to }, replace: true })
+    navigate({ search: { tab: next as ReportTab, from, to, preset }, replace: true })
 
   const description = range
     ? tab === 'trends'
@@ -108,6 +111,7 @@ function ReportsPage() {
                 range={range}
                 bounds={bounds}
                 userCountry={user?.country}
+                selectedPreset={preset}
                 onChange={setRange}
               />
             )}

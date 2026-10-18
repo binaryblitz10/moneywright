@@ -90,8 +90,8 @@ export function monthDates(month: string): { startDate: string; endDate: string 
 }
 
 /**
- * The range a preset covers, ending at the last complete month and not before the first month
- * with data. Null when the preset falls outside the months that can be reported.
+ * The range a preset covers, ending at the current month (the last complete month for "last
+ * month") and not before the first month with data. Null when the preset falls outside the months that can be reported.
  */
 export function presetRange(
   key: PresetKey,
@@ -103,8 +103,9 @@ export function presetRange(
   if (key === 'this_month')
     return earliestMonth <= currentMonth ? { from: currentMonth, to: currentMonth } : null
 
+  // Everything but "last month" runs through the current month, so the month in progress counts
   let from: string
-  let to = lastCompleteMonth
+  let to = currentMonth
   const fy = FY_PRESETS.find((p) => p.key === key)
   if (fy) {
     const year = getFinancialYearRange(country, fy.offset)
@@ -112,27 +113,29 @@ export function presetRange(
     to = year.endDate.substring(0, 7) < to ? year.endDate.substring(0, 7) : to
   } else if (key === 'all') {
     from = earliestMonth
+  } else if (key === 'last_1') {
+    from = to = lastCompleteMonth
   } else {
     const months = PERIOD_PRESETS.find((p) => p.key === key)?.months ?? 1
-    from = shiftMonth(lastCompleteMonth, -(months - 1))
+    from = shiftMonth(currentMonth, -(months - 1))
   }
 
   if (from < earliestMonth) from = earliestMonth
   return from <= to ? { from, to } : null
 }
 
-/** Which preset a range is, if any */
-export function matchPreset(
+/** Every preset a range is: several can cover the same months, e.g. a financial year and the last 6 months */
+export function matchPresets(
   range: MonthRange,
   bounds: ReportBounds,
   country: string | null | undefined
-): PresetKey | null {
-  return (
-    [...PERIOD_PRESETS, ...FY_PRESETS].find((p) => {
+): PresetKey[] {
+  return [...PERIOD_PRESETS, ...FY_PRESETS]
+    .filter((p) => {
       const preset = presetRange(p.key, bounds, country)
       return preset?.from === range.from && preset.to === range.to
-    })?.key ?? null
-  )
+    })
+    .map((p) => p.key)
 }
 
 /**

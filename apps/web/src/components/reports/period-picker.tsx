@@ -23,17 +23,20 @@ import {
   PERIOD_PRESETS,
   formatMonth,
   formatRange,
-  matchPreset,
+  matchPresets,
   monthsBetween,
   presetRange,
   type MonthRange,
+  type PresetKey,
 } from './report-utils'
 
 interface PeriodPickerProps {
   range: MonthRange
   bounds: ReportBounds
   userCountry: string | null | undefined
-  onChange: (range: MonthRange) => void
+  /** The time frame the user picked; several can cover the same months */
+  selectedPreset: string | undefined
+  onChange: (range: MonthRange, preset?: PresetKey) => void
 }
 
 function optionClass(active: boolean): string {
@@ -45,8 +48,16 @@ function optionClass(active: boolean): string {
   )
 }
 
-export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPickerProps) {
-  const preset = matchPreset(range, bounds, userCountry)
+export function PeriodPicker({
+  range,
+  bounds,
+  userCountry,
+  selectedPreset,
+  onChange,
+}: PeriodPickerProps) {
+  const matching = matchPresets(range, bounds, userCountry)
+  // The picked time frame when it still covers the range, else the first one that does
+  const active = matching.find((key) => key === selectedPreset) ?? matching[0] ?? null
   // Newest first, so the recent months are at the top of the list
   const months = useMemo(
     () =>
@@ -84,8 +95,8 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
             {options.map(({ key, label, range: optionRange }) => (
               <button
                 key={key}
-                onClick={() => onChange(optionRange)}
-                className={optionClass(preset === key)}
+                onClick={() => onChange(optionRange, key)}
+                className={optionClass(active === key)}
               >
                 {label}
               </button>
@@ -96,7 +107,7 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
 
           <div className="space-y-2">
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Custom{preset === null && ' (selected)'}
+              Custom{active === null && ' (selected)'}
             </Label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
