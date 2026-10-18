@@ -51,7 +51,7 @@ export const Route = createFileRoute('/reports')({
 function ReportsPage() {
   const navigate = useNavigate({ from: '/reports' })
   const { tab, from, to } = Route.useSearch()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const {
     activeProfileId: profileId,
     showFamilyView,
@@ -103,7 +103,14 @@ function ReportsPage() {
         description={description}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {bounds && range && <PeriodPicker range={range} bounds={bounds} onChange={setRange} />}
+            {bounds && range && (
+              <PeriodPicker
+                range={range}
+                bounds={bounds}
+                userCountry={user?.country}
+                onChange={setRange}
+              />
+            )}
             <ProfileSelector
               selectedProfileId={selectorProfileId}
               onProfileChange={handleProfileChange}
@@ -122,7 +129,7 @@ function ReportsPage() {
         <EmptyState
           icon={FileBarChart}
           title="No finished months to report on yet"
-          description="Reports cover whole months that are over. Upload statements and come back once a month has finished."
+          description="Upload a statement to see your reports."
           action={{ label: 'Upload a statement', href: '/statements?upload=true', icon: Upload }}
           size="lg"
         />

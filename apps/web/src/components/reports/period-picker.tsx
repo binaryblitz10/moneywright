@@ -1,6 +1,6 @@
 /**
- * Month range picker for the reports: presets that end at the last complete month,
- * or a custom start and end month. Only complete months with data can be picked.
+ * Month range picker for the reports: the dashboard's time frames or a custom start and end
+ * month. The current month shows the data so far.
  */
 
 import { useMemo } from 'react'
@@ -17,7 +17,9 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { ReportBounds } from '@/lib/api'
+import { getFinancialYearRange } from '@/components/dashboard/utils'
 import {
+  FY_PRESETS,
   PERIOD_PRESETS,
   formatMonth,
   formatRange,
@@ -30,6 +32,7 @@ import {
 interface PeriodPickerProps {
   range: MonthRange
   bounds: ReportBounds
+  userCountry: string | null | undefined
   onChange: (range: MonthRange) => void
 }
 
@@ -42,16 +45,28 @@ function optionClass(active: boolean): string {
   )
 }
 
-export function PeriodPicker({ range, bounds, onChange }: PeriodPickerProps) {
-  const preset = matchPreset(range, bounds)
+export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPickerProps) {
+  const preset = matchPreset(range, bounds, userCountry)
   // Newest first, so the recent months are at the top of the list
   const months = useMemo(
     () =>
       bounds.earliestMonth
-        ? monthsBetween(bounds.earliestMonth, bounds.lastCompleteMonth).reverse()
+        ? monthsBetween(bounds.earliestMonth, bounds.currentMonth).reverse()
         : [],
     [bounds]
   )
+
+  // Presets that have months with data to show
+  const periodPresets = PERIOD_PRESETS.flatMap((p) => {
+    const range = presetRange(p.key, bounds, userCountry)
+    return range ? [{ ...p, range }] : []
+  })
+
+  // Only the financial years that have months with data
+  const fyPresets = FY_PRESETS.flatMap(({ key, offset }) => {
+    const fyRange = presetRange(key, bounds, userCountry)
+    return fyRange ? [{ key, offset, fyRange }] : []
+  })
 
   return (
     <Popover>
@@ -65,16 +80,38 @@ export function PeriodPicker({ range, bounds, onChange }: PeriodPickerProps) {
       <PopoverContent align="end" className="w-80 p-3">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-1.5">
-            {PERIOD_PRESETS.map((p) => (
+            {periodPresets.map(({ key, label, range }) => (
               <button
-                key={p.key}
-                onClick={() => onChange(presetRange(p.key, bounds))}
-                className={optionClass(preset === p.key)}
+                key={key}
+                onClick={() => onChange(range)}
+                className={optionClass(preset === key)}
               >
-                {p.label}
+                {label}
               </button>
             ))}
           </div>
+
+          {fyPresets.length > 0 && (
+            <>
+              <div className="h-px bg-border-subtle" />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Financial Year
+                </Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {fyPresets.map(({ key, offset, fyRange }) => (
+                    <button
+                      key={key}
+                      onClick={() => onChange(fyRange)}
+                      className={optionClass(preset === key)}
+                    >
+                      {getFinancialYearRange(userCountry, offset).label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="h-px bg-border-subtle" />
 

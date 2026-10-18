@@ -59,15 +59,19 @@ describe('resolvePeriod', () => {
 })
 
 describe('validateMonthRange', () => {
-  const bounds = { earliestMonth: '2026-03', lastCompleteMonth: '2026-09' }
+  const bounds = { earliestMonth: '2026-03', lastCompleteMonth: '2026-09', currentMonth: '2026-10' }
 
   test('accepts a range inside the bounds', () => {
     expect(validateMonthRange('2026-03', '2026-09', bounds)).toBeNull()
   })
 
-  test('rejects reversed ranges, the unfinished month and months before the data', () => {
+  test('accepts the month in progress', () => {
+    expect(validateMonthRange('2026-10', '2026-10', bounds)).toBeNull()
+  })
+
+  test('rejects reversed ranges, future months and months before the data', () => {
     expect(validateMonthRange('2026-06', '2026-05', bounds)).not.toBeNull()
-    expect(validateMonthRange('2026-08', '2026-10', bounds)).not.toBeNull()
+    expect(validateMonthRange('2026-08', '2026-11', bounds)).not.toBeNull()
     expect(validateMonthRange('2026-02', '2026-04', bounds)).not.toBeNull()
   })
 
@@ -76,6 +80,7 @@ describe('validateMonthRange', () => {
       validateMonthRange('2026-01', '2026-01', {
         earliestMonth: null,
         lastCompleteMonth: '2026-09',
+        currentMonth: '2026-10',
       })
     ).not.toBeNull()
   })

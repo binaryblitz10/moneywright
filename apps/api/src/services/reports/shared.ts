@@ -41,8 +41,10 @@ export interface ReportPeriod extends ReportComparison {
 export interface ReportBounds {
   /** First month that can be picked; null without any data */
   earliestMonth: string | null
-  /** Latest complete month; the current month can never be picked */
+  /** Latest complete month */
   lastCompleteMonth: string
+  /** The month in progress; it can be picked and shows the data so far */
+  currentMonth: string
 }
 
 /** A percentage change that can be absent */
@@ -100,8 +102,8 @@ export function changeBetween(previous: number, current: number): Change {
  */
 export function validateMonthRange(from: string, to: string, bounds: ReportBounds): string | null {
   if (from > to) return 'from must not be after to'
-  if (to > bounds.lastCompleteMonth) {
-    return `The current month is not finished; the latest month you can pick is ${bounds.lastCompleteMonth}`
+  if (to > bounds.currentMonth) {
+    return `The latest month you can pick is ${bounds.currentMonth}`
   }
   if (!bounds.earliestMonth || from < bounds.earliestMonth) {
     return bounds.earliestMonth
@@ -226,7 +228,11 @@ export async function getReportBounds(
   const earliest =
     (await getDataStartMonth(userId, profileId)) ??
     (await getFirstTransactionMonth(userId, profileId))
-  return { earliestMonth: earliest, lastCompleteMonth: lastCompleteMonth(today) }
+  return {
+    earliestMonth: earliest,
+    lastCompleteMonth: lastCompleteMonth(today),
+    currentMonth: today.substring(0, 7),
+  }
 }
 
 /** Non-hidden transactions (optionally of one kind and/or date range) and the display currency */

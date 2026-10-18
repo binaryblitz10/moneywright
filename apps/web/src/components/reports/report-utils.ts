@@ -3,6 +3,7 @@
  */
 
 import type { ReportBounds } from '@/lib/api'
+import { getFinancialYearRange } from '@/components/dashboard/utils'
 
 export const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
@@ -15,13 +16,36 @@ export interface MonthRange {
   to: string
 }
 
-export type PresetKey = 'last_1' | 'last_3' | 'last_6' | 'last_12'
+export type PresetKey =
+  | 'this_month'
+  | 'last_1'
+  | 'last_3'
+  | 'last_6'
+  | 'last_12'
+  | 'last_24'
+  | 'last_36'
+  | 'last_60'
+  | 'all'
+  | 'current_fy'
+  | 'last_fy'
 
-export const PERIOD_PRESETS: Array<{ key: PresetKey; label: string; months: number }> = [
+/** The dashboard's time frames; "This month" shows the data so far, the rest end at the last complete month */
+export const PERIOD_PRESETS: Array<{ key: PresetKey; label: string; months?: number }> = [
+  { key: 'this_month', label: 'This month' },
   { key: 'last_1', label: 'Last month', months: 1 },
   { key: 'last_3', label: 'Last 3 months', months: 3 },
   { key: 'last_6', label: 'Last 6 months', months: 6 },
-  { key: 'last_12', label: 'Last 12 months', months: 12 },
+  { key: 'last_12', label: 'Last 1 year', months: 12 },
+  { key: 'last_24', label: 'Last 2 years', months: 24 },
+  { key: 'last_36', label: 'Last 3 years', months: 36 },
+  { key: 'last_60', label: 'Last 5 years', months: 60 },
+  { key: 'all', label: 'All time' },
+]
+
+/** Financial year presets, labelled with the user's country-specific year */
+export const FY_PRESETS: Array<{ key: PresetKey; offset: number }> = [
+  { key: 'current_fy', offset: 0 },
+  { key: 'last_fy', offset: -1 },
 ]
 
 /** Month (YYYY-MM) shifted by a number of months */
@@ -65,42 +89,69 @@ export function monthDates(month: string): { startDate: string; endDate: string 
   return { startDate: `${month}-01`, endDate: `${month}-${String(lastDay).padStart(2, '0')}` }
 }
 
-/** The range a preset covers, ending at the last complete month and not before the first month with data */
-export function presetRange(key: PresetKey, bounds: ReportBounds): MonthRange {
-  const months = PERIOD_PRESETS.find((p) => p.key === key)?.months ?? 1
-  const from = shiftMonth(bounds.lastCompleteMonth, -(months - 1))
-  const earliest = bounds.earliestMonth
-  return {
-    from: earliest && from < earliest ? earliest : from,
-    to: bounds.lastCompleteMonth,
+/**
+ * The range a preset covers, ending at the last complete month and not before the first month
+ * with data. Null when the preset falls outside the months that can be reported.
+ */
+export function presetRange(
+  key: PresetKey,
+  bounds: ReportBounds,
+  country: string | null | undefined
+): MonthRange | null {
+  const { earliestMonth, lastCompleteMonth, currentMonth } = bounds
+  if (!earliestMonth) return null
+  if (key === 'this_month')
+    return earliestMonth <= currentMonth ? { from: currentMonth, to: currentMonth } : null
+
+  let from: string
+  let to = lastCompleteMonth
+  const fy = FY_PRESETS.find((p) => p.key === key)
+  if (fy) {
+    const year = getFinancialYearRange(country, fy.offset)
+    from = year.startDate.substring(0, 7)
+    to = year.endDate.substring(0, 7) < to ? year.endDate.substring(0, 7) : to
+  } else if (key === 'all') {
+    from = earliestMonth
+  } else {
+    const months = PERIOD_PRESETS.find((p) => p.key === key)?.months ?? 1
+    from = shiftMonth(lastCompleteMonth, -(months - 1))
   }
+
+  if (from < earliestMonth) from = earliestMonth
+  return from <= to ? { from, to } : null
 }
 
 /** Which preset a range is, if any */
-export function matchPreset(range: MonthRange, bounds: ReportBounds): PresetKey | null {
+export function matchPreset(
+  range: MonthRange,
+  bounds: ReportBounds,
+  country: string | null | undefined
+): PresetKey | null {
   return (
-    PERIOD_PRESETS.find((p) => {
-      const preset = presetRange(p.key, bounds)
-      return preset.from === range.from && preset.to === range.to
+    [...PERIOD_PRESETS, ...FY_PRESETS].find((p) => {
+      const preset = presetRange(p.key, bounds, country)
+      return preset?.from === range.from && preset.to === range.to
     })?.key ?? null
   )
 }
 
 /**
  * The range to report on: the URL's months when they are valid, else last month.
- * Null when there are no complete months with data yet.
+ * Null when there are no months with data yet.
  */
 export function resolveRange(
   from: string | undefined,
   to: string | undefined,
   bounds: ReportBounds
 ): MonthRange | null {
-  const { earliestMonth, lastCompleteMonth } = bounds
-  if (!earliestMonth || earliestMonth > lastCompleteMonth) return null
-  if (from && to && from <= to && from >= earliestMonth && to <= lastCompleteMonth) {
+  const { earliestMonth, lastCompleteMonth, currentMonth } = bounds
+  if (!earliestMonth || earliestMonth > currentMonth) return null
+  if (from && to && from <= to && from >= earliestMonth && to <= currentMonth) {
     return { from, to }
   }
-  return { from: lastCompleteMonth, to: lastCompleteMonth }
+  // Default to the last finished month, or the month in progress when that is all there is
+  const month = earliestMonth > lastCompleteMonth ? currentMonth : lastCompleteMonth
+  return { from: month, to: month }
 }
 
 /** "+12%" / "-8%" for a fraction */
