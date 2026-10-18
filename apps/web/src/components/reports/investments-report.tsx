@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { ArrowDownToLine, Info, LineChart, TrendingUp, Wallet } from 'lucide-react'
+import { ArrowDownToLine, Info, LineChart, Scale, TrendingUp, Wallet } from 'lucide-react'
 import { InlineEmptyState } from '@/components/ui/empty-state'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import {
@@ -63,10 +63,13 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
       <InlineEmptyState
         icon={Info}
         title="No investments in this period"
-        description="Nothing was put into investments in these months, and no holdings are recorded yet."
+        description="No investment activity was recorded in these months, and no holdings are recorded yet."
       />
     )
   }
+
+  const net = totals.current.putIn - totals.current.takenOut
+  const previousNet = totals.previous ? totals.previous.putIn - totals.previous.takenOut : null
 
   const latestAsOf = report.platforms.reduce<string | null>(
     (latest, p) => (p.asOfDate && (!latest || p.asOfDate > latest) ? p.asOfDate : latest),
@@ -75,9 +78,9 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
 
   return (
     <div className="space-y-6">
-      <StatCardGrid className="lg:grid-cols-2 xl:grid-cols-4">
+      <StatCardGrid className="lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
-          label="Put in this period"
+          label="Invested"
           formatValue={formatCurrency}
           value={totals.current.putIn}
           currency={currency}
@@ -92,7 +95,7 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
           }
         />
         <StatCard
-          label="Taken out"
+          label="Withdrawn"
           formatValue={formatCurrency}
           value={totals.current.takenOut}
           currency={currency}
@@ -101,6 +104,18 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
             totals.previous
               ? `${formatCurrency(totals.previous.takenOut, currency)} in ${comparisonLabel}`
               : 'No earlier data to compare'
+          }
+        />
+        <StatCard
+          label="Net investment"
+          formatValue={formatCurrency}
+          value={net}
+          currency={currency}
+          icon={Scale}
+          subtitle={
+            previousNet !== null
+              ? `${formatCurrency(previousNet, currency)} in ${comparisonLabel}`
+              : 'Invested less withdrawn'
           }
         />
         <StatCard
@@ -153,11 +168,11 @@ function MonthlyChart({ report }: InvestmentsReportViewProps) {
   )
 
   return (
-    <ReportCard title="Money put in">
+    <ReportCard title="Monthly investment activity">
       <div className="px-2 sm:px-0">
         <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 px-2">
-          <LegendItem color={PUT_IN_COLOR} label="Put in" />
-          {hasTakenOut && <LegendItem color={TAKEN_OUT_COLOR} label="Taken out" />}
+          <LegendItem color={PUT_IN_COLOR} label="Invested" />
+          {hasTakenOut && <LegendItem color={TAKEN_OUT_COLOR} label="Withdrawn" />}
         </div>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} margin={{ top: 8, right: 0, left: -16, bottom: 0 }} barGap={2}>
@@ -236,14 +251,14 @@ function ChartTooltip({
       </p>
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between gap-8">
-          <span className="text-muted-foreground">Put in</span>
+          <span className="text-muted-foreground">Invested</span>
           <span className="font-semibold tabular-nums">
             {formatCurrency(month.putIn, currency)}
           </span>
         </div>
         {month.takenOut > 0 && (
           <div className="flex justify-between gap-8">
-            <span className="text-muted-foreground">Taken out</span>
+            <span className="text-muted-foreground">Withdrawn</span>
             <span className="font-semibold tabular-nums">
               {formatCurrency(month.takenOut, currency)}
             </span>
@@ -261,7 +276,7 @@ function PlatformsTable({ report }: InvestmentsReportViewProps) {
   const money = (value: number | null) => (value === null ? '–' : formatCurrency(value, currency))
 
   return (
-    <ReportCard title="By platform">
+    <ReportCard title="Platform summary">
       {platforms.length === 0 ? (
         <InlineEmptyState
           icon={Info}
@@ -273,13 +288,13 @@ function PlatformsTable({ report }: InvestmentsReportViewProps) {
           <TableHeader>
             <TableRow>
               <TableHead className={TH_CLASS}>Platform</TableHead>
-              <TableHead className={cn(TH_CLASS, 'text-right')}>Put in</TableHead>
-              <TableHead className={cn(TH_CLASS, 'text-right')}>Taken out</TableHead>
-              <TableHead className={cn(TH_CLASS, 'text-right')}>Net put in, all time</TableHead>
+              <TableHead className={cn(TH_CLASS, 'text-right')}>Invested</TableHead>
+              <TableHead className={cn(TH_CLASS, 'text-right')}>Withdrawn</TableHead>
+              <TableHead className={cn(TH_CLASS, 'text-right')}>Net investment, all time</TableHead>
               <TableHead className={cn(TH_CLASS, 'text-right')}>Current value</TableHead>
               <TableHead className={cn(TH_CLASS, 'text-right')}>Cost</TableHead>
               <TableHead className={cn(TH_CLASS, 'text-right')}>Gain</TableHead>
-              <TableHead className={TH_CLASS}>Holdings as of</TableHead>
+              <TableHead className={TH_CLASS}>Valuation date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -291,8 +306,8 @@ function PlatformsTable({ report }: InvestmentsReportViewProps) {
       )}
       {unmatched.count > 0 && (
         <p className="mt-3 px-2 text-xs text-muted-foreground">
-          {formatCurrency(unmatched.putIn, currency)} put in through {unmatched.count}{' '}
-          {unmatched.count === 1 ? 'payment' : 'payments'} not linked to a platform. They are
+          {formatCurrency(unmatched.putIn, currency)} invested through {unmatched.count}{' '}
+          {unmatched.count === 1 ? 'payment' : 'payments'} not linked to a platform. These are
           included in the totals above.
         </p>
       )}
@@ -323,7 +338,7 @@ function PlatformRow({
         <span className="block">{money(p.putIn)}</span>
         {compared && p.previousPutIn !== null && (
           <span className="block text-[10px] text-muted-foreground">
-            before {money(p.previousPutIn)}
+            prior period {money(p.previousPutIn)}
           </span>
         )}
       </TableCell>
