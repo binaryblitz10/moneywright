@@ -453,6 +453,29 @@ function ChatPage() {
           </>
         )}
 
+        {showWelcome && (
+          <>
+            {/* Minimal header for welcome state */}
+            <div className="flex items-center justify-end gap-2 shrink-0 pb-4">
+              <ConversationHistory
+                open={historyOpen}
+                onOpenChange={setHistoryOpen}
+                conversations={conversations}
+                isLoading={conversationsLoading}
+                currentConversationId={urlConversationId}
+                onSelectConversation={handleSelectConversation}
+                onDeleteConversation={handleDeleteConversation}
+              />
+              <ProfileSelector
+                selectedProfileId={selectorProfileId}
+                onProfileChange={handleProfileChangeWithReset}
+                showFamilyView={showFamilyView}
+                onFamilyViewChange={handleFamilyViewChangeWithReset}
+              />
+            </div>
+          </>
+        )}
+
         {/* Only this area scrolls */}
         <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto">
           {!showWelcome && (
@@ -468,29 +491,7 @@ function ChatPage() {
           )}
 
           {/* Welcome screen for empty state */}
-          {showWelcome && (
-            <div>
-              {/* Minimal header for welcome state */}
-              <div className="flex items-center justify-end gap-2 mb-4">
-                <ConversationHistory
-                  open={historyOpen}
-                  onOpenChange={setHistoryOpen}
-                  conversations={conversations}
-                  isLoading={conversationsLoading}
-                  currentConversationId={urlConversationId}
-                  onSelectConversation={handleSelectConversation}
-                  onDeleteConversation={handleDeleteConversation}
-                />
-                <ProfileSelector
-                  selectedProfileId={selectorProfileId}
-                  onProfileChange={handleProfileChangeWithReset}
-                  showFamilyView={showFamilyView}
-                  onFamilyViewChange={handleFamilyViewChangeWithReset}
-                />
-              </div>
-              <ChatWelcome onSelectPrompt={handleSelectPrompt} />
-            </div>
-          )}
+          {showWelcome && <ChatWelcome onSelectPrompt={handleSelectPrompt} />}
         </div>
 
         {/* Input */}
