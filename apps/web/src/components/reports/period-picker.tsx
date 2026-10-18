@@ -122,10 +122,6 @@ export function PeriodPicker({ range, bounds, onChange }: PeriodPickerProps) {
                 </Select>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Only finished months can be picked
-              {bounds.earliestMonth && `, from ${formatMonth(bounds.earliestMonth)}`}.
-            </p>
           </div>
         </div>
       </PopoverContent>
