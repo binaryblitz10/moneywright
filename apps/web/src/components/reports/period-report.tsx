@@ -90,7 +90,7 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
   )
 
   const rate = totals.current.savingsRate
-  // Whole percentage points, so the arrow and the number always agree
+  // Whole percent, so the arrow and the number always agree
   const ratePoints =
     totals.savingsRateDelta === null ? null : Math.round(totals.savingsRateDelta * 100)
 
@@ -161,7 +161,7 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
   )
 }
 
-/** "▲ 5 pts" for the change in savings rate */
+/** "▲ 5%" for the change in savings rate */
 function SavingsRateChange({ points }: { points: number | null }) {
   if (points === null) return <span>No rate before</span>
   return (
@@ -172,7 +172,7 @@ function SavingsRateChange({ points }: { points: number | null }) {
       )}
     >
       {points > 0 ? '▲ ' : points < 0 ? '▼ ' : ''}
-      {Math.abs(points)} pts
+      {Math.abs(points)}%
     </span>
   )
 }

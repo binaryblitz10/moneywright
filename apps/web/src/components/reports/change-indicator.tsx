@@ -72,7 +72,7 @@ export function ChangeAmount({ delta, goodWhen, currency, className }: ChangeAmo
 interface ChangeLineProps extends ChangeProps {
   /** Comparison period label, e.g. "August 2026"; null when there is nothing to compare */
   comparisonLabel: string | null
-  /** Replaces the percentage, e.g. "+5 pts" */
+  /** Replaces the percentage, e.g. "▲ 5%" */
   text?: ReactNode
 }
 
