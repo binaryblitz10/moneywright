@@ -56,16 +56,17 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
     [bounds]
   )
 
-  // Presets that have months with data to show
-  const periodPresets = PERIOD_PRESETS.flatMap((p) => {
-    const range = presetRange(p.key, bounds, userCountry)
-    return range ? [{ ...p, range }] : []
-  })
-
-  // Only the financial years that have months with data
-  const fyPresets = FY_PRESETS.flatMap(({ key, offset }) => {
-    const fyRange = presetRange(key, bounds, userCountry)
-    return fyRange ? [{ key, offset, fyRange }] : []
+  // Presets that have months with data to show: periods, then financial years, then all time
+  const options = [
+    ...PERIOD_PRESETS.filter((p) => p.key !== 'all'),
+    ...FY_PRESETS.map(({ key, offset }) => ({
+      key,
+      label: getFinancialYearRange(userCountry, offset).label,
+    })),
+    ...PERIOD_PRESETS.filter((p) => p.key === 'all'),
+  ].flatMap(({ key, label }) => {
+    const optionRange = presetRange(key, bounds, userCountry)
+    return optionRange ? [{ key, label, range: optionRange }] : []
   })
 
   return (
@@ -77,41 +78,19 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
           <ChevronDown className="ml-1 h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3">
+      <PopoverContent align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-1.5">
-            {periodPresets.map(({ key, label, range }) => (
+            {options.map(({ key, label, range: optionRange }) => (
               <button
                 key={key}
-                onClick={() => onChange(range)}
+                onClick={() => onChange(optionRange)}
                 className={optionClass(preset === key)}
               >
                 {label}
               </button>
             ))}
           </div>
-
-          {fyPresets.length > 0 && (
-            <>
-              <div className="h-px bg-border-subtle" />
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Financial Year
-                </Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {fyPresets.map(({ key, offset, fyRange }) => (
-                    <button
-                      key={key}
-                      onClick={() => onChange(fyRange)}
-                      className={optionClass(preset === key)}
-                    >
-                      {getFinancialYearRange(userCountry, offset).label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
 
           <div className="h-px bg-border-subtle" />
 
@@ -131,7 +110,7 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
                   <SelectTrigger className="h-8 w-full text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="min-w-44">
                     {months.map((m) => (
                       <SelectItem key={m} value={m}>
                         {formatMonth(m)}
@@ -149,7 +128,7 @@ export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPic
                   <SelectTrigger className="h-8 w-full text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="min-w-44">
                     {months.map((m) => (
                       <SelectItem key={m} value={m}>
                         {formatMonth(m)}
