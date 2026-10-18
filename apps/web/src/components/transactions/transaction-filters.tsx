@@ -647,7 +647,7 @@ function CategoryFilterDropdown({
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-2" align="start">
+        <PopoverContent className="w-96 p-2" align="start">
           {/* Search Input */}
           <div className="relative mb-2">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -659,7 +659,7 @@ function CategoryFilterDropdown({
             />
           </div>
           {/* Kind chips: select or clear all categories of one kind */}
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="flex flex-wrap justify-center gap-1.5 py-2.5 mb-2 px-0.5">
             {CATEGORY_KIND_ORDER.map((kind) => {
               const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
               const isActive =
@@ -673,7 +673,7 @@ function CategoryFilterDropdown({
                   aria-pressed={isActive}
                   onClick={() => toggleKind(kind)}
                   className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
+                    'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap',
                     'disabled:opacity-50 disabled:pointer-events-none',
                     isActive
                       ? 'bg-primary/10 border-primary/30 text-primary'
@@ -691,23 +691,24 @@ function CategoryFilterDropdown({
                 <Button
                   variant={!selectedCategories?.length && !onlyHidden ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="w-full justify-start"
+                  className="w-full justify-start gap-2 px-2"
                   onClick={onClear}
                 >
-                  <Sparkles className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center" />
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
                   All categories
                 </Button>
                 {/* Hidden option */}
                 <Button
                   variant={onlyHidden ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="w-full justify-start"
+                  className="w-full justify-start gap-2 px-2"
                   onClick={onToggleHidden}
                 >
-                  {onlyHidden && <Check className="mr-2 h-4 w-4 text-primary shrink-0" />}
-                  <EyeOff
-                    className={cn('h-4 w-4 text-muted-foreground', !onlyHidden && 'ml-6 mr-2')}
-                  />
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                    {onlyHidden && <Check className="h-4 w-4 text-primary" />}
+                  </span>
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
                   Hidden
                 </Button>
                 <div className="border-t border-border-subtle my-2" />
@@ -728,12 +729,14 @@ function CategoryFilterDropdown({
                         key={cat.code}
                         variant={isSelected ? 'secondary' : 'ghost'}
                         size="sm"
-                        className="w-full justify-start"
+                        className="w-full justify-start gap-2 px-2"
                         onClick={() => onToggle(cat.code)}
                         disabled={onlyHidden} // Disable category selection when showing hidden
                       >
-                        {isSelected && <Check className="mr-2 h-4 w-4 text-primary shrink-0" />}
-                        <span className={cn('truncate', !isSelected && 'ml-6')}>{cat.label}</span>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                          {isSelected && <Check className="h-4 w-4 text-primary" />}
+                        </span>
+                        <span className="truncate">{cat.label}</span>
                       </Button>
                     )
                   })}
