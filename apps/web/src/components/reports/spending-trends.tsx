@@ -73,6 +73,7 @@ const STICKY_CELL = 'sticky left-0 z-10 bg-card'
 
 function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) {
   const { months, currency } = report
+  const showSummary = months.length >= 2
   const range = {
     startDate: monthDates(report.from).startDate,
     endDate: monthDates(report.to).endDate,
@@ -85,8 +86,12 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
           <TableRow>
             <TableHead className={cn(TH_CLASS, STICKY_CELL)}>Category</TableHead>
             <MonthHeads months={months} />
-            <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
-            <TableHead className={cn(TH_CLASS, 'text-right')}>Total</TableHead>
+            {showSummary && (
+              <>
+                <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
+                <TableHead className={cn(TH_CLASS, 'text-right')}>Total</TableHead>
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -141,12 +146,16 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
                     </TableCell>
                   )
                 })}
-                <TableCell className={cn(NUM_CLASS, 'text-muted-foreground')}>
-                  {formatCurrency(row.average, currency)}
-                </TableCell>
-                <TableCell className={cn(NUM_CLASS, 'font-medium')}>
-                  {formatCurrency(row.total, currency)}
-                </TableCell>
+                {showSummary && (
+                  <>
+                    <TableCell className={cn(NUM_CLASS, 'text-muted-foreground')}>
+                      {formatCurrency(row.average, currency)}
+                    </TableCell>
+                    <TableCell className={cn(NUM_CLASS, 'font-medium')}>
+                      {formatCurrency(row.total, currency)}
+                    </TableCell>
+                  </>
+                )}
               </TableRow>
             )
           })}
@@ -159,12 +168,16 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
                 {formatCurrency(amount, currency)}
               </TableCell>
             ))}
-            <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
-              {formatCurrency(report.average, currency)}
-            </TableCell>
-            <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
-              {formatCurrency(report.total, currency)}
-            </TableCell>
+            {showSummary && (
+              <>
+                <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
+                  {formatCurrency(report.average, currency)}
+                </TableCell>
+                <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
+                  {formatCurrency(report.total, currency)}
+                </TableCell>
+              </>
+            )}
           </TableRow>
         </TableFooter>
       </Table>
@@ -251,7 +264,9 @@ function MerchantsTable({ report }: { report: TrendsReport }) {
             <TableHead className={TH_CLASS}>Merchant</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Payments</TableHead>
             <TableHead className={cn(TH_CLASS, 'text-right')}>Per payment</TableHead>
-            <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
+            {showTrend && (
+              <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
+            )}
             <TableHead className={cn(TH_CLASS, 'text-right')}>Total</TableHead>
             {showTrend && <TableHead className={TH_CLASS}>By month</TableHead>}
             {showTrend && <TableHead className={TH_CLASS}>Trend</TableHead>}
@@ -269,9 +284,11 @@ function MerchantsTable({ report }: { report: TrendsReport }) {
                   ? '–'
                   : formatCurrency(merchant.averagePerPayment, currency)}
               </TableCell>
-              <TableCell className={NUM_CLASS}>
-                {formatCurrency(merchant.average, currency)}
-              </TableCell>
+              {showTrend && (
+                <TableCell className={NUM_CLASS}>
+                  {formatCurrency(merchant.average, currency)}
+                </TableCell>
+              )}
               <TableCell className={cn(NUM_CLASS, 'font-medium')}>
                 {formatCurrency(merchant.total, currency)}
               </TableCell>
@@ -302,6 +319,7 @@ function MerchantsTable({ report }: { report: TrendsReport }) {
 
 function AccountsMatrix({ report }: { report: TrendsReport }) {
   const { months, currency } = report
+  const showSummary = months.length >= 2
   if (report.accounts.length === 0) return null
 
   return (
@@ -311,8 +329,12 @@ function AccountsMatrix({ report }: { report: TrendsReport }) {
           <TableRow>
             <TableHead className={cn(TH_CLASS, STICKY_CELL)}>Account</TableHead>
             <MonthHeads months={months} />
-            <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
-            <TableHead className={cn(TH_CLASS, 'text-right')}>Total</TableHead>
+            {showSummary && (
+              <>
+                <TableHead className={cn(TH_CLASS, 'text-right')}>Monthly average</TableHead>
+                <TableHead className={cn(TH_CLASS, 'text-right')}>Total</TableHead>
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -335,12 +357,16 @@ function AccountsMatrix({ report }: { report: TrendsReport }) {
                   )}
                 </TableCell>
               ))}
-              <TableCell className={cn(NUM_CLASS, 'text-muted-foreground')}>
-                {formatCurrency(account.average, currency)}
-              </TableCell>
-              <TableCell className={cn(NUM_CLASS, 'font-medium')}>
-                {formatCurrency(account.total, currency)}
-              </TableCell>
+              {showSummary && (
+                <>
+                  <TableCell className={cn(NUM_CLASS, 'text-muted-foreground')}>
+                    {formatCurrency(account.average, currency)}
+                  </TableCell>
+                  <TableCell className={cn(NUM_CLASS, 'font-medium')}>
+                    {formatCurrency(account.total, currency)}
+                  </TableCell>
+                </>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -352,12 +378,16 @@ function AccountsMatrix({ report }: { report: TrendsReport }) {
                 {formatCurrency(amount, currency)}
               </TableCell>
             ))}
-            <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
-              {formatCurrency(report.average, currency)}
-            </TableCell>
-            <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
-              {formatCurrency(report.total, currency)}
-            </TableCell>
+            {showSummary && (
+              <>
+                <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
+                  {formatCurrency(report.average, currency)}
+                </TableCell>
+                <TableCell className={cn(NUM_CLASS, 'font-semibold')}>
+                  {formatCurrency(report.total, currency)}
+                </TableCell>
+              </>
+            )}
           </TableRow>
         </TableFooter>
       </Table>
