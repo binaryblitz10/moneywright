@@ -68,18 +68,20 @@ export function FilterBar({
             {sortOptions.find((o) => o.value === sortOrder)?.label || 'Sort'}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-2" align="start">
+        <PopoverContent className="w-60 p-1.5" align="start">
           <div className="space-y-1">
             {sortOptions.map((option) => (
               <Button
                 key={option.value}
                 variant={sortOrder === option.value ? 'secondary' : 'ghost'}
                 size="sm"
-                className="w-full justify-start"
+                className="w-full justify-start gap-2 px-2"
                 onClick={() => onSortChange(option.value)}
               >
-                {sortOrder === option.value && <Check className="mr-2 h-4 w-4" />}
-                <span className="flex items-center gap-2">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  {sortOrder === option.value && <Check className="h-4 w-4" />}
+                </span>
+                <span className="flex items-center gap-2 whitespace-nowrap">
                   {option.icon}
                   {option.label}
                 </span>
