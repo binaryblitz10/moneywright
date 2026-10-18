@@ -16,7 +16,6 @@ export { PinSection } from './pin-section'
 export { CategorizationHintsSection } from './categorization-hints-section'
 export { DataHealthSection } from './data-health-section'
 export { DashboardWidgetsSection } from './dashboard-widgets-section'
-export { TransactionNamesSection } from './transaction-names-section'
 
 // Individual components
 export { ProviderCard } from './provider-card'

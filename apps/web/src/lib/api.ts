@@ -1175,41 +1175,6 @@ export async function getRecategorizeJobStatus(jobId: string): Promise<Recategor
 }
 
 /**
- * Transaction name rename job status
- */
-export interface RenameNamesJob {
-  id: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  totalCount: number
-  renamedCount: number
-  skippedCount: number
-  failedCount: number
-  errorMessage?: string
-  createdAt: string
-  completedAt?: string
-}
-
-/**
- * Rename older transactions to the clean name format (names only, categories untouched)
- */
-export async function renameTransactionNames(data: {
-  includeEdited: boolean
-  /** Model as "provider:model"; the default provider's model when omitted */
-  model?: string
-}): Promise<{ success: boolean; jobId: string }> {
-  const response = await api.post('/transactions/rename-names', data)
-  return response.data
-}
-
-/**
- * Get rename job status
- */
-export async function getRenameNamesJobStatus(jobId: string): Promise<RenameNamesJob> {
-  const response = await api.get(`/transactions/rename-names/${jobId}`)
-  return response.data
-}
-
-/**
  * Categorization status
  */
 export interface CategorizationStatus {

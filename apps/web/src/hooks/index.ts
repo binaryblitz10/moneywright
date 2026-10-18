@@ -146,9 +146,6 @@ export { useUpdateChecker } from './useUpdateChecker'
 // Data health hooks
 export { dataHealthKeys, useDataHealth } from './useDataHealth'
 
-// Transaction name rename
-export { useRenameTransactionNames } from './useTransactionNames'
-
 // Report hooks
 export {
   reportKeys,
