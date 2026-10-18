@@ -479,12 +479,15 @@ export function computeBalanceAt(
   const before = sorted.filter((s) => s.periodEnd <= date && s.closingBalance !== null).pop()
   if (before) return before.closingBalance! + sumBetween(before.periodEnd, date)
 
-  // Opening balance is the balance at the end of the day before the period starts
+  // Opening balance is the balance at the end of the day before the period starts. A card's
+  // first statement with no opening line (a new card) starts from 0, as reconcileStatement does.
+  const openingOf = (s: StatementLite): number | null =>
+    s.openingBalance ?? (kind === 'card' && s === sorted[0] ? 0 : null)
   const containing = sorted.find(
-    (s) => s.openingBalance !== null && addDays(s.periodStart, -1) <= date && date <= s.periodEnd
+    (s) => openingOf(s) !== null && addDays(s.periodStart, -1) <= date && date <= s.periodEnd
   )
   if (containing) {
-    return containing.openingBalance! + sumBetween(addDays(containing.periodStart, -1), date)
+    return openingOf(containing)! + sumBetween(addDays(containing.periodStart, -1), date)
   }
   return null
 }

@@ -189,6 +189,24 @@ describe('computeBalanceAt', () => {
     expect(computeBalanceAt('card', statements, txns, '2026-03-10')).toBe(1800 + 50)
   })
 
+  test('a new card with no opening line on its first statement starts from 0', () => {
+    const newCard = [stmt('c1', '2025-11-17', '2026-10-15', null, 1031)]
+    const spend = [{ date: '2026-10-05', type: 'debit' as const, amount: 1031 }]
+    expect(computeBalanceAt('card', newCard, spend, '2026-03-31')).toBe(0)
+    expect(computeBalanceAt('card', newCard, spend, '2026-10-10')).toBe(1031)
+  })
+
+  test('a missing opening line is unknown for a bank, or for a later card statement', () => {
+    expect(
+      computeBalanceAt('bank', [stmt('b1', '2026-01-01', '2026-01-31', null, 10)], [], '2026-01-15')
+    ).toBeNull()
+    const later = [
+      stmt('c1', '2026-01-01', '2026-01-31', 0, 100),
+      stmt('c2', '2026-02-01', '2026-02-28'),
+    ]
+    expect(computeBalanceAt('card', later, [], '2026-02-10')).toBe(100)
+  })
+
   test('unknown when no statement covers the date', () => {
     expect(computeBalanceAt('bank', statements, txns, '2025-06-01')).toBeNull()
     expect(computeBalanceAt('bank', [], txns, '2026-03-01')).toBeNull()
