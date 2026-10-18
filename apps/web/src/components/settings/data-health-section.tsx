@@ -4,7 +4,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, CheckCircle2, ChevronRight, EyeOff, RotateCcw } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -179,7 +179,7 @@ interface IgnoreButtonProps {
 }
 
 function IgnoreButton({ ignored, onClick }: IgnoreButtonProps) {
-  const Icon = ignored ? RotateCcw : EyeOff
+  const Icon = ignored ? Eye : EyeOff
   return (
     <Button
       variant="ghost"
@@ -302,6 +302,8 @@ export function DataHealthSection({
       const next = ignoredKeys.includes(key)
         ? ignoredKeys.filter((k) => k !== key)
         : [...ignoredKeys, key]
+      // A newly ignored check goes straight into the collapsed list; an empty list has nothing to show
+      if (!ignoredKeys.includes(key) || next.length === 0) setShowIgnored(false)
       setPreferenceMutation.mutate({
         key: PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS,
         value: JSON.stringify(next),
@@ -396,7 +398,7 @@ export function DataHealthSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-0 text-xs text-muted-foreground hover:text-foreground"
+                  className="-ml-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                   onClick={() => setShowIgnored((value) => !value)}
                 >
                   {showIgnored ? 'Hide ignored' : `${ignoredCount} ignored`}
