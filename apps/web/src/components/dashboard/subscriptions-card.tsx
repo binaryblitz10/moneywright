@@ -1,5 +1,5 @@
 /**
- * Detected Subscriptions card component
+ * Subscriptions card component
  */
 
 import { Link } from '@tanstack/react-router'
@@ -28,7 +28,7 @@ export function SubscriptionsCard({
 }: SubscriptionsCardProps) {
   return (
     <SectionCard
-      title="Detected Subscriptions"
+      title="Subscriptions"
       action={
         subscriptions.length > 0 && (
           <Link to="/subscriptions">
