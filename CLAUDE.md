@@ -94,6 +94,17 @@ bun run build:desktop:windows           # Windows NSIS
 bun run build:desktop:linux             # Linux DEB
 ```
 
+### Creating a Mac Build
+
+When asked to "create a mac build", skip notarization and open the output folder once it finishes:
+
+```bash
+bun run build:desktop:macos -- --skip-notarize
+open apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+```
+
+The build takes several minutes, so run it in the background and check that it exits cleanly before opening the folder.
+
 ---
 
 # Best Practices
