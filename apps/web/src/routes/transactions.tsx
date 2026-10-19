@@ -202,21 +202,6 @@ function TransactionsPage() {
     return categories.find((c) => c.code === code)?.label || code.replace(/_/g, ' ')
   }
 
-  const getStatementLabel = (id: string) => {
-    const statement = statements?.find((s) => s.id === id)
-    if (!statement) return 'Statement'
-    const date = statement.periodEnd
-      ? new Date(statement.periodEnd).toLocaleDateString('en-GB', {
-          month: 'short',
-          year: '2-digit',
-        })
-      : new Date(statement.createdAt).toLocaleDateString('en-GB', {
-          month: 'short',
-          year: '2-digit',
-        })
-    return `${statement.originalFilename.replace(/\.[^/.]+$/, ``)} (${date})`
-  }
-
   const toggleSelectionMode = () => {
     setSelectedIds(new Set())
     setSelectionMode((on) => !on)
@@ -360,7 +345,6 @@ function TransactionsPage() {
           onSearchChange={handleSearchChange}
           onClearFilters={clearFilters}
           getCategoryLabel={getCategoryLabel}
-          getStatementLabel={getStatementLabel}
         />
 
         {/* Add Transaction Dialog */}

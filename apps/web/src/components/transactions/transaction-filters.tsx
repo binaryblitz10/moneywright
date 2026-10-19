@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AccountSelector } from '@/components/ui/account-selector'
+import { StatementSelector } from '@/components/ui/statement-selector'
 import { DateRangePicker, getDateRangeLabel } from '@/components/ui/date-range-picker'
 import {
   Search,
@@ -24,6 +24,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TransactionFilters, Category, Account, Statement } from '@/lib/api'
+import { useConstants } from '@/hooks/useConstants'
+import { getAccountShortLabel, getStatementPeriodLabel } from '@/lib/statement-display'
 import { MetaLabel } from '@/components/ui/meta-label'
 import { CategoryPicker } from './category-picker'
 
@@ -38,7 +40,6 @@ interface TransactionFiltersBarProps {
   onSearchChange: (search: string) => void
   onClearFilters: () => void
   getCategoryLabel: (code: string) => string
-  getStatementLabel: (id: string) => string
 }
 
 export function TransactionFiltersBar({
@@ -52,10 +53,20 @@ export function TransactionFiltersBar({
   onSearchChange,
   onClearFilters,
   getCategoryLabel,
-  getStatementLabel,
 }: TransactionFiltersBarProps) {
+  const { institutions } = useConstants()
   const [searchFocused, setSearchFocused] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const getStatementLabel = (id: string) => {
+    const statement = statements.find((s) => s.id === id)
+    if (!statement) return 'Statement'
+    const account = accounts.find((a) => a.id === statement.accountId)
+    const period = getStatementPeriodLabel(statement)
+    return account
+      ? `${period} · ${getAccountShortLabel(account, institutions[account.institution ?? ''])}`
+      : period
+  }
 
   // Check for advanced filters to auto-expand
   const hasAdvancedFilters = Boolean(
@@ -337,88 +348,21 @@ export function TransactionFiltersBar({
                   <FileText className="h-3 w-3" />
                   Statement
                 </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-between h-10 rounded-lg font-normal',
-                        'bg-surface-elevated border-border-subtle',
-                        'hover:bg-surface-hover hover:border-border-hover',
-                        filters.statementId?.length && 'border-primary/30 bg-primary/5'
-                      )}
-                    >
-                      <span className="truncate">
-                        {filters.statementId?.length
-                          ? filters.statementId.length === 1
-                            ? getStatementLabel(filters.statementId[0]!)
-                            : `${filters.statementId.length} selected`
-                          : 'All statements'}
-                      </span>
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-2" align="start">
-                    <div className="max-h-70 overflow-y-auto space-y-1">
-                      <Button
-                        variant={!filters.statementId?.length ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => removeFilter('statementId')}
-                      >
-                        <Sparkles className="mr-2 h-4 w-4 text-muted-foreground" />
-                        All statements
-                      </Button>
-                      {statements
-                        ?.filter((s) => s.status === 'completed')
-                        .filter(
-                          (s) =>
-                            !filters.accountId?.length ||
-                            filters.accountId.includes(s.accountId || '')
-                        )
-                        .map((statement) => {
-                          const isSelected = filters.statementId?.includes(statement.id)
-                          const date = statement.periodEnd
-                            ? new Date(statement.periodEnd).toLocaleDateString('en-GB', {
-                                month: 'short',
-                                year: '2-digit',
-                              })
-                            : new Date(statement.createdAt).toLocaleDateString('en-GB', {
-                                month: 'short',
-                                year: '2-digit',
-                              })
-                          return (
-                            <Button
-                              key={statement.id}
-                              variant={isSelected ? 'secondary' : 'ghost'}
-                              size="sm"
-                              className="w-full justify-start truncate"
-                              onClick={() => {
-                                const current = filters.statementId || []
-                                const updated = isSelected
-                                  ? current.filter((id) => id !== statement.id)
-                                  : [...current, statement.id]
-                                onFiltersChange({
-                                  ...filters,
-                                  statementId: updated.length > 0 ? updated : undefined,
-                                })
-                              }}
-                            >
-                              {isSelected && (
-                                <Check className="mr-2 h-4 w-4 text-primary shrink-0" />
-                              )}
-                              <span className={cn('truncate', !isSelected && 'ml-6')}>
-                                {statement.originalFilename.replace(/\.[^/.]+$/, '')}
-                              </span>
-                              <span className="ml-auto text-xs text-muted-foreground shrink-0">
-                                {date}
-                              </span>
-                            </Button>
-                          )
-                        })}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <StatementSelector
+                  statements={statements}
+                  accounts={accounts}
+                  values={filters.statementId || []}
+                  accountIds={filters.accountId}
+                  onValuesChange={(ids) =>
+                    onFiltersChange({ ...filters, statementId: ids.length > 0 ? ids : undefined })
+                  }
+                  triggerClassName={cn(
+                    'w-full h-10 rounded-lg',
+                    'bg-surface-elevated border-border-subtle',
+                    'hover:bg-surface-hover hover:border-border-hover',
+                    filters.statementId?.length && 'border-primary/30 bg-primary/5'
+                  )}
+                />
               </div>
             </div>
           </div>

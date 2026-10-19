@@ -76,16 +76,6 @@ function ReviewPage() {
   const getCategoryLabel = (code: string) =>
     categories.find((c) => c.code === code)?.label || code.replace(/_/g, ' ')
 
-  const getStatementLabel = (id: string) => {
-    const statement = statements?.find((s) => s.id === id)
-    if (!statement) return 'Statement'
-    const date = new Date(statement.periodEnd ?? statement.createdAt).toLocaleDateString('en-GB', {
-      month: 'short',
-      year: '2-digit',
-    })
-    return `${statement.originalFilename.replace(/\.[^/.]+$/, '')} (${date})`
-  }
-
   const panelProps = {
     filters: activeFilters,
     accounts: accounts || [],
@@ -162,7 +152,6 @@ function ReviewPage() {
             setSearch('')
           }}
           getCategoryLabel={getCategoryLabel}
-          getStatementLabel={getStatementLabel}
         />
 
         {activeTab === 'duplicates' ? (
