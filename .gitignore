@@ -60,3 +60,6 @@ apps/desktop/src-tauri/binaries/
 # Misc
 *.log
 *.tsbuildinfo
+
+# Bun build temp files
+*.bun-build
