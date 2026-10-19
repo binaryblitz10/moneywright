@@ -427,19 +427,24 @@ function TransactionsPage() {
         {/* Selection toggle and result count */}
         {!transactionsLoading && transactions.length > 0 && (
           <div className="flex items-center gap-3">
-            <Button
-              size="sm"
-              variant={selectionMode ? 'secondary' : 'outline'}
-              className="h-8"
+            <button
+              type="button"
+              aria-pressed={selectionMode}
               onClick={toggleSelectionMode}
+              className={cn(
+                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200',
+                selectionMode
+                  ? 'bg-surface-hover border-border-hover text-muted-foreground hover:text-foreground'
+                  : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground hover:border-border-hover'
+              )}
             >
               {selectionMode ? (
-                <X className="mr-2 h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               ) : (
-                <ListChecks className="mr-2 h-4 w-4" />
+                <ListChecks className="h-3.5 w-3.5" />
               )}
-              {selectionMode ? 'Cancel' : 'Select'}
-            </Button>
+              <span>{selectionMode ? 'Cancel' : 'Select'}</span>
+            </button>
             <PaginationSummary page={page} total={total} limit={limit} />
             <div className="ml-auto">
               <PageSizeSelect limit={limit} onLimitChange={handleLimitChange} />
