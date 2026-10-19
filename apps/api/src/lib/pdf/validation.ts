@@ -27,6 +27,19 @@ export const VALID_CURRENCIES = new Set([
 ])
 
 /**
+ * Whether a string is a real calendar date in YYYY-MM-DD form (rejects 2025-02-30)
+ */
+export function isRealDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  )
+}
+
+/**
  * Validate a single transaction object
  */
 export function isValidTransaction(txn: unknown): txn is RawPdfTransaction {
@@ -39,8 +52,8 @@ export function isValidTransaction(txn: unknown): txn is RawPdfTransaction {
   if (t.type !== 'credit' && t.type !== 'debit') return false
   if (typeof t.description !== 'string') return false
 
-  // Validate date format (YYYY-MM-DD)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return false
+  // Validate date format (YYYY-MM-DD) and that the date exists
+  if (!isRealDate(t.date)) return false
 
   return true
 }

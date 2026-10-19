@@ -1,15 +1,10 @@
 import { z } from 'zod/v4'
 import { isKnownCategory } from './constants'
+import { isRealDate } from './pdf/validation'
 
 /**
  * Field schemas shared by the transaction create and update requests
  */
-
-function isValidIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
-}
 
 function hasAtMostTwoDecimals(value: number): boolean {
   return Math.abs(value * 100 - Math.round(value * 100)) < 1e-6
@@ -17,7 +12,7 @@ function hasAtMostTwoDecimals(value: number): boolean {
 
 export const transactionDateSchema = z
   .string()
-  .refine(isValidIsoDate, { message: 'Date must be a valid YYYY-MM-DD date' })
+  .refine(isRealDate, { message: 'Date must be a valid YYYY-MM-DD date' })
 
 export const transactionAmountSchema = z
   .number()
