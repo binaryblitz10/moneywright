@@ -5,7 +5,8 @@
 import type { ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Skeleton, StatCardGridSkeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
@@ -21,18 +22,15 @@ interface ReportCardProps {
 /** A card whose table scrolls sideways inside it on narrow screens, never the page */
 export function ReportCard({ title, description, action, children, className }: ReportCardProps) {
   return (
-    <Card className={cn('gap-4 py-5', className)}>
-      <CardHeader className="gap-1 px-4 sm:px-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle className="text-base">{title}</CardTitle>
-            {description && <CardDescription className="mt-1">{description}</CardDescription>}
-          </div>
-          {action}
-        </div>
-      </CardHeader>
-      <CardContent className="px-2 sm:px-4">{children}</CardContent>
-    </Card>
+    <SectionCard
+      title={title}
+      description={description}
+      action={action}
+      className={cn('gap-4 py-5', className)}
+      contentClassName="px-2 sm:px-4"
+    >
+      {children}
+    </SectionCard>
   )
 }
 

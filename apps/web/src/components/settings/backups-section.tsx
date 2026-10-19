@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { Download, Loader2, Plus, RotateCcw } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -54,17 +54,10 @@ export function BackupsSection() {
   const backups = data?.backups ?? []
 
   return (
-    <Card className="border-border-subtle hover:border-border-hover transition-colors animate-fade-in">
-      <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4 space-y-0">
-        <div className="space-y-1.5">
-          <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            Backups
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Moneywright saves a copy of your data before each update. You can also save one yourself
-            at any time.
-          </CardDescription>
-        </div>
+    <SectionCard
+      title="Backups"
+      description="Moneywright saves a copy of your data before each update. You can also save one yourself at any time."
+      action={
         <Button
           size="sm"
           onClick={() => createMutation.mutate()}
@@ -77,30 +70,30 @@ export function BackupsSection() {
           )}
           Back up now
         </Button>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {isLoading ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : backups.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border-subtle py-6 text-center text-sm text-muted-foreground">
-            No backups yet
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {backups.map((backup) => (
-              <BackupRow
-                key={backup.name}
-                backup={backup}
-                onRestore={() => setRestoring(backup)}
-                onExport={() => exportMutation.mutate(backup.name)}
-                exporting={exportMutation.isPending && exportMutation.variables === backup.name}
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
+      }
+      contentClassName="space-y-3"
+    >
+      {isLoading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : backups.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border-subtle py-6 text-center text-sm text-muted-foreground">
+          No backups yet
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {backups.map((backup) => (
+            <BackupRow
+              key={backup.name}
+              backup={backup}
+              onRestore={() => setRestoring(backup)}
+              onExport={() => exportMutation.mutate(backup.name)}
+              exporting={exportMutation.isPending && exportMutation.variables === backup.name}
+            />
+          ))}
+        </div>
+      )}
 
       <AlertDialog open={restoring !== null} onOpenChange={(open) => !open && setRestoring(null)}>
         <AlertDialogContent>
@@ -125,7 +118,7 @@ export function BackupsSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </SectionCard>
   )
 }
 

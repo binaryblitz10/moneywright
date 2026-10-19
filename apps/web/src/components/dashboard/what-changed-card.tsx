@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Receipt } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { InlineEmptyState } from '@/components/ui/empty-state'
@@ -68,62 +68,55 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
   const shownMonth = data?.month ?? month
 
   return (
-    <Card className="mb-6 border-border-subtle hover:border-border-hover transition-colors">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              What Changed
-            </CardTitle>
-            {data && shownMonth && (
-              <p className="text-xs text-muted-foreground mt-1">{getSubtitle(data)}</p>
-            )}
-          </div>
-          {shownMonth && (
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                aria-label="Previous month"
-                onClick={() => setMonth(shiftMonth(shownMonth, -1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                aria-label="Next month"
-                disabled={shownMonth >= currentMonth}
-                onClick={() => setMonth(shiftMonth(shownMonth, 1))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+    <SectionCard
+      title="What Changed"
+      description={data && shownMonth ? getSubtitle(data) : undefined}
+      className="mb-6"
+      action={
+        shownMonth && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Previous month"
+              onClick={() => setMonth(shiftMonth(shownMonth, -1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Next month"
+              disabled={shownMonth >= currentMonth}
+              onClick={() => setMonth(shiftMonth(shownMonth, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </>
+        )
+      }
+      // Fixed body height (MAX_ITEMS rows plus the note) so changing months never resizes the card
+      contentClassName="min-h-82 flex flex-col"
+    >
+      {isLoading || !data ? (
+        <div className="space-y-1">
+          {[...Array(MAX_ITEMS)].map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
         </div>
-      </CardHeader>
-      {/* Fixed body height (MAX_ITEMS rows plus the note) so changing months never resizes the card */}
-      <CardContent className="pt-0 min-h-82 flex flex-col">
-        {isLoading || !data ? (
-          <div className="space-y-1">
-            {[...Array(MAX_ITEMS)].map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full" />
-            ))}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              'flex-1 flex flex-col transition-opacity duration-200',
-              isPlaceholderData && 'opacity-60'
-            )}
-          >
-            <WhatChangedBody data={data} getCategoryLabel={getCategoryLabel} />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      ) : (
+        <div
+          className={cn(
+            'flex-1 flex flex-col transition-opacity duration-200',
+            isPlaceholderData && 'opacity-60'
+          )}
+        >
+          <WhatChangedBody data={data} getCategoryLabel={getCategoryLabel} />
+        </div>
+      )}
+    </SectionCard>
   )
 }
 

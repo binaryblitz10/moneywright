@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useMutation } from '@tanstack/react-query'
 import { Loader2, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -91,45 +91,39 @@ export function TransactionRulesSection() {
   const deleteMutation = useDeleteTransactionRule()
 
   return (
-    <Card className="border-border-subtle hover:border-border-hover transition-colors animate-fade-in">
-      <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4 space-y-0">
-        <div className="space-y-1.5">
-          <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            Transaction Rules
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Set the name or category of transactions that match all terms. Applied before the AI.
-          </CardDescription>
-        </div>
+    <SectionCard
+      title="Transaction Rules"
+      description="Set the name or category of transactions that match all terms. Applied before the AI."
+      action={
         <Button size="sm" onClick={() => setEditing('new')}>
           <Plus className="mr-2 h-4 w-4" />
           Add rule
         </Button>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {isLoading ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : !rules || rules.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border-subtle py-6 text-center text-sm text-muted-foreground">
-            No rules
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {rules.map((rule) => (
-              <RuleRow
-                key={rule.id}
-                rule={rule}
-                categories={categories}
-                onEdit={() => setEditing(rule)}
-                onApply={() => setApplying(rule)}
-                onDelete={() => setDeleting(rule)}
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
+      }
+      contentClassName="space-y-3"
+    >
+      {isLoading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : !rules || rules.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border-subtle py-6 text-center text-sm text-muted-foreground">
+          No rules
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {rules.map((rule) => (
+            <RuleRow
+              key={rule.id}
+              rule={rule}
+              categories={categories}
+              onEdit={() => setEditing(rule)}
+              onApply={() => setApplying(rule)}
+              onDelete={() => setDeleting(rule)}
+            />
+          ))}
+        </div>
+      )}
 
       {editing && (
         <RuleDialog
@@ -170,7 +164,7 @@ export function TransactionRulesSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </SectionCard>
   )
 }
 
@@ -352,7 +346,6 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Leave empty to keep the name as is"
-              className="h-10 rounded-md border border-input bg-background px-3 py-2"
             />
           </div>
 

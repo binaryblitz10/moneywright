@@ -5,7 +5,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, CheckCircle2, ChevronRight, Eye, EyeOff } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ import { PREFERENCE_KEYS } from '@/lib/api'
 import type { DataHealthBridge, DataHealthReport } from '@/lib/api'
 import { formatCurrency } from '@/components/dashboard/utils'
 import { CardPaymentChecks, DismissedCardPayment } from './card-payment-checks'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 /** An unexplained cash difference above this (in rupees) is worth a look */
 const RESIDUAL_ALERT = 10000
@@ -243,7 +244,7 @@ function CashBridge({ bridge }: { bridge: DataHealthBridge }) {
   if (bridge.status === 'insufficient' || bridge.netChange === null || bridge.residual === null) {
     return (
       <div className="space-y-1">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Cash bridge</p>
+        <MetaLabel as="p">Cash bridge</MetaLabel>
         <p className="text-sm text-muted-foreground">
           {bridge.missingAccounts.length > 0
             ? `Balances are unknown for ${bridge.missingAccounts.map((a) => a.accountName).join(', ')} in ${period}.`
@@ -317,116 +318,109 @@ export function DataHealthSection({
   const visible = expanded ? issues : issues.slice(0, COLLAPSED_ROWS)
 
   return (
-    <Card className="mb-6 border-border-subtle hover:border-border-hover transition-colors">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          Data Health
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5 pt-0">
-        {isLoading || !report ? (
-          <Skeleton className="h-24 w-full" />
-        ) : (
-          <>
-            <div className="flex items-center gap-2 text-sm">
-              {issues.length + openCardPayments.length === 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-positive" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-warning" />
-              )}
-              <span>
-                {report.dataThrough
-                  ? `Data complete through ${formatLongDate(report.dataThrough)}`
-                  : 'No statements uploaded yet'}
+    <SectionCard title="Data Health" contentClassName="space-y-5">
+      {isLoading || !report ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <>
+          <div className="flex items-center gap-2 text-sm">
+            {issues.length + openCardPayments.length === 0 ? (
+              <CheckCircle2 className="h-4 w-4 text-positive" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-warning" />
+            )}
+            <span>
+              {report.dataThrough
+                ? `Data complete through ${formatLongDate(report.dataThrough)}`
+                : 'No statements uploaded yet'}
+            </span>
+            {report.latestData && report.latestData !== report.dataThrough && (
+              <span className="text-muted-foreground">
+                (some accounts run to {formatLongDate(report.latestData)})
               </span>
-              {report.latestData && report.latestData !== report.dataThrough && (
-                <span className="text-muted-foreground">
-                  (some accounts run to {formatLongDate(report.latestData)})
-                </span>
+            )}
+          </div>
+
+          {issues.length + openCardPayments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">All checks passed</p>
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {visible.map((issue) => (
+                <div key={issue.key} className="group/row flex items-center gap-1">
+                  <div className="min-w-0 flex-1">
+                    <IssueLink target={issue.target}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{issue.label}</p>
+                        <p className="text-xs text-muted-foreground">{issue.detail}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    </IssueLink>
+                  </div>
+                  <IgnoreButton ignored={false} onClick={() => toggleIgnored(issue.key)} />
+                </div>
+              ))}
+              {issues.length > COLLAPSED_ROWS && (
+                <div className="pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setExpanded((value) => !value)}
+                  >
+                    {expanded ? 'Show fewer' : `Show all ${issues.length}`}
+                  </Button>
+                </div>
               )}
             </div>
+          )}
 
-            {issues.length + openCardPayments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All checks passed</p>
-            ) : (
-              <div className="divide-y divide-border-subtle">
-                {visible.map((issue) => (
-                  <div key={issue.key} className="group/row flex items-center gap-1">
-                    <div className="min-w-0 flex-1">
-                      <IssueLink target={issue.target}>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{issue.label}</p>
-                          <p className="text-xs text-muted-foreground">{issue.detail}</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                      </IssueLink>
+          <CardPaymentChecks items={openCardPayments} />
+
+          {!bridgeIgnored && (
+            <div className="group/row flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <CashBridge bridge={report.bridge} />
+              </div>
+              <IgnoreButton ignored={false} onClick={() => toggleIgnored(BRIDGE_KEY)} />
+            </div>
+          )}
+
+          {ignoredCount > 0 && (
+            <div className="space-y-2 border-t border-border-subtle pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setShowIgnored((value) => !value)}
+              >
+                {showIgnored ? 'Hide ignored' : `${ignoredCount} ignored`}
+              </Button>
+              {showIgnored && (
+                <div className="divide-y divide-border-subtle">
+                  {ignoredIssues.map((issue) => (
+                    <div key={issue.key} className="group/row flex items-center gap-1 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-muted-foreground">{issue.label}</p>
+                        <p className="text-xs text-muted-foreground">{issue.detail}</p>
+                      </div>
+                      <IgnoreButton ignored onClick={() => toggleIgnored(issue.key)} />
                     </div>
-                    <IgnoreButton ignored={false} onClick={() => toggleIgnored(issue.key)} />
-                  </div>
-                ))}
-                {issues.length > COLLAPSED_ROWS && (
-                  <div className="pt-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setExpanded((value) => !value)}
-                    >
-                      {expanded ? 'Show fewer' : `Show all ${issues.length}`}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <CardPaymentChecks items={openCardPayments} />
-
-            {!bridgeIgnored && (
-              <div className="group/row flex items-start gap-1">
-                <div className="min-w-0 flex-1">
-                  <CashBridge bridge={report.bridge} />
+                  ))}
+                  {dismissedCardPayments.map((item) => (
+                    <DismissedCardPayment key={item.id} item={item} />
+                  ))}
+                  {bridgeIgnored && (
+                    <div className="group/row flex items-center gap-1 py-2">
+                      <p className="min-w-0 flex-1 text-sm text-muted-foreground">Cash bridge</p>
+                      <IgnoreButton ignored onClick={() => toggleIgnored(BRIDGE_KEY)} />
+                    </div>
+                  )}
                 </div>
-                <IgnoreButton ignored={false} onClick={() => toggleIgnored(BRIDGE_KEY)} />
-              </div>
-            )}
-
-            {ignoredCount > 0 && (
-              <div className="space-y-2 border-t border-border-subtle pt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="-ml-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowIgnored((value) => !value)}
-                >
-                  {showIgnored ? 'Hide ignored' : `${ignoredCount} ignored`}
-                </Button>
-                {showIgnored && (
-                  <div className="divide-y divide-border-subtle">
-                    {ignoredIssues.map((issue) => (
-                      <div key={issue.key} className="group/row flex items-center gap-1 py-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-muted-foreground">{issue.label}</p>
-                          <p className="text-xs text-muted-foreground">{issue.detail}</p>
-                        </div>
-                        <IgnoreButton ignored onClick={() => toggleIgnored(issue.key)} />
-                      </div>
-                    ))}
-                    {dismissedCardPayments.map((item) => (
-                      <DismissedCardPayment key={item.id} item={item} />
-                    ))}
-                    {bridgeIgnored && (
-                      <div className="group/row flex items-center gap-1 py-2">
-                        <p className="min-w-0 flex-1 text-sm text-muted-foreground">Cash bridge</p>
-                        <IgnoreButton ignored onClick={() => toggleIgnored(BRIDGE_KEY)} />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </SectionCard>
   )
 }

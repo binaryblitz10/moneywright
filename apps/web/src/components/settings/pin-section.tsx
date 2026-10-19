@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,50 +18,44 @@ import { PinInput } from '@/components/ui/pin-input'
 import { changePin, regenerateBackupCode } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 export function PinSection() {
   const [changePinOpen, setChangePinOpen] = useState(false)
   const [regenerateOpen, setRegenerateOpen] = useState(false)
 
   return (
-    <Card className="border-border-subtle hover:border-border-hover transition-colors animate-fade-in">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          Security
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-elevated p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card border border-border-subtle">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">PIN</p>
-              <p className="text-sm font-medium text-muted-foreground">******</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)}>
-              Change
-            </Button>
+    <SectionCard title="Security">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-elevated p-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card border border-border-subtle">
+            <Lock className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-elevated p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card border border-border-subtle">
-              <KeyRound className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Backup Code</p>
-              <p className="text-sm font-medium text-muted-foreground">Hidden</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setRegenerateOpen(true)}>
-              Regenerate
-            </Button>
+          <div className="min-w-0 flex-1">
+            <MetaLabel as="p">PIN</MetaLabel>
+            <p className="text-sm font-medium text-muted-foreground">******</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)}>
+            Change
+          </Button>
         </div>
-      </CardContent>
+        <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-elevated p-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-card border border-border-subtle">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <MetaLabel as="p">Backup Code</MetaLabel>
+            <p className="text-sm font-medium text-muted-foreground">Hidden</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setRegenerateOpen(true)}>
+            Regenerate
+          </Button>
+        </div>
+      </div>
 
       <ChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
       <RegenerateBackupDialog open={regenerateOpen} onOpenChange={setRegenerateOpen} />
-    </Card>
+    </SectionCard>
   )
 }
 

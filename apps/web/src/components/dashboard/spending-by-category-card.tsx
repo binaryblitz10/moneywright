@@ -3,8 +3,8 @@
  */
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { SectionCard } from '@/components/ui/section-card'
+import { TotalAverageToggle } from './total-average-toggle'
 import { Skeleton } from '@/components/ui/skeleton'
 import { InlineEmptyState } from '@/components/ui/empty-state'
 import { PieChart } from 'lucide-react'
@@ -56,85 +56,67 @@ export function SpendingByCategoryCard({
 
   return (
     <>
-      <Card
-        className={cn(
-          'border-border-subtle hover:border-border-hover transition-colors',
-          hasData && 'cursor-pointer'
-        )}
+      <SectionCard
+        title="Spending by Category"
+        className={cn(hasData && 'cursor-pointer')}
+        contentClassName="flex-1 flex flex-col"
         onClick={hasData ? () => setDialogOpen(true) : undefined}
-      >
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Spending by Category
-            </CardTitle>
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <CategoryViewToggle view={view} onViewChange={setView} />
-              {/* Monthly Average Toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onShowMonthlyAverageChange(!showMonthlyAverage)}
-                className={cn(
-                  'h-7 text-xs',
-                  showMonthlyAverage
-                    ? 'text-primary hover:text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {showMonthlyAverage ? '/mo' : 'Total'}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0 flex-1 flex flex-col">
-          {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3.5 w-16" />
-                  </div>
-                  <Skeleton className="h-2 w-full rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : categoryStats?.categoryBreakdown && categoryStats.categoryBreakdown.length > 0 ? (
-            view === 'pie' ? (
-              <CategoryPieChart
-                categoryBreakdown={categoryStats.categoryBreakdown}
-                total={categoryStats.totalDebits}
-                currency={categoryStats.currency}
-                getCategoryLabel={getCategoryLabel}
-                getCategoryColor={getCategoryColor}
-                showMonthlyAverage={showMonthlyAverage}
-                totalMonths={totalMonths}
-                comparison={comparison}
-              />
-            ) : (
-              <CategoryBreakdown
-                categoryBreakdown={categoryStats.categoryBreakdown}
-                total={categoryStats.totalDebits}
-                currency={categoryStats.currency}
-                getCategoryLabel={getCategoryLabel}
-                getCategoryColor={getCategoryColor}
-                showMonthlyAverage={showMonthlyAverage}
-                totalMonths={totalMonths}
-                startDate={startDate}
-                endDate={endDate}
-                comparison={comparison}
-              />
-            )
-          ) : (
-            <InlineEmptyState
-              icon={PieChart}
-              title="No spending data"
-              description="Categories appear after importing transactions"
+        action={
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <CategoryViewToggle view={view} onViewChange={setView} />
+            <TotalAverageToggle
+              showMonthlyAverage={showMonthlyAverage}
+              onChange={onShowMonthlyAverageChange}
             />
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        }
+      >
+        {isLoading ? (
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3.5 w-24" />
+                  <Skeleton className="h-3.5 w-16" />
+                </div>
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+            ))}
+          </div>
+        ) : categoryStats?.categoryBreakdown && categoryStats.categoryBreakdown.length > 0 ? (
+          view === 'pie' ? (
+            <CategoryPieChart
+              categoryBreakdown={categoryStats.categoryBreakdown}
+              total={categoryStats.totalDebits}
+              currency={categoryStats.currency}
+              getCategoryLabel={getCategoryLabel}
+              getCategoryColor={getCategoryColor}
+              showMonthlyAverage={showMonthlyAverage}
+              totalMonths={totalMonths}
+              comparison={comparison}
+            />
+          ) : (
+            <CategoryBreakdown
+              categoryBreakdown={categoryStats.categoryBreakdown}
+              total={categoryStats.totalDebits}
+              currency={categoryStats.currency}
+              getCategoryLabel={getCategoryLabel}
+              getCategoryColor={getCategoryColor}
+              showMonthlyAverage={showMonthlyAverage}
+              totalMonths={totalMonths}
+              startDate={startDate}
+              endDate={endDate}
+              comparison={comparison}
+            />
+          )
+        ) : (
+          <InlineEmptyState
+            icon={PieChart}
+            title="No spending data"
+            description="Categories appear after importing transactions"
+          />
+        )}
+      </SectionCard>
       {hasData && categoryStats && (
         <CategoryBreakdownDialog
           open={dialogOpen}
