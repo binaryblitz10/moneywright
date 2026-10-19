@@ -1,16 +1,8 @@
 import { useState } from 'react'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
 import {
@@ -22,7 +14,7 @@ import {
   useProfileSelection,
   useReviewCounts,
 } from '@/hooks'
-import { TransactionFiltersBar, TransactionEditForm } from '@/components/transactions'
+import { TransactionFiltersBar, EditTransactionDialog } from '@/components/transactions'
 import { CategorizationPanel, DuplicatesPanel } from '@/components/review'
 
 type ReviewTab = 'duplicates' | 'categorization' | 'low_confidence'
@@ -41,7 +33,6 @@ export const Route = createFileRoute('/review')({
 
 function ReviewPage() {
   const { user, profiles } = useAuth()
-  const queryClient = useQueryClient()
   const navigate = Route.useNavigate()
   const { tab } = useSearch({ from: '/review' })
   const activeTab: ReviewTab = tab ?? 'duplicates'
@@ -184,31 +175,11 @@ function ReviewPage() {
           />
         )}
 
-        <Dialog
-          open={!!editingTransaction}
-          onOpenChange={(open) => !open && setEditingTransaction(null)}
-        >
-          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-            <DialogHeader>
-              <DialogTitle>Edit Transaction</DialogTitle>
-              <DialogDescription>{editingTransaction?.originalDescription}</DialogDescription>
-            </DialogHeader>
-            {editingTransaction && (
-              <TransactionEditForm
-                transaction={editingTransaction}
-                categories={categories}
-                onClose={() => setEditingTransaction(null)}
-                onSuccess={() => {
-                  setEditingTransaction(null)
-                  queryClient.invalidateQueries({ queryKey: ['transactions'] })
-                  queryClient.invalidateQueries({ queryKey: ['loans'] })
-                  queryClient.invalidateQueries({ queryKey: ['insurance'] })
-                  queryClient.invalidateQueries({ queryKey: ['accounts'] })
-                }}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+        <EditTransactionDialog
+          transaction={editingTransaction}
+          categories={categories}
+          onClose={() => setEditingTransaction(null)}
+        />
       </div>
     </AppLayout>
   )

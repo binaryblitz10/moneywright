@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
@@ -31,6 +30,7 @@ import {
   TransactionFiltersBar,
   TransactionTable,
   TransactionEditForm,
+  EditTransactionDialog,
   TransactionAddForm,
   Pagination,
   PaginationSummary,
@@ -105,7 +105,6 @@ function searchFromFilters(filters: TransactionFilters, q: string): Transactions
 }
 
 function TransactionsPage() {
-  const queryClient = useQueryClient()
   const { user, profiles } = useAuth()
   const {
     activeProfileId,
@@ -382,36 +381,11 @@ function TransactionsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Transaction Dialog */}
-        <Dialog
-          open={!!editingTransaction}
-          onOpenChange={(open) => !open && setEditingTransaction(null)}
-        >
-          <DialogContent
-            // Don't auto-focus (and select) the first input when opening
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>Edit Transaction</DialogTitle>
-              <DialogDescription>{editingTransaction?.originalDescription}</DialogDescription>
-            </DialogHeader>
-            {editingTransaction && (
-              <TransactionEditForm
-                transaction={editingTransaction}
-                categories={categories}
-                onClose={() => setEditingTransaction(null)}
-                onSuccess={() => {
-                  setEditingTransaction(null)
-                  queryClient.invalidateQueries({ queryKey: ['transactions'] })
-                  // Invalidate entity payment histories in case linking changed
-                  queryClient.invalidateQueries({ queryKey: ['loans'] })
-                  queryClient.invalidateQueries({ queryKey: ['insurance'] })
-                  queryClient.invalidateQueries({ queryKey: ['accounts'] })
-                }}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+        <EditTransactionDialog
+          transaction={editingTransaction}
+          categories={categories}
+          onClose={() => setEditingTransaction(null)}
+        />
 
         {/* Bulk Edit Dialog */}
         <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>

@@ -112,7 +112,6 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const hasMoneyChange =
     dateChange !== undefined || amountChange !== undefined || typeChange !== undefined
   const moneyInvalid = !!single && !areMoneyValuesValid(money)
-  const hasChanges = single ? !!category : hasNameOrCategoryChange || isHidden !== null
 
   // "Create Rule" is offered once the name or category is changed
   // Adding any term means the user wants a rule, so nothing is prefilled; the suggestion is one click
@@ -145,6 +144,14 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const cardPanelOwnsLink =
     !!single && single.category === CARD_PAYMENT_CATEGORY && category === CARD_PAYMENT_CATEGORY
   const entityType = isLinkableCategory ? LINKABLE_CATEGORIES[category as LinkableCategory] : null
+
+  // Single edit: any field that differs from the stored transaction (the card payment panel saves its own links)
+  const hasChanges = single
+    ? hasNameOrCategoryChange ||
+      hasMoneyChange ||
+      isHidden !== single.isHidden ||
+      (!cardPanelOwnsLink && linkedEntityId !== (single.linkedEntityId ?? null))
+    : hasNameOrCategoryChange || isHidden !== null
 
   // Fetch entities based on category - use family view (no profileId filter)
   // to allow linking to any entity the user owns
