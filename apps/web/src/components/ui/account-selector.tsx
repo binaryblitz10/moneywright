@@ -35,6 +35,8 @@ export interface AccountSelectorProps {
   className?: string
   /** Additional class name for trigger button */
   triggerClassName?: string
+  /** Additional class name for the dropdown content */
+  contentClassName?: string
   /** Popover alignment */
   align?: 'start' | 'center' | 'end'
   /** Compact trigger (no text, just icon) */
@@ -56,6 +58,7 @@ export function AccountSelector({
   showInstitutionLogo = true,
   className,
   triggerClassName,
+  contentClassName,
   align = 'start',
   compact = false,
 }: AccountSelectorProps) {
@@ -226,7 +229,7 @@ export function AccountSelector({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-72 p-0" align={align}>
+        <PopoverContent className={cn('w-72 p-0', contentClassName)} align={align}>
           {/* Search */}
           {showSearch && (
             <div className="border-b border-border-subtle p-2">

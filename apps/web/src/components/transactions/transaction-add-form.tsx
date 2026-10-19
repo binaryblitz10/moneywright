@@ -3,13 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { AccountSelector } from '@/components/ui/account-selector'
 import type { Account, Category } from '@/lib/api'
 import { useCreateTransaction } from '@/hooks'
 import { CategoryPicker } from './category-picker'
@@ -31,11 +25,6 @@ function todayIso(): string {
   const now = new Date()
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
   return local.toISOString().slice(0, 10)
-}
-
-function accountLabel(account: Account): string {
-  const name = account.accountName || account.institution || account.type.replace(/_/g, ' ')
-  return account.accountNumber ? `${name} ••${account.accountNumber.slice(-4)}` : name
 }
 
 /** Add a transaction that is not in any statement (cash expense, row the parser missed) */
@@ -78,18 +67,15 @@ export function TransactionAddForm({
     <div className="min-w-0 space-y-4">
       <div className="space-y-2">
         <Label htmlFor="add-account">Account</Label>
-        <Select value={accountId} onValueChange={setAccountId}>
-          <SelectTrigger id="add-account" className="w-full">
-            <SelectValue placeholder="Select an account" />
-          </SelectTrigger>
-          <SelectContent>
-            {accounts.map((account) => (
-              <SelectItem key={account.id} value={account.id}>
-                {accountLabel(account)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AccountSelector
+          accounts={accounts}
+          value={accountId || null}
+          onValueChange={(id) => setAccountId(id ?? '')}
+          showAllOption={false}
+          allOptionLabel="Select an account"
+          contentClassName="w-(--radix-popover-trigger-width)"
+          triggerClassName="w-full h-10 rounded-lg bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover"
+        />
       </div>
 
       <div className="space-y-2">
