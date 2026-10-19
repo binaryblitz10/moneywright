@@ -97,6 +97,8 @@ cd "$ROOT_DIR/apps/api"
 # Clear Bun's build cache to ensure fresh compilation
 rm -rf ~/.bun/install/cache/vfs 2>/dev/null || true
 
+# The parser worker is an extra entrypoint so it is embedded in the binary; --entry-naming
+# flattens its path so it resolves as ./parser-worker.ts next to the main entrypoint.
 # Determine binary name based on target and mode
 if [ "$FOR_DESKTOP" = true ]; then
   # For desktop, use Tauri sidecar naming convention
@@ -110,10 +112,10 @@ fi
 
 if [[ -n "$TARGET" ]]; then
   echo -e "  Target: ${TARGET}"
-  bun build src/index.ts --compile --target="$TARGET" --define "__APP_VERSION__=\"$VERSION\"" --outfile="$DIST_DIR/$BINARY_NAME"
+  bun build src/index.ts src/lib/pdf/parser-worker.ts --entry-naming '[name].[ext]' --compile --target="$TARGET" --define "__APP_VERSION__=\"$VERSION\"" --outfile="$DIST_DIR/$BINARY_NAME"
 else
   echo -e "  Target: current platform"
-  bun build src/index.ts --compile --define "__APP_VERSION__=\"$VERSION\"" --outfile="$DIST_DIR/$BINARY_NAME"
+  bun build src/index.ts src/lib/pdf/parser-worker.ts --entry-naming '[name].[ext]' --compile --define "__APP_VERSION__=\"$VERSION\"" --outfile="$DIST_DIR/$BINARY_NAME"
 fi
 echo -e "${GREEN}Binary compiled successfully${NC}"
 

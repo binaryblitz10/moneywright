@@ -3,13 +3,14 @@
  *
  * Supports two execution modes:
  * 1. E2B Sandbox (preferred) - Full VM isolation via E2B cloud
- * 2. Local Function (fallback) - Uses Function constructor with validation
+ * 2. Local Worker (fallback) - Runs in a terminable Bun Worker with validation
  *
  * E2B is used when E2B_API_KEY is configured, otherwise falls back to local execution.
  */
 
 import { logger } from '../logger'
 import { validateCode, checkSyntax } from './validate-code'
+import type { ParserWorkerRequest, ParserWorkerResponse } from './parser-worker'
 import { isE2BConfigured, runParserInE2B, type ParsingMode } from './e2b-executor'
 import type {
   RawPdfTransaction,
@@ -70,18 +71,50 @@ export async function runParser(
 }
 
 /**
- * Run parser code locally using Function constructor
+ * Run the parser code in a Worker and wait for its result
+ *
+ * The worker is terminated on completion or timeout, so infinite loops or
+ * catastrophic regexes cannot block the API server.
+ */
+function runInWorker(parserCode: string, pdfText: string, timeoutMs: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./parser-worker.ts', import.meta.url))
+    const timer = setTimeout(() => finish(() => reject(new Error('Execution timeout'))), timeoutMs)
+
+    function finish(settle: () => void): void {
+      clearTimeout(timer)
+      worker.terminate()
+      settle()
+    }
+
+    worker.onmessage = (event: MessageEvent<ParserWorkerResponse>) => {
+      const response = event.data
+      finish(() => (response.ok ? resolve(response.result) : reject(new Error(response.error))))
+    }
+    worker.onerror = (event) => {
+      event.preventDefault()
+      finish(() => reject(new Error(event.message || 'Parser worker crashed')))
+    }
+
+    const request: ParserWorkerRequest = { code: parserCode, text: pdfText }
+    worker.postMessage(request)
+  })
+}
+
+/**
+ * Run parser code locally in a Worker
  *
  * SECURITY NOTE: This intentionally runs dynamic code. Security is enforced by:
  * - Pre-validation via validateCode() and checkSyntax()
- * - Restricted globals (no process, fs, network, etc.)
- * - Timeout enforcement
+ * - Isolation in a Worker that is terminated on timeout (see parser-worker.ts
+ *   for the restricted globals; this is not a full sandbox)
  * - Output validation
  */
-async function runParserLocal(
+export async function runParserLocal(
   parserCode: string,
   pdfText: string,
-  mode: ParsingMode = 'transaction'
+  mode: ParsingMode = 'transaction',
+  timeoutMs: number = EXECUTION_TIMEOUT_MS
 ): Promise<ExecutionResult> {
   const startTime = Date.now()
 
@@ -106,33 +139,9 @@ async function runParserLocal(
     }
   }
 
-  // Step 3: Create sandboxed function with only safe globals
-  // Using indirect reference to avoid linter triggers
-  const FnConstructor = Function
-  let parserFn: (text: string) => unknown
-
+  // Step 3: Run in a terminable worker with a timeout
   try {
-    // Create function with restricted scope
-    // The function only receives 'text' as parameter
-    parserFn = FnConstructor('text', `"use strict";\n${parserCode}`) as (text: string) => unknown
-  } catch (err) {
-    return {
-      success: false,
-      error: `Failed to create parser function: ${err instanceof Error ? err.message : 'Unknown'}`,
-      executionTimeMs: Date.now() - startTime,
-    }
-  }
-
-  // Step 4: Run with timeout
-  try {
-    const result = await Promise.race([
-      // Run the parser
-      Promise.resolve().then(() => parserFn(pdfText)),
-      // Timeout
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Execution timeout')), EXECUTION_TIMEOUT_MS)
-      ),
-    ])
+    const result = await runInWorker(parserCode, pdfText, timeoutMs)
 
     const executionTimeMs = Date.now() - startTime
 
