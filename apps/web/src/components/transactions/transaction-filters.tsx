@@ -162,14 +162,14 @@ export function TransactionFiltersBar({
                 { value: 'all', label: 'All' },
                 {
                   value: 'credit',
-                  label: 'Income',
+                  label: 'Money in',
                   icon: <ArrowDownLeft className="h-3.5 w-3.5" />,
                   activeClassName:
                     'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm',
                 },
                 {
                   value: 'debit',
-                  label: 'Expense',
+                  label: 'Money out',
                   icon: <ArrowUpRight className="h-3.5 w-3.5" />,
                   activeClassName: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm',
                 },
@@ -457,7 +457,7 @@ export function TransactionFiltersBar({
           )}
           {filters.type && (
             <FilterPill
-              label={filters.type === 'credit' ? 'Income' : 'Expenses'}
+              label={filters.type === 'credit' ? 'Money in' : 'Money out'}
               icon={
                 filters.type === 'credit' ? (
                   <ArrowDownLeft className="h-3 w-3" />

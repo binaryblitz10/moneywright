@@ -52,9 +52,9 @@ export function TransactionStats({
 
   return (
     <StatCardGrid>
-      {/* Total Credits */}
+      {/* Money in */}
       <StatCard
-        label="Credits"
+        label="Money in"
         value={totalCredits}
         currency={currency}
         subtitle={`${creditCount.toLocaleString()} transactions`}
@@ -63,9 +63,9 @@ export function TransactionStats({
         trend="up"
       />
 
-      {/* Total Debits */}
+      {/* Money out */}
       <StatCard
-        label="Debits"
+        label="Money out"
         value={totalDebits}
         currency={currency}
         subtitle={`${debitCount.toLocaleString()} transactions`}
