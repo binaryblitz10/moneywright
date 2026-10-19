@@ -274,7 +274,7 @@ export function buildSavingsBreakdown(surplus: number, bridge: CashBridge): Savi
  * card payments not linked to a card.
  */
 export function collectPeriodWarnings(
-  health: Pick<DataHealthReport, 'accounts' | 'unlinkedCardPayments'>,
+  health: Pick<DataHealthReport, 'accounts' | 'cardPayments'>,
   startDate: string,
   endDate: string
 ): PeriodWarnings {
@@ -327,7 +327,8 @@ export function collectPeriodWarnings(
     }
   }
 
-  for (const payment of health.unlinkedCardPayments.items) {
+  for (const payment of health.cardPayments.items) {
+    if (payment.kind !== 'unlinked_debit') continue
     if (payment.date < startDate || payment.date > endDate) continue
     items.push({
       kind: 'unlinked_payment',

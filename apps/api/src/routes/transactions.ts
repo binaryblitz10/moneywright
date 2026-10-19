@@ -23,7 +23,8 @@ import {
 } from '../services/statements'
 import { queueRenameJob, getRenameJobStatus } from '../services/transaction-rename'
 import { getProfileById } from '../services/profiles'
-import { setDuplicatesDismissed } from '../services/preferences'
+import { setCardPaymentsDismissed, setDuplicatesDismissed } from '../services/preferences'
+import { getLinkSuggestions } from '../services/card-payments'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
 import { TRANSACTION_LINK_TYPES, isKnownCategory, type CountryCode } from '../lib/constants'
@@ -96,6 +97,11 @@ const bulkUpdateSchema = z
  */
 const dismissDuplicatesSchema = z.object({
   signatures: z.array(z.string().min(1)).min(1),
+  dismissed: z.boolean(),
+})
+
+const dismissCardPaymentsSchema = z.object({
+  transactionIds: z.array(z.string().min(1)).min(1),
   dismissed: z.boolean(),
 })
 
@@ -281,6 +287,24 @@ transactionRoutes.post('/duplicates/dismissed', async (c) => {
 })
 
 /**
+ * POST /transactions/card-payments/dismissed
+ * Mark card payment checks as correct (or bring them back)
+ */
+transactionRoutes.post('/card-payments/dismissed', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+  const result = dismissCardPaymentsSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
+      400
+    )
+  }
+  await setCardPaymentsDismissed(userId, result.data.transactionIds, result.data.dismissed)
+  return c.json({ success: true })
+})
+
+/**
  * GET /transactions/review-counts
  * Number of items waiting in each review queue
  * NOTE: This must be defined BEFORE /:id to avoid matching "review-counts" as an ID
@@ -321,6 +345,27 @@ transactionRoutes.get('/:id/link-candidates', async (c) => {
     return c.json({ candidates })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to find candidates'
+
+    if (message === 'Transaction not found') {
+      return c.json({ error: 'not_found', message }, 404)
+    }
+
+    return c.json({ error: 'failed', message }, 400)
+  }
+})
+
+/**
+ * GET /transactions/:id/link-suggestions
+ * Card payment candidates: the matching card credits / bank debits, and the cards a debit may have paid
+ */
+transactionRoutes.get('/:id/link-suggestions', async (c) => {
+  const userId = c.get('userId')
+  const transactionId = c.req.param('id')
+
+  try {
+    return c.json(await getLinkSuggestions(transactionId, userId))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to find suggestions'
 
     if (message === 'Transaction not found') {
       return c.json({ error: 'not_found', message }, 404)

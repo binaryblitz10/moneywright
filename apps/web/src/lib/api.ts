@@ -1222,6 +1222,50 @@ export async function getLinkCandidates(transactionId: string): Promise<Transact
   return response.data.candidates
 }
 
+/**
+ * A card payment candidate: the other side of the payment, or the card a bank debit paid
+ */
+export type LinkSuggestion =
+  | {
+      kind: 'transaction'
+      transaction: Transaction
+      accountName: string
+      /** Amount difference in rupees; 0 is an exact match */
+      amountDiff: number
+      dayDiff: number
+      score: number
+    }
+  | { kind: 'card'; accountId: string; accountName: string; reason: string }
+
+export type LinkState =
+  | { kind: 'none' }
+  | { kind: 'card'; accountId: string; accountName: string }
+  | { kind: 'pair'; transaction: Transaction; accountName: string }
+
+export interface LinkSuggestions {
+  linked: LinkState
+  candidates: LinkSuggestion[]
+  best: LinkSuggestion | null
+}
+
+/**
+ * Candidates for linking a card payment, best first
+ */
+export async function getLinkSuggestions(transactionId: string): Promise<LinkSuggestions> {
+  const response = await api.get(`/transactions/${transactionId}/link-suggestions`)
+  return response.data
+}
+
+/**
+ * Mark card payment checks as correct (hidden from Data Health), or bring them back
+ */
+export async function setCardPaymentsDismissed(
+  transactionIds: string[],
+  dismissed: boolean
+): Promise<void> {
+  await api.post('/transactions/card-payments/dismissed', { transactionIds, dismissed })
+}
+
 // ============================================
 // Recategorization API
 // ============================================
@@ -1779,13 +1823,33 @@ export interface DataHealthAccount {
   reconciliation: DataHealthReconciliation[]
 }
 
-export interface DataHealthTransfer {
+export type DataHealthCardPaymentKind =
+  | 'unlinked_debit'
+  | 'card_credit_without_bank'
+  | 'broken_link'
+
+export type DataHealthCardPaymentSuggestion =
+  | {
+      kind: 'transaction'
+      transactionId: string
+      summary: string | null
+      date: string
+      amount: number
+      accountName: string
+    }
+  | { kind: 'card'; accountId: string; accountName: string; reason: string }
+
+export interface DataHealthCardPayment {
   id: string
+  kind: DataHealthCardPaymentKind
   date: string
   amount: number
+  type: 'credit' | 'debit'
   summary: string | null
   accountId: string
   accountName: string
+  suggestion: DataHealthCardPaymentSuggestion | null
+  dismissed: boolean
 }
 
 export interface DataHealthBridge {
@@ -1806,7 +1870,12 @@ export interface DataHealthReport {
   latestData: string | null
   issueCount: number
   accounts: DataHealthAccount[]
-  unlinkedCardPayments: { count: number; total: number; items: DataHealthTransfer[] }
+  cardPayments: {
+    count: number
+    total: number
+    items: DataHealthCardPayment[]
+    dismissed: DataHealthCardPayment[]
+  }
   lowConfidence: { count: number; total: number }
   bridge: DataHealthBridge
 }

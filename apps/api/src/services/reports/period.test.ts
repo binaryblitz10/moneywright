@@ -190,10 +190,10 @@ describe('collectPeriodWarnings', () => {
 
   const health = (
     accountsCoverage: AccountCoverage[],
-    items: DataHealthReport['unlinkedCardPayments']['items'] = []
-  ): Pick<DataHealthReport, 'accounts' | 'unlinkedCardPayments'> => ({
+    items: DataHealthReport['cardPayments']['items'] = []
+  ): Pick<DataHealthReport, 'accounts' | 'cardPayments'> => ({
     accounts: accountsCoverage,
-    unlinkedCardPayments: { count: items.length, total: 0, items },
+    cardPayments: { count: items.length, total: 0, items, dismissed: [] },
   })
 
   test('nothing to report for healthy data', () => {
@@ -234,6 +234,10 @@ describe('collectPeriodWarnings', () => {
             summary: 'Card bill',
             accountId: 'bank',
             accountName: 'HDFC Savings',
+            kind: 'unlinked_debit',
+            type: 'debit',
+            suggestion: null,
+            dismissed: false,
           },
           {
             id: 't2',
@@ -242,6 +246,10 @@ describe('collectPeriodWarnings', () => {
             summary: 'Card bill',
             accountId: 'bank',
             accountName: 'HDFC Savings',
+            kind: 'unlinked_debit',
+            type: 'debit',
+            suggestion: null,
+            dismissed: false,
           },
         ]
       ),

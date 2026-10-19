@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { CategoryPicker } from './category-picker'
 import { TransactionMoneyFields } from './transaction-money-fields'
+import { CardPaymentLinkPanel } from './card-payment-link-panel'
 import {
   areMoneyValuesValid,
   parseAmount,
@@ -41,24 +42,20 @@ import {
   type Category,
 } from '@/lib/api'
 import { suggestTerm } from '@/lib/suggest-term'
-import {
-  useLoans,
-  useInsurancePolicies,
-  useAccounts,
-  useBulkDeleteTransactions,
-  useRulePreview,
-} from '@/hooks'
+import { useLoans, useInsurancePolicies, useBulkDeleteTransactions, useRulePreview } from '@/hooks'
 import { invalidateTransactionTotals } from '@/hooks/useTransactions'
 import { transactionRuleKeys } from '@/hooks/useTransactionRules'
 
-// Categories that support entity linking
+// Categories whose payments are linked to a loan or an insurance policy from the form.
+// Card payments are linked from their own panel, which applies the link straight away.
 const LINKABLE_CATEGORIES = {
   emi: 'loan',
   insurance: 'insurance',
-  credit_card_payment: 'credit_card',
 } as const
 
 type LinkableCategory = keyof typeof LINKABLE_CATEGORIES
+
+const CARD_PAYMENT_CATEGORY = 'credit_card_payment'
 
 /**
  * Edit one transaction (`transaction`) or several at once (`transactionIds`).
@@ -145,6 +142,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
 
   // Entity linking is only offered when editing a single transaction
   const isLinkableCategory = !!single && category in LINKABLE_CATEGORIES
+  const cardPanelOwnsLink =
+    !!single && single.category === CARD_PAYMENT_CATEGORY && category === CARD_PAYMENT_CATEGORY
   const entityType = isLinkableCategory ? LINKABLE_CATEGORIES[category as LinkableCategory] : null
 
   // Fetch entities based on category - use family view (no profileId filter)
@@ -158,16 +157,6 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
     status: 'active',
     enabled: entityType === 'insurance',
   })
-
-  const { data: accounts, isLoading: accountsLoading } = useAccounts(undefined, {
-    enabled: entityType === 'credit_card',
-  })
-
-  // Filter to only credit card accounts
-  const creditCards = useMemo(
-    () => accounts?.filter((a) => a.type === 'credit_card') || [],
-    [accounts]
-  )
 
   // Get the appropriate entity list based on category
   const entityOptions = useMemo(() => {
@@ -185,23 +174,15 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         sublabel: policy.policyNumber ? `#${policy.policyNumber.slice(-6)}` : undefined,
       }))
     }
-    if (entityType === 'credit_card' && creditCards) {
-      return creditCards.map((card) => ({
-        id: card.id,
-        label: card.accountName,
-        sublabel: card.accountNumber ? `••${card.accountNumber.slice(-4)}` : undefined,
-      }))
-    }
     return []
-  }, [entityType, loans, insurancePolicies, creditCards])
+  }, [entityType, loans, insurancePolicies])
 
-  const isLoadingEntities = loansLoading || insuranceLoading || accountsLoading
+  const isLoadingEntities = loansLoading || insuranceLoading
 
   // Get entity type label for UI
   const entityTypeLabel = useMemo(() => {
     if (entityType === 'loan') return 'Loan'
     if (entityType === 'insurance') return 'Insurance Policy'
-    if (entityType === 'credit_card') return 'Credit Card'
     return 'Entity'
   }, [entityType])
 
@@ -272,8 +253,11 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           date: dateChange,
           amount: amountChange,
           type: typeChange,
-          linkedEntityId,
-          linkedEntityType: linkedEntityId && entityType ? entityType : null,
+          // The card payment panel applies its links itself, so they are not part of Save
+          ...(!cardPanelOwnsLink && {
+            linkedEntityId,
+            linkedEntityType: linkedEntityId && entityType ? entityType : null,
+          }),
         })
       } else {
         await bulkUpdateTransactions({
@@ -330,7 +314,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         />
         {!single && category && (
           <p className="text-xs text-muted-foreground">
-            Loan, insurance and credit card links are removed from transactions whose category
+            Loan, insurance and card payment links are removed from transactions whose category
             changes.
           </p>
         )}
@@ -348,7 +332,17 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         </div>
       )}
 
-      {/* Entity Linking Section - Only show for linkable categories */}
+      {/* Card payments are linked to the card statement's payment line, or to the card only */}
+      {single && cardPanelOwnsLink && <CardPaymentLinkPanel transaction={single} />}
+      {single &&
+        single.category !== CARD_PAYMENT_CATEGORY &&
+        category === CARD_PAYMENT_CATEGORY && (
+          <p className="text-xs text-muted-foreground">
+            Save the category to link this payment to a card.
+          </p>
+        )}
+
+      {/* Loan and insurance linking - only shown for linkable categories */}
       {isLinkableCategory && (
         <div className="space-y-2">
           <Label htmlFor="linked-entity" className="flex items-center gap-2">

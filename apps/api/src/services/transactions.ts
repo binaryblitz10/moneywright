@@ -9,6 +9,7 @@ import {
   gte,
   lte,
   inArray,
+  ne,
   notInArray,
   isNull,
   isNotNull,
@@ -19,12 +20,13 @@ import { nanoid } from '../lib/id'
 import { MANUAL_DOCUMENT_TYPE, MANUAL_STATEMENT_FILENAME } from '../lib/manual-statement'
 import { getAccountByIdRaw } from './accounts'
 import { logger } from '../lib/logger'
-import { getDismissedDuplicates } from './preferences'
+import { getDismissedDuplicates, setManuallyUnlinked } from './preferences'
 import { merchantKey, merchantName } from './spending-changes'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
 import { duplicateKey } from '../lib/duplicate-key'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
+import { CARD_PAYMENT_CATEGORY, idsToClear } from '../lib/card-payment-matching'
 
 /**
  * Transaction service
@@ -344,10 +346,72 @@ export async function getTransactionById(
   return txn ? toTransactionResponse(txn) : null
 }
 
+const CLEAR_LINKS_CHUNK = 500
+
+/** Record what the user did by hand so the auto-linker respects it: left unlinked vs chosen links */
+async function rememberManualLinks(
+  userId: string,
+  unlinked: string[],
+  linked: string[]
+): Promise<void> {
+  await setManuallyUnlinked(userId, unlinked, true)
+  await setManuallyUnlinked(userId, linked, false)
+}
+
+/**
+ * Undo the links of the given transactions on BOTH sides: each row's own link, the links of any
+ * transaction pointing at it (`transaction` links), and the transaction it points at.
+ * Returns the ids of the transactions whose link was cleared.
+ */
+export async function clearLinks(transactionIds: string[], userId: string): Promise<string[]> {
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+  const cleared: string[] = []
+
+  for (let i = 0; i < transactionIds.length; i += CLEAR_LINKS_CHUNK) {
+    const chunk = transactionIds.slice(i, i + CLEAR_LINKS_CHUNK)
+    const [selected, inbound] = await Promise.all([
+      db
+        .select({
+          id: tables.transactions.id,
+          linkedEntityId: tables.transactions.linkedEntityId,
+          linkedEntityType: tables.transactions.linkedEntityType,
+        })
+        .from(tables.transactions)
+        .where(and(eq(tables.transactions.userId, userId), inArray(tables.transactions.id, chunk))),
+      db
+        .select({ id: tables.transactions.id })
+        .from(tables.transactions)
+        .where(
+          and(
+            eq(tables.transactions.userId, userId),
+            eq(tables.transactions.linkedEntityType, 'transaction'),
+            inArray(tables.transactions.linkedEntityId, chunk)
+          )
+        ),
+    ])
+
+    const ids = idsToClear(
+      selected,
+      inbound.map((r) => r.id)
+    )
+    if (ids.length === 0) continue
+
+    const updated = await db
+      .update(tables.transactions)
+      .set({ linkedEntityId: null, linkedEntityType: null, updatedAt: now as Date })
+      .where(and(eq(tables.transactions.userId, userId), inArray(tables.transactions.id, ids)))
+      .returning({ id: tables.transactions.id })
+    cleared.push(...updated.map((r) => r.id))
+  }
+
+  return cleared
+}
+
 /**
  * Update a transaction (category, summary, isHidden, date, amount, type, entity linking).
- * The dedupe hash and any existing links are left alone, so re-importing the same statement
- * still dedupes and edits never detach a card, loan or insurance link.
+ * The dedupe hash is left alone, so re-importing the same statement still dedupes. Links are kept
+ * unless the edit sets another link or moves a card payment to another category; then both sides
+ * of the old link are cleared.
  */
 export async function updateTransaction(
   transactionId: string,
@@ -410,8 +474,35 @@ export async function updateTransaction(
     updateData.type = data.type
   }
 
-  // Handle entity linking/unlinking
-  if (data.linkedEntityId !== undefined) {
+  // A payment that stops being a card payment, or is pointed at another entity, lets go of its
+  // old partner (the card credit pointing at it) before the new link is written
+  const leavesCardPayments =
+    existing.category === CARD_PAYMENT_CATEGORY &&
+    data.category !== undefined &&
+    data.category !== existing.category
+  const linkChanged =
+    data.linkedEntityId !== undefined &&
+    (data.linkedEntityId !== existing.linkedEntityId ||
+      (data.linkedEntityId !== null && data.linkedEntityType !== existing.linkedEntityType))
+  if (leavesCardPayments || linkChanged) {
+    const cleared = await clearLinks([transactionId], userId)
+    if (linkChanged) {
+      // A hand-made change: the old partners stay unlinked, and this row is only left to the
+      // auto-linker when the user unlinked it
+      await rememberManualLinks(
+        userId,
+        cleared.filter((id) => id !== transactionId),
+        data.linkedEntityId ? [transactionId] : []
+      )
+      if (!data.linkedEntityId) await setManuallyUnlinked(userId, [transactionId], true)
+    }
+  }
+
+  // Handle entity linking/unlinking (a card link sent along with a category move away is stale)
+  if (
+    data.linkedEntityId !== undefined &&
+    !(leavesCardPayments && data.linkedEntityType === 'credit_card')
+  ) {
     updateData.linkedEntityId = data.linkedEntityId
     updateData.linkedEntityType = data.linkedEntityId ? data.linkedEntityType : null
   }
@@ -529,8 +620,8 @@ export async function createManualTransaction(
  * Update category, summary and/or hidden state on many transactions at once.
  * `confirmCategory` marks the current category as correct without changing it.
  * Only transactions owned by the user are touched; returns the number updated.
- * Changing a category drops loan/insurance/credit-card links on rows whose category
- * actually changes (transaction-to-transaction links are kept).
+ * Changing a category drops loan/insurance links on rows whose category actually changes.
+ * A card payment (or a row linked to a card) whose category changes loses its link on both sides.
  */
 export async function bulkUpdateTransactions(
   transactionIds: string[],
@@ -542,12 +633,32 @@ export async function bulkUpdateTransactions(
   const updateData: Partial<Transaction> = { updatedAt: now as Date }
 
   if (data.category !== undefined) {
+    // Both sides of a card payment link go first, while the old category is still on the rows
+    const leaving = await db
+      .select({ id: tables.transactions.id })
+      .from(tables.transactions)
+      .where(
+        and(
+          inArray(tables.transactions.id, transactionIds),
+          eq(tables.transactions.userId, userId),
+          ne(tables.transactions.category, data.category),
+          or(
+            eq(tables.transactions.category, CARD_PAYMENT_CATEGORY),
+            eq(tables.transactions.linkedEntityType, 'credit_card')
+          )
+        )
+      )
+    await clearLinks(
+      leaving.map((r) => r.id),
+      userId
+    )
+
     updateData.category = data.category
     updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
     updateData.linkedEntityId =
-      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('credit_card', 'insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityId} END` as unknown as null
+      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityId} END` as unknown as null
     updateData.linkedEntityType =
-      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('credit_card', 'insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityType} END` as unknown as null
+      sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityType} END` as unknown as null
   }
   if (data.summary !== undefined) {
     updateData.summary = data.summary
@@ -668,25 +779,14 @@ export async function findDuplicateGroups(
 
 /**
  * Permanently delete transactions owned by the user.
- * Clears the link on any transaction that was linked to a deleted one.
+ * Clears the links of the deleted rows on both sides, so nothing is left pointing at a deleted one.
  * Returns the number of transactions deleted.
  */
 export async function bulkDeleteTransactions(
   transactionIds: string[],
   userId: string
 ): Promise<number> {
-  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
-
-  await db
-    .update(tables.transactions)
-    .set({ linkedEntityId: null, linkedEntityType: null, updatedAt: now as Date })
-    .where(
-      and(
-        eq(tables.transactions.userId, userId),
-        eq(tables.transactions.linkedEntityType, 'transaction'),
-        inArray(tables.transactions.linkedEntityId, transactionIds)
-      )
-    )
+  await clearLinks(transactionIds, userId)
 
   const deleted = await db
     .delete(tables.transactions)
@@ -715,7 +815,10 @@ export async function bulkDeleteTransactions(
 
 /**
  * Link two transactions together (bidirectional)
- * Used for transfers, refunds, and other transaction-to-transaction links
+ * Used for transfers, refunds, and other transaction-to-transaction links.
+ * Any previous partner of either side is unlinked first. A card bill payment (a bank debit in
+ * the card payment category and a credit in a credit card account) is stored in the card-payment
+ * shape: the debit points at the card account, the card credit at the debit.
  */
 export async function linkTransactions(
   transactionId1: string,
@@ -732,32 +835,49 @@ export async function linkTransactions(
   }
 
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+  const cleared = await clearLinks([transactionId1, transactionId2], userId)
+  await rememberManualLinks(
+    userId,
+    cleared.filter((id) => id !== transactionId1 && id !== transactionId2),
+    [transactionId1, transactionId2]
+  )
 
-  // Update both transactions to link to each other
-  await db
-    .update(tables.transactions)
-    .set({
-      linkedEntityId: transactionId2,
-      linkedEntityType: 'transaction',
-      updatedAt: now as Date,
-    })
-    .where(eq(tables.transactions.id, transactionId1))
+  const debit = txn1.type === 'debit' ? txn1 : txn2
+  const credit = debit === txn1 ? txn2 : txn1
+  const [creditAccount] =
+    debit.type === 'debit' && credit.type === 'credit' && debit.category === CARD_PAYMENT_CATEGORY
+      ? await db
+          .select({ type: tables.accounts.type })
+          .from(tables.accounts)
+          .where(eq(tables.accounts.id, credit.accountId))
+          .limit(1)
+      : []
 
-  await db
-    .update(tables.transactions)
-    .set({
-      linkedEntityId: transactionId1,
-      linkedEntityType: 'transaction',
-      updatedAt: now as Date,
-    })
-    .where(eq(tables.transactions.id, transactionId2))
+  const isCardPayment =
+    creditAccount?.type === 'credit_card' && debit.accountId !== credit.accountId
+  const pointers = isCardPayment
+    ? [
+        { id: debit.id, linkedEntityId: credit.accountId, linkedEntityType: 'credit_card' },
+        { id: credit.id, linkedEntityId: debit.id, linkedEntityType: 'transaction' },
+      ]
+    : [
+        { id: transactionId1, linkedEntityId: transactionId2, linkedEntityType: 'transaction' },
+        { id: transactionId2, linkedEntityId: transactionId1, linkedEntityType: 'transaction' },
+      ]
+
+  for (const { id, linkedEntityId, linkedEntityType } of pointers) {
+    await db
+      .update(tables.transactions)
+      .set({ linkedEntityId, linkedEntityType, updatedAt: now as Date })
+      .where(eq(tables.transactions.id, id))
+  }
 
   logger.debug(`[Transaction] Linked transactions ${transactionId1} <-> ${transactionId2}`)
 }
 
 /**
- * Unlink a transaction from its linked entity
- * If linked to another transaction (bidirectional), unlinks both sides
+ * Unlink a transaction from its linked entity.
+ * Both sides go: the partner it points at and any transaction pointing at it.
  */
 export async function unlinkTransaction(transactionId: string, userId: string): Promise<void> {
   const txn = await getTransactionById(transactionId, userId)
@@ -765,33 +885,26 @@ export async function unlinkTransaction(transactionId: string, userId: string): 
     throw new Error('Transaction not found')
   }
 
-  if (!txn.linkedEntityId) {
+  const [pointedAtBy] = txn.linkedEntityId
+    ? []
+    : await db
+        .select({ id: tables.transactions.id })
+        .from(tables.transactions)
+        .where(
+          and(
+            eq(tables.transactions.userId, userId),
+            eq(tables.transactions.linkedEntityType, 'transaction'),
+            eq(tables.transactions.linkedEntityId, transactionId)
+          )
+        )
+        .limit(1)
+
+  if (!txn.linkedEntityId && !pointedAtBy) {
     throw new Error('Transaction is not linked')
   }
 
-  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
-
-  // Unlink this transaction
-  await db
-    .update(tables.transactions)
-    .set({
-      linkedEntityId: null,
-      linkedEntityType: null,
-      updatedAt: now as Date,
-    })
-    .where(eq(tables.transactions.id, transactionId))
-
-  // If linked to another transaction, unlink that side too
-  if (txn.linkedEntityType === 'transaction') {
-    await db
-      .update(tables.transactions)
-      .set({
-        linkedEntityId: null,
-        linkedEntityType: null,
-        updatedAt: now as Date,
-      })
-      .where(eq(tables.transactions.id, txn.linkedEntityId))
-  }
+  const cleared = await clearLinks([transactionId], userId)
+  await setManuallyUnlinked(userId, [transactionId, ...cleared], true)
 
   logger.debug(`[Transaction] Unlinked transaction ${transactionId}`)
 }

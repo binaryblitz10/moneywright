@@ -8,6 +8,7 @@ import { db, tables, dbType } from '../db'
 import { logger } from '../lib/logger'
 import { categorizeStatements } from '../lib/pdf'
 import { linkEntitiesForAccount } from './entity-linking'
+import { clearLinks } from './transactions'
 import type { CountryCode } from '../lib/constants'
 
 /**
@@ -125,6 +126,9 @@ export async function recategorizeTransactions(
   const transactionIds = transactions.map((t) => t.id)
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
 
+  // Links go on both sides: a card credit must not keep pointing at a debit that is reset here
+  await clearLinks(transactionIds, userId)
+
   await db
     .update(tables.transactions)
     .set({
@@ -133,8 +137,6 @@ export async function recategorizeTransactions(
       categoryConfidence: null,
       isSubscription: false,
       isManuallyCategorized: false,
-      linkedEntityId: null,
-      linkedEntityType: null,
       updatedAt: now as Date,
     })
     .where(inArray(tables.transactions.id, transactionIds))

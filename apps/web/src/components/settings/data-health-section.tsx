@@ -13,6 +13,7 @@ import { useDataHealth, usePreferences, useSetPreference } from '@/hooks'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import type { DataHealthBridge, DataHealthReport } from '@/lib/api'
 import { formatCurrency } from '@/components/dashboard/utils'
+import { CardPaymentChecks, DismissedCardPayment } from './card-payment-checks'
 
 /** An unexplained cash difference above this (in rupees) is worth a look */
 const RESIDUAL_ALERT = 10000
@@ -133,14 +134,6 @@ function collectIssues(report: DataHealthReport): Issue[] {
     }
   }
 
-  if (report.unlinkedCardPayments.count > 0) {
-    issues.push({
-      key: 'unlinked-card-payments',
-      label: `${plural(report.unlinkedCardPayments.count, 'card payment')} not linked to a card`,
-      detail: `${formatCurrency(report.unlinkedCardPayments.total)} paid; those purchases may be missing from expenses`,
-      target: { page: 'transactions', category: 'credit_card_payment' },
-    })
-  }
   if (report.lowConfidence.count > 0) {
     issues.push({
       key: 'low-confidence',
@@ -318,7 +311,9 @@ export function DataHealthSection({
   const issues = allIssues.filter((issue) => !ignoredKeys.includes(issue.key))
   const ignoredIssues = allIssues.filter((issue) => ignoredKeys.includes(issue.key))
   const bridgeIgnored = ignoredKeys.includes(BRIDGE_KEY)
-  const ignoredCount = ignoredIssues.length + (bridgeIgnored ? 1 : 0)
+  const openCardPayments = report?.cardPayments.items ?? []
+  const dismissedCardPayments = report?.cardPayments.dismissed ?? []
+  const ignoredCount = ignoredIssues.length + dismissedCardPayments.length + (bridgeIgnored ? 1 : 0)
   const visible = expanded ? issues : issues.slice(0, COLLAPSED_ROWS)
 
   return (
@@ -334,7 +329,7 @@ export function DataHealthSection({
         ) : (
           <>
             <div className="flex items-center gap-2 text-sm">
-              {issues.length === 0 ? (
+              {issues.length + openCardPayments.length === 0 ? (
                 <CheckCircle2 className="h-4 w-4 text-positive" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-warning" />
@@ -351,7 +346,7 @@ export function DataHealthSection({
               )}
             </div>
 
-            {issues.length === 0 ? (
+            {issues.length + openCardPayments.length === 0 ? (
               <p className="text-sm text-muted-foreground">All checks passed</p>
             ) : (
               <div className="divide-y divide-border-subtle">
@@ -384,6 +379,8 @@ export function DataHealthSection({
               </div>
             )}
 
+            <CardPaymentChecks items={openCardPayments} />
+
             {!bridgeIgnored && (
               <div className="group/row flex items-start gap-1">
                 <div className="min-w-0 flex-1">
@@ -413,6 +410,9 @@ export function DataHealthSection({
                         </div>
                         <IgnoreButton ignored onClick={() => toggleIgnored(issue.key)} />
                       </div>
+                    ))}
+                    {dismissedCardPayments.map((item) => (
+                      <DismissedCardPayment key={item.id} item={item} />
                     ))}
                     {bridgeIgnored && (
                       <div className="group/row flex items-center gap-1 py-2">

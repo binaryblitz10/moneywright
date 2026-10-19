@@ -3,12 +3,24 @@ import { db, tables } from '../db'
 import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import { getAccountsByUserId } from './accounts'
 import { getCashFlow } from './cashflow'
-import { LOW_CONFIDENCE_BELOW } from './transactions'
+import { LOW_CONFIDENCE_BELOW, toTransactionResponse } from './transactions'
+import { getDismissedCardPayments } from './preferences'
+import { loadCardInfos, loadInstitutionTerms } from './card-payments'
+import {
+  CARD_PAYMENT_CATEGORY,
+  inferCard,
+  looksLikePayment,
+  pickBest,
+  pointedAtDebits,
+  rankPairs,
+  type CardInfo,
+  type PaymentTxn,
+} from '../lib/card-payment-matching'
 
 /**
  * Data health service
  * Answers "can I trust the numbers?": statement coverage, gaps and overlaps, balance
- * reconciliation, unlinked card payments and a cash bridge that
+ * reconciliation, card payments to check and a cash bridge that
  * ties the change in account balances back to income - expenses - invested.
  * The checks are pure functions over plain rows; getDataHealth only loads and assembles.
  */
@@ -48,17 +60,9 @@ export interface RawStatement extends Omit<
 }
 
 /** A transaction as needed by the checks */
-export interface TxnLite {
-  id: string
-  accountId: string
+export interface TxnLite extends PaymentTxn {
   statementId: string | null
-  date: string
-  type: 'credit' | 'debit'
-  amount: number
-  category: string
   summary: string | null
-  isHidden: boolean
-  linkedEntityId: string | null
 }
 
 export interface DateGap {
@@ -113,13 +117,47 @@ export interface MissingPeriodStatement {
   periodEnd: string | null
 }
 
-export interface UnlinkedCardPayment {
+/** What is wrong with a card payment */
+export type CardPaymentCheckKind =
+  /** A bank debit paid a card bill but is linked to neither a card nor a card credit */
+  | 'unlinked_debit'
+  /** A card credit looks like a bill payment but no bank debit is linked to it */
+  | 'card_credit_without_bank'
+  /** A card credit points at a bank debit that does not point back */
+  | 'broken_link'
+
+/** The link the app would make for a card payment check */
+export type CardPaymentSuggestion =
+  | {
+      kind: 'transaction'
+      transactionId: string
+      summary: string | null
+      date: string
+      amount: number
+      accountName: string
+    }
+  | { kind: 'card'; accountId: string; accountName: string; reason: string }
+
+export interface CardPaymentCheck {
+  /** Id of the transaction to check; also the key for "mark as correct" */
   id: string
+  kind: CardPaymentCheckKind
   date: string
   amount: number
+  type: 'credit' | 'debit'
   summary: string | null
   accountId: string
   accountName: string
+  /** The best link to make, when there is a clear one */
+  suggestion: CardPaymentSuggestion | null
+  dismissed: boolean
+}
+
+/** A completed bank statement's period, as needed to tell whether a card credit has a bank side to find */
+export interface StatementPeriod {
+  accountId: string
+  periodStart: string
+  periodEnd: string
 }
 
 export interface AccountCoverage {
@@ -173,7 +211,13 @@ export interface DataHealthReport {
   latestData: string | null
   issueCount: number
   accounts: AccountCoverage[]
-  unlinkedCardPayments: { count: number; total: number; items: UnlinkedCardPayment[] }
+  /** Card payments to check; `items` are the open ones, `dismissed` the ones marked as correct */
+  cardPayments: {
+    count: number
+    total: number
+    items: CardPaymentCheck[]
+    dismissed: CardPaymentCheck[]
+  }
   lowConfidence: { count: number; total: number }
   bridge: CashBridge
 }
@@ -344,25 +388,111 @@ export function findMissingPeriods(
     }))
 }
 
+export interface FoundCardPaymentCheck {
+  txn: TxnLite
+  kind: CardPaymentCheckKind
+}
+
 /**
- * Bank debits in the card payment category with no link on either side.
- * `linkedTargets` holds every id some transaction links to: older auto-linking only set
- * the card-side credit's link, so a payment counts as linked when the card side points at it.
+ * Card payments that need a look:
+ * - bank debits in the card payment category with no link on either side
+ * - card credits that look like bill payments with no bank side, but only when an uploaded bank
+ *   statement covers their date (otherwise the money may have come from an untracked account)
+ * - card credits pointing at a bank debit that does not point back (or is gone)
+ * `pointedAt` holds every id some transaction links to: older auto-linking only set the card-side
+ * credit's link, so a debit counts as linked when a credit points at it. `byId` must also hold the
+ * targets of card credits that sit outside `txns`.
  */
-export function findUnlinkedCardPayments<T extends TxnLite>(
-  txns: T[],
-  bankAccountIds: Set<string>,
-  linkedTargets: Set<string>
-): T[] {
-  return txns.filter(
-    (t) =>
-      !t.isHidden &&
+export function findCardPaymentChecks(input: {
+  txns: TxnLite[]
+  byId: ReadonlyMap<string, TxnLite>
+  bankAccountIds: ReadonlySet<string>
+  cardAccountIds: ReadonlySet<string>
+  pointedAt: ReadonlySet<string>
+  bankStatements: StatementPeriod[]
+}): FoundCardPaymentCheck[] {
+  const { byId, bankAccountIds, cardAccountIds, pointedAt, bankStatements } = input
+  const bankCovers = (date: string) =>
+    bankStatements.some(
+      (s) => bankAccountIds.has(s.accountId) && s.periodStart <= date && date <= s.periodEnd
+    )
+  const pointsBack = (credit: TxnLite, target: TxnLite) =>
+    (target.linkedEntityType === 'credit_card' && target.linkedEntityId === credit.accountId) ||
+    (target.linkedEntityType === 'transaction' && target.linkedEntityId === credit.id)
+
+  const found: FoundCardPaymentCheck[] = []
+  for (const t of input.txns) {
+    if (t.isHidden) continue
+    if (
       bankAccountIds.has(t.accountId) &&
       t.type === 'debit' &&
-      t.category === 'credit_card_payment' &&
+      t.category === CARD_PAYMENT_CATEGORY &&
       !t.linkedEntityId &&
-      !linkedTargets.has(t.id)
+      !pointedAt.has(t.id)
+    ) {
+      found.push({ txn: t, kind: 'unlinked_debit' })
+    } else if (cardAccountIds.has(t.accountId) && t.type === 'credit') {
+      if (t.linkedEntityType === 'transaction' && t.linkedEntityId) {
+        const target = byId.get(t.linkedEntityId)
+        if (!target || !pointsBack(t, target)) found.push({ txn: t, kind: 'broken_link' })
+      } else if (!t.linkedEntityId && looksLikePayment(t) && bankCovers(t.date)) {
+        found.push({ txn: t, kind: 'card_credit_without_bank' })
+      }
+    }
+  }
+  return found
+}
+
+/**
+ * The link to offer for a card payment check: the single clear counterpart, or for a bank debit
+ * with no counterpart the card it paid. Null when the user has to choose.
+ */
+export function suggestCardPaymentLink(input: {
+  check: FoundCardPaymentCheck
+  txns: TxnLite[]
+  bankAccountIds: ReadonlySet<string>
+  cardAccountIds: ReadonlySet<string>
+  cards: CardInfo[]
+  nameById: ReadonlyMap<string, string>
+  institutionTermsById: ReadonlyMap<string, string[]>
+}): CardPaymentSuggestion | null {
+  const { check, txns, bankAccountIds, cardAccountIds, cards, nameById } = input
+  const { txn } = check
+  // A credit whose link is broken is looked at as if it had none
+  const self: TxnLite = { ...txn, linkedEntityId: null, linkedEntityType: null }
+  const pointedAt = pointedAtDebits(txns.filter((t) => t.id !== txn.id))
+
+  const isDebit = txn.type === 'debit'
+  const others = txns.filter((t) =>
+    isDebit ? cardAccountIds.has(t.accountId) : bankAccountIds.has(t.accountId)
   )
+  const ranked = isDebit
+    ? rankPairs([self], others, pointedAt)
+    : rankPairs(others, [self], pointedAt)
+  const best = pickBest(ranked)
+  if (best) {
+    const partner = txns.find((t) => t.id === (isDebit ? best.creditId : best.debitId))!
+    return {
+      kind: 'transaction',
+      transactionId: partner.id,
+      summary: partner.summary,
+      date: partner.date,
+      amount: partner.amount,
+      accountName: nameById.get(partner.accountId) ?? '',
+    }
+  }
+  if (isDebit && ranked.length === 0) {
+    const card = inferCard(
+      {
+        description: txn.description,
+        amount: txn.amount,
+        ownInstitutionTerms: input.institutionTermsById.get(txn.accountId) ?? [],
+      },
+      cards
+    )
+    if (card) return { kind: 'card', ...card }
+  }
+  return null
 }
 
 /** Signed effect of a transaction on its account's balance */
@@ -565,7 +695,7 @@ export async function getDataHealth(
       latestData: null,
       issueCount: 0,
       accounts: [],
-      unlinkedCardPayments: { count: 0, total: 0, items: [] },
+      cardPayments: { count: 0, total: 0, items: [], dismissed: [] },
       lowConfidence: { count: 0, total: 0 },
       bridge: emptyBridge(start, options.endDate ?? today()),
     }
@@ -641,8 +771,10 @@ export async function getDataHealth(
     amount: toNumber(t.amount),
     category: t.category,
     summary: t.summary,
+    description: [t.originalDescription, t.summary].filter(Boolean).join(' '),
     isHidden: !!t.isHidden,
     linkedEntityId: t.linkedEntityId,
+    linkedEntityType: t.linkedEntityType,
   }))
 
   const rawByAccount = new Map<string, RawStatement[]>()
@@ -712,20 +844,17 @@ export async function getDataHealth(
   const dataThrough = coveredTos.length ? coveredTos.reduce((a, b) => (a < b ? a : b)) : null
   const latestData = coveredTos.length ? coveredTos.reduce((a, b) => (a > b ? a : b)) : null
 
-  const linkedTargets = new Set(linkRows.flatMap((r) => (r.target ? [r.target] : [])))
-  const bankAccountIds = new Set(accountIds.filter((id) => kindById.get(id) === 'bank'))
-  const unlinked = findUnlinkedCardPayments(
+  const cardPayments = await buildCardPayments({
+    userId,
     txns,
-    bankAccountIds,
-    linkedTargets
-  ).map<UnlinkedCardPayment>((t) => ({
-    id: t.id,
-    date: t.date,
-    amount: t.amount,
-    summary: t.summary,
-    accountId: t.accountId,
-    accountName: nameById.get(t.accountId)!,
-  }))
+    accounts: accounts.map((a) => ({
+      id: a.id,
+      name: nameById.get(a.id)!,
+      kind: kindById.get(a.id)!,
+    })),
+    pointedAt: new Set(linkRows.flatMap((r) => (r.target ? [r.target] : []))),
+    statementsByAccount,
+  })
 
   const bridge = await buildBridge(userId, profileId, {
     accounts: accounts.map((a) => ({ id: a.id, name: nameById.get(a.id)! })),
@@ -753,7 +882,7 @@ export async function getDataHealth(
         a.reconciliation.length,
       0
     ) +
-    unlinked.length +
+    cardPayments.items.length +
     (lowConfidence.count > 0 ? 1 : 0)
 
   return {
@@ -761,13 +890,109 @@ export async function getDataHealth(
     latestData,
     issueCount,
     accounts: coverage,
-    unlinkedCardPayments: {
-      count: unlinked.length,
-      total: unlinked.reduce((s, t) => s + t.amount, 0),
-      items: unlinked,
+    cardPayments: {
+      count: cardPayments.items.length,
+      total: cardPayments.items.reduce((sum, item) => sum + item.amount, 0),
+      items: cardPayments.items,
+      dismissed: cardPayments.dismissed,
     },
     lowConfidence,
     bridge,
+  }
+}
+
+interface CardPaymentsInput {
+  userId: string
+  txns: TxnLite[]
+  accounts: Array<{ id: string; name: string; kind: AccountKind }>
+  pointedAt: ReadonlySet<string>
+  statementsByAccount: Map<string, StatementLite[]>
+}
+
+/** Load what the card payment checks need beyond the report's own data, and assemble them */
+async function buildCardPayments(
+  input: CardPaymentsInput
+): Promise<{ items: CardPaymentCheck[]; dismissed: CardPaymentCheck[] }> {
+  const { userId, txns, accounts } = input
+  const bankAccountIds = new Set(accounts.filter((a) => a.kind === 'bank').map((a) => a.id))
+  const cardAccountIds = new Set(accounts.filter((a) => a.kind === 'card').map((a) => a.id))
+  const nameById = new Map(accounts.map((a) => [a.id, a.name]))
+
+  // Card credits may point at a debit of another profile, which is not among the report's rows
+  const byId = new Map(txns.map((t) => [t.id, t]))
+  const missingTargets = [
+    ...new Set(
+      txns.flatMap((t) =>
+        cardAccountIds.has(t.accountId) &&
+        t.linkedEntityType === 'transaction' &&
+        t.linkedEntityId &&
+        !byId.has(t.linkedEntityId)
+          ? [t.linkedEntityId]
+          : []
+      )
+    ),
+  ]
+  if (missingTargets.length > 0) {
+    const rows = await db
+      .select()
+      .from(tables.transactions)
+      .where(
+        and(eq(tables.transactions.userId, userId), inArray(tables.transactions.id, missingTargets))
+      )
+    for (const row of rows) {
+      const t = toTransactionResponse(row)
+      byId.set(t.id, {
+        ...t,
+        description: [t.originalDescription, t.summary].filter(Boolean).join(' '),
+      })
+    }
+  }
+
+  const found = findCardPaymentChecks({
+    txns,
+    byId,
+    bankAccountIds,
+    cardAccountIds,
+    pointedAt: input.pointedAt,
+    bankStatements: [...input.statementsByAccount.values()].flat(),
+  })
+  if (found.length === 0) return { items: [], dismissed: [] }
+
+  const [dismissedIds, cards, institutionTermsById] = await Promise.all([
+    getDismissedCardPayments(userId),
+    loadCardInfos(userId),
+    loadInstitutionTerms(userId),
+  ])
+  const dismissedSet = new Set(dismissedIds)
+
+  const checks = found
+    .map<CardPaymentCheck>((check) => ({
+      id: check.txn.id,
+      kind: check.kind,
+      date: check.txn.date,
+      amount: check.txn.amount,
+      type: check.txn.type,
+      summary: check.txn.summary,
+      accountId: check.txn.accountId,
+      accountName: nameById.get(check.txn.accountId)!,
+      suggestion: dismissedSet.has(check.txn.id)
+        ? null
+        : suggestCardPaymentLink({
+            check,
+            txns,
+            bankAccountIds,
+            cardAccountIds,
+            cards,
+            nameById,
+            institutionTermsById,
+          }),
+      dismissed: dismissedSet.has(check.txn.id),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  return {
+    items: checks.filter((c) => !c.dismissed),
+    dismissed: checks.filter((c) => c.dismissed),
   }
 }
 

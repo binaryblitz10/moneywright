@@ -48,6 +48,7 @@ import { securityHeaders } from './middleware/security-headers'
 import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
 import { recoverInterruptedProcessing } from './services/statements'
+import { repairCardPaymentLinks } from './services/card-payments'
 
 // Get the directory where the binary/script is located
 const APP_DIR = getAppDir()
@@ -76,6 +77,18 @@ await migrateExcludedCategoryPreferences()
 
 // Recover statements left half-processed by a previous quit/restart
 await recoverInterruptedProcessing()
+
+// Repair card payment links left half-broken by older versions
+try {
+  const repair = await repairCardPaymentLinks()
+  if (repair.restored + repair.cleared > 0) {
+    logger.info(
+      `[Startup] Card payment links: ${repair.restored} repaired, ${repair.cleared} cleared`
+    )
+  }
+} catch (error) {
+  logger.error('[Startup] Card payment link repair failed:', error)
+}
 
 // Handle CLI arguments
 const args = process.argv.slice(2)

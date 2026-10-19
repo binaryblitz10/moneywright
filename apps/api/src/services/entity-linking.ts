@@ -10,54 +10,20 @@
  * - loan: Transaction → Loan (for EMI payments)
  */
 
-import { eq, and, gte, lte, inArray, isNull, or, desc } from 'drizzle-orm'
+import { eq, and, isNull, or, desc } from 'drizzle-orm'
 import { generateObject } from 'ai'
 import { z } from 'zod/v4'
 import { db, tables, dbType } from '../db'
 import { logger } from '../lib/logger'
 import { createLLMClientFromSettings } from '../llm'
-
-// Bank account types (can make CC payments, insurance payments, loan EMIs)
-const BANK_ACCOUNT_TYPES = ['savings_account', 'current_account', 'checking_account']
-
-// Credit card account type
-const CREDIT_CARD_TYPE = 'credit_card'
+import { autoLinkCardPayments, BANK_ACCOUNT_TYPES, CREDIT_CARD_TYPE } from './card-payments'
 
 /**
- * Calculate amount tolerance for credit card payment matching
- *
- * Tiered tolerance to handle cashback (CRED, etc.) and convenience fees:
- * - Lower amounts: higher % tolerance (cashback is often a fixed amount, so % impact is higher)
- * - Higher amounts: lower % tolerance (to avoid false positives)
- *
- * Tiers:
- * - < ₹5,000: 10% tolerance
- * - ₹5,000 - ₹20,000: 7% tolerance
- * - ₹20,000 - ₹50,000: 5% tolerance
- * - ₹50,000 - ₹100,000: 3% tolerance
- * - > ₹100,000: 2% tolerance
+ * Link the user's credit card payments (see autoLinkCardPayments for the two steps)
  */
-function getAmountTolerance(amount: number): { min: number; max: number } {
-  const absAmount = Math.abs(amount)
-
-  let tolerancePercent: number
-  if (absAmount < 5000) {
-    tolerancePercent = 0.1 // 10%
-  } else if (absAmount < 20000) {
-    tolerancePercent = 0.07 // 7%
-  } else if (absAmount < 50000) {
-    tolerancePercent = 0.05 // 5%
-  } else if (absAmount < 100000) {
-    tolerancePercent = 0.03 // 3%
-  } else {
-    tolerancePercent = 0.02 // 2%
-  }
-
-  const tolerance = absAmount * tolerancePercent
-  return {
-    min: absAmount - tolerance,
-    max: absAmount + tolerance,
-  }
+async function linkCardPayments(userId: string): Promise<void> {
+  const { paired, attached } = await autoLinkCardPayments(userId)
+  logger.debug(`[EntityLinking] Card payments: ${paired} paired, ${attached} attached to a card`)
 }
 
 /**
@@ -89,275 +55,12 @@ export async function linkEntitiesForAccount(
 
   if (isBankAccount) {
     // For bank accounts: link CC payments, insurance payments, loan EMIs
-    await linkCreditCardPayments(accountId, userId)
+    await linkCardPayments(userId)
     await linkInsuranceAndLoanPayments(accountId, userId, account.profileId, modelOverride)
   } else if (isCreditCard) {
     // For credit cards: link insurance payments, find matching bank debits
     await linkInsuranceAndLoanPayments(accountId, userId, account.profileId, modelOverride)
-    await linkCreditCardCreditsToBank(accountId, userId)
-  }
-}
-
-/**
- * Link bank account credit_card_payment debits to credit card accounts
- *
- * Matches by: exact amount, within ±3 days, opposite transaction types
- */
-async function linkCreditCardPayments(bankAccountId: string, userId: string): Promise<void> {
-  // Get all unlinked credit_card_payment debits from this bank account
-  const bankDebits = await db
-    .select({
-      id: tables.transactions.id,
-      date: tables.transactions.date,
-      amount: tables.transactions.amount,
-    })
-    .from(tables.transactions)
-    .where(
-      and(
-        eq(tables.transactions.accountId, bankAccountId),
-        eq(tables.transactions.userId, userId),
-        eq(tables.transactions.category, 'credit_card_payment'),
-        eq(tables.transactions.type, 'debit'),
-        eq(tables.transactions.isHidden, false),
-        isNull(tables.transactions.linkedEntityId)
-      )
-    )
-
-  if (bankDebits.length === 0) {
-    logger.debug(`[EntityLinking] No unlinked CC payment debits in bank account ${bankAccountId}`)
-    return
-  }
-
-  logger.debug(
-    `[EntityLinking] Found ${bankDebits.length} unlinked CC payment debits in bank account ${bankAccountId}`
-  )
-
-  // Get all credit card accounts for this user
-  const ccAccounts = await db
-    .select({ id: tables.accounts.id })
-    .from(tables.accounts)
-    .where(and(eq(tables.accounts.userId, userId), eq(tables.accounts.type, CREDIT_CARD_TYPE)))
-
-  if (ccAccounts.length === 0) {
-    logger.debug(`[EntityLinking] No credit card accounts found for user`)
-    return
-  }
-
-  const ccAccountIds = ccAccounts.map((a) => a.id)
-
-  // For each bank debit, try to find matching CC credit
-  for (const debit of bankDebits) {
-    const debitDate = new Date(debit.date)
-    const startDate = new Date(debitDate)
-    startDate.setDate(startDate.getDate() - 3)
-    const endDate = new Date(debitDate)
-    endDate.setDate(endDate.getDate() + 3)
-
-    const startDateStr = startDate.toISOString().split('T')[0]!
-    const endDateStr = endDate.toISOString().split('T')[0]!
-
-    // Calculate amount tolerance for fuzzy matching (handles cashback/fees)
-    const debitAmount =
-      typeof debit.amount === 'string' ? parseFloat(debit.amount) : Number(debit.amount)
-    const { min: minAmount, max: maxAmount } = getAmountTolerance(debitAmount)
-
-    // Find matching CC credits within amount tolerance and ±3 days
-    const matchingCredits = await db
-      .select({
-        id: tables.transactions.id,
-        accountId: tables.transactions.accountId,
-        amount: tables.transactions.amount,
-      })
-      .from(tables.transactions)
-      .where(
-        and(
-          inArray(tables.transactions.accountId, ccAccountIds),
-          eq(tables.transactions.type, 'credit'),
-          gte(tables.transactions.amount, minAmount.toString()),
-          lte(tables.transactions.amount, maxAmount.toString()),
-          eq(tables.transactions.isHidden, false),
-          gte(tables.transactions.date, startDateStr),
-          lte(tables.transactions.date, endDateStr),
-          isNull(tables.transactions.linkedEntityId)
-        )
-      )
-
-    if (matchingCredits.length === 0) continue
-
-    // Pick the closest match by amount
-    const matchingCredit = matchingCredits.reduce((closest, current) => {
-      const currentAmount =
-        typeof current.amount === 'string' ? parseFloat(current.amount) : Number(current.amount)
-      const closestAmount =
-        typeof closest.amount === 'string' ? parseFloat(closest.amount) : Number(closest.amount)
-
-      const currentDiff = Math.abs(currentAmount - debitAmount)
-      const closestDiff = Math.abs(closestAmount - debitAmount)
-
-      return currentDiff < closestDiff ? current : closest
-    })
-
-    const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
-
-    // Link bank debit to CC account
-    await db
-      .update(tables.transactions)
-      .set({
-        linkedEntityId: matchingCredit.accountId,
-        linkedEntityType: 'credit_card',
-        updatedAt: now as Date,
-      })
-      .where(eq(tables.transactions.id, debit.id))
-
-    // Link CC credit to bank transaction
-    await db
-      .update(tables.transactions)
-      .set({
-        linkedEntityId: debit.id,
-        linkedEntityType: 'transaction',
-        updatedAt: now as Date,
-      })
-      .where(eq(tables.transactions.id, matchingCredit.id))
-
-    const creditAmount =
-      typeof matchingCredit.amount === 'string'
-        ? parseFloat(matchingCredit.amount)
-        : Number(matchingCredit.amount)
-    const amountDiff = Math.abs(creditAmount - debitAmount)
-
-    logger.debug(
-      `[EntityLinking] Linked bank debit ${debit.id} (₹${debitAmount}) to CC account ${matchingCredit.accountId} (credit: ₹${creditAmount}, diff: ₹${amountDiff.toFixed(2)})`
-    )
-  }
-}
-
-/**
- * For credit card credits (payments received), find matching bank debits
- * This handles the case when CC statements are processed before bank statements
- */
-async function linkCreditCardCreditsToBank(ccAccountId: string, userId: string): Promise<void> {
-  // Get all unlinked credits in this CC account (likely payments received)
-  const ccCredits = await db
-    .select({
-      id: tables.transactions.id,
-      date: tables.transactions.date,
-      amount: tables.transactions.amount,
-    })
-    .from(tables.transactions)
-    .where(
-      and(
-        eq(tables.transactions.accountId, ccAccountId),
-        eq(tables.transactions.userId, userId),
-        eq(tables.transactions.type, 'credit'),
-        eq(tables.transactions.isHidden, false),
-        isNull(tables.transactions.linkedEntityId)
-      )
-    )
-
-  if (ccCredits.length === 0) {
-    return
-  }
-
-  // Get all bank accounts for this user
-  const bankAccounts = await db
-    .select({ id: tables.accounts.id })
-    .from(tables.accounts)
-    .where(
-      and(
-        eq(tables.accounts.userId, userId),
-        or(...BANK_ACCOUNT_TYPES.map((t) => eq(tables.accounts.type, t)))
-      )
-    )
-
-  if (bankAccounts.length === 0) {
-    return
-  }
-
-  const bankAccountIds = bankAccounts.map((a) => a.id)
-
-  // For each CC credit, try to find matching bank debit
-  for (const credit of ccCredits) {
-    const creditDate = new Date(credit.date)
-    const startDate = new Date(creditDate)
-    startDate.setDate(startDate.getDate() - 3)
-    const endDate = new Date(creditDate)
-    endDate.setDate(endDate.getDate() + 3)
-
-    const startDateStr = startDate.toISOString().split('T')[0]!
-    const endDateStr = endDate.toISOString().split('T')[0]!
-
-    // Calculate amount tolerance for fuzzy matching (handles cashback/fees)
-    const creditAmount =
-      typeof credit.amount === 'string' ? parseFloat(credit.amount) : Number(credit.amount)
-    const { min: minAmount, max: maxAmount } = getAmountTolerance(creditAmount)
-
-    // Find matching bank debits within amount tolerance and ±3 days
-    const matchingDebits = await db
-      .select({
-        id: tables.transactions.id,
-        amount: tables.transactions.amount,
-      })
-      .from(tables.transactions)
-      .where(
-        and(
-          inArray(tables.transactions.accountId, bankAccountIds),
-          eq(tables.transactions.type, 'debit'),
-          eq(tables.transactions.category, 'credit_card_payment'),
-          gte(tables.transactions.amount, minAmount.toString()),
-          lte(tables.transactions.amount, maxAmount.toString()),
-          eq(tables.transactions.isHidden, false),
-          gte(tables.transactions.date, startDateStr),
-          lte(tables.transactions.date, endDateStr),
-          isNull(tables.transactions.linkedEntityId)
-        )
-      )
-
-    if (matchingDebits.length === 0) continue
-
-    // Pick the closest match by amount
-    const matchingDebit = matchingDebits.reduce((closest, current) => {
-      const currentAmount =
-        typeof current.amount === 'string' ? parseFloat(current.amount) : Number(current.amount)
-      const closestAmount =
-        typeof closest.amount === 'string' ? parseFloat(closest.amount) : Number(closest.amount)
-
-      const currentDiff = Math.abs(currentAmount - creditAmount)
-      const closestDiff = Math.abs(closestAmount - creditAmount)
-
-      return currentDiff < closestDiff ? current : closest
-    })
-
-    const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
-
-    // Link CC credit to bank transaction
-    await db
-      .update(tables.transactions)
-      .set({
-        linkedEntityId: matchingDebit.id,
-        linkedEntityType: 'transaction',
-        updatedAt: now as Date,
-      })
-      .where(eq(tables.transactions.id, credit.id))
-
-    // Link bank debit to CC account
-    await db
-      .update(tables.transactions)
-      .set({
-        linkedEntityId: ccAccountId,
-        linkedEntityType: 'credit_card',
-        updatedAt: now as Date,
-      })
-      .where(eq(tables.transactions.id, matchingDebit.id))
-
-    const debitAmount =
-      typeof matchingDebit.amount === 'string'
-        ? parseFloat(matchingDebit.amount)
-        : Number(matchingDebit.amount)
-    const amountDiff = Math.abs(debitAmount - creditAmount)
-
-    logger.debug(
-      `[EntityLinking] Linked CC credit ${credit.id} (₹${creditAmount}) to bank debit ${matchingDebit.id} (₹${debitAmount}, diff: ₹${amountDiff.toFixed(2)})`
-    )
+    await linkCardPayments(userId)
   }
 }
 

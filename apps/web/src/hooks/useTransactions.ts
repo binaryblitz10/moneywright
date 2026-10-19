@@ -21,6 +21,8 @@ import {
   linkTransactions,
   unlinkTransaction,
   getLinkCandidates,
+  getLinkSuggestions,
+  setCardPaymentsDismissed,
   getCategorizationStatus,
   type TransactionFilters,
   type TransactionPagination,
@@ -45,6 +47,8 @@ export const transactionKeys = {
     [...transactionKeys.all, 'reviewCounts', profileId] as const,
   linkCandidates: (transactionId: string) =>
     [...transactionKeys.all, 'linkCandidates', transactionId] as const,
+  linkSuggestions: (transactionId: string) =>
+    [...transactionKeys.all, 'linkSuggestions', transactionId] as const,
 }
 
 /**
@@ -148,6 +152,17 @@ export function useLinkCandidates(transactionId: string) {
     queryKey: transactionKeys.linkCandidates(transactionId),
     queryFn: () => getLinkCandidates(transactionId),
     enabled: !!transactionId,
+  })
+}
+
+/**
+ * Fetch the card payment candidates for a transaction
+ */
+export function useLinkSuggestions(transactionId: string, enabled = true) {
+  return useQuery({
+    queryKey: transactionKeys.linkSuggestions(transactionId),
+    queryFn: () => getLinkSuggestions(transactionId),
+    enabled: enabled && !!transactionId,
   })
 }
 
@@ -301,7 +316,7 @@ export function useLinkTransactions() {
       linkType: 'payment' | 'transfer' | 'refund'
     }) => linkTransactions(transactionId1, transactionId2, linkType),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      invalidateTransactionTotals(queryClient)
       toast.success('Transactions linked')
     },
     onError: () => {
@@ -319,11 +334,48 @@ export function useUnlinkTransaction() {
   return useMutation({
     mutationFn: unlinkTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      invalidateTransactionTotals(queryClient)
       toast.success('Transaction unlinked')
     },
     onError: () => {
       toast.error('Failed to unlink transaction')
+    },
+  })
+}
+
+/**
+ * Attach a bank payment to the card it paid, before the card statement shows it
+ */
+export function useLinkToCard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ transactionId, cardId }: { transactionId: string; cardId: string }) =>
+      updateTransaction(transactionId, { linkedEntityId: cardId, linkedEntityType: 'credit_card' }),
+    onSuccess: () => {
+      invalidateTransactionTotals(queryClient)
+      toast.success('Linked to card')
+    },
+    onError: () => {
+      toast.error('Failed to link to card')
+    },
+  })
+}
+
+/**
+ * Mark card payment checks in Data Health as correct, or bring them back
+ */
+export function useDismissCardPayments() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ transactionIds, dismissed }: { transactionIds: string[]; dismissed: boolean }) =>
+      setCardPaymentsDismissed(transactionIds, dismissed),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dataHealthKeys.all })
+    },
+    onError: () => {
+      toast.error('Failed to update the check')
     },
   })
 }

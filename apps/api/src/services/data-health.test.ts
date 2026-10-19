@@ -4,7 +4,8 @@ import {
   findBalanceBreaks,
   findGapsAndOverlaps,
   findMissingPeriods,
-  findUnlinkedCardPayments,
+  findCardPaymentChecks,
+  suggestCardPaymentLink,
   financialYearStart,
   reconcileStatement,
   resolveStatementPeriods,
@@ -51,8 +52,10 @@ function txn(
     amount,
     category,
     summary: null,
+    description: '',
     isHidden: false,
     linkedEntityId: null,
+    linkedEntityType: null,
   }
 }
 
@@ -221,33 +224,154 @@ describe('financialYearStart', () => {
   })
 })
 
-describe('findUnlinkedCardPayments', () => {
-  const payment = (id: string, linkedEntityId: string | null = null): TxnLite => ({
+describe('findCardPaymentChecks', () => {
+  const bank = new Set(['bank'])
+  const card = new Set(['card'])
+  const statements = [{ accountId: 'bank', periodStart: '2026-01-01', periodEnd: '2026-01-31' }]
+
+  const debit = (id: string, over: Partial<TxnLite> = {}): TxnLite => ({
     ...txn(id, 'bank', '2026-01-10', 'debit', 5000, 'credit_card_payment'),
-    linkedEntityId,
+    ...over,
   })
-  const banks = new Set(['bank'])
+  const credit = (id: string, over: Partial<TxnLite> = {}): TxnLite => ({
+    ...txn(id, 'card', '2026-01-11', 'credit', 5000, 'credit_card_payment'),
+    ...over,
+  })
+  const run = (txns: TxnLite[], pointedAt: string[] = [], periods = statements) =>
+    findCardPaymentChecks({
+      txns,
+      byId: new Map(txns.map((t) => [t.id, t])),
+      bankAccountIds: bank,
+      cardAccountIds: card,
+      pointedAt: new Set(pointedAt),
+      bankStatements: periods,
+    }).map((f) => `${f.txn.id}:${f.kind}`)
 
-  test('flags a payment with no link on either side', () => {
-    expect(findUnlinkedCardPayments([payment('p1')], banks, new Set()).map((t) => t.id)).toEqual([
-      'p1',
-    ])
+  test('flags a bank debit with no link on either side', () => {
+    expect(run([debit('p1')])).toEqual(['p1:unlinked_debit'])
   })
 
-  test('a payment with its own link is linked', () => {
-    expect(findUnlinkedCardPayments([payment('p1', 'c1')], banks, new Set())).toEqual([])
+  test('a debit attached to a card, or pointed at by a card credit, is linked', () => {
+    const attached = debit('p1', { linkedEntityId: 'card', linkedEntityType: 'credit_card' })
+    expect(run([attached])).toEqual([])
+    expect(run([debit('p2')], ['p2'])).toEqual([])
   })
 
-  test('a payment the card-side credit links to is linked', () => {
-    const result = findUnlinkedCardPayments([payment('p1'), payment('p2')], banks, new Set(['p1']))
-    expect(result.map((t) => t.id)).toEqual(['p2'])
+  test('ignores hidden rows and debits in other categories', () => {
+    expect(run([debit('p1', { isHidden: true }), debit('p2', { category: 'shopping' })])).toEqual(
+      []
+    )
   })
 
-  test('ignores credits, hidden rows and non-bank accounts', () => {
-    const card = { ...payment('p3'), accountId: 'card' }
-    const hidden = { ...payment('p4'), isHidden: true }
-    const credit = { ...payment('p5'), type: 'credit' as const }
-    expect(findUnlinkedCardPayments([card, hidden, credit], banks, new Set())).toEqual([])
+  test('flags a payment-like card credit only when a bank statement covers its date', () => {
+    expect(run([credit('c1')])).toEqual(['c1:card_credit_without_bank'])
+    expect(run([credit('c1', { date: '2026-02-03' })])).toEqual([])
+    expect(run([credit('c1')], [], [])).toEqual([])
+  })
+
+  test('a statement of another kind of account does not count as bank coverage', () => {
+    const cardStatement = [
+      { accountId: 'card', periodStart: '2026-01-01', periodEnd: '2026-01-31' },
+    ]
+    expect(run([credit('c1')], [], cardStatement)).toEqual([])
+  })
+
+  test('card credits that are refunds or already linked are not flagged', () => {
+    const refund = credit('c1', { category: 'refund', description: 'payment received' })
+    const linked = credit('c2', { linkedEntityId: 'p1', linkedEntityType: 'transaction' })
+    const d = debit('p1', { linkedEntityId: 'card', linkedEntityType: 'credit_card' })
+    expect(run([refund, linked, d])).toEqual([])
+  })
+
+  test('flags a credit whose debit does not point back, or is gone', () => {
+    const c = credit('c1', { linkedEntityId: 'p1', linkedEntityType: 'transaction' })
+    expect(run([c, debit('p1')], ['p1'])).toEqual(['c1:broken_link'])
+    expect(
+      run([c, debit('p1', { linkedEntityId: 'other-card', linkedEntityType: 'credit_card' })])
+    ).toEqual(['c1:broken_link'])
+    expect(run([c])).toEqual(['c1:broken_link'])
+  })
+})
+
+describe('suggestCardPaymentLink', () => {
+  const bank = new Set(['bank'])
+  const card = new Set(['card'])
+  const names = new Map([
+    ['bank', 'HDFC Savings'],
+    ['card', 'HDFC Regalia'],
+  ])
+  const debit = (id: string, date: string, amount: number): TxnLite =>
+    txn(id, 'bank', date, 'debit', amount, 'credit_card_payment')
+  const credit = (id: string, date: string, amount: number): TxnLite => ({
+    ...txn(id, 'card', date, 'credit', amount, 'credit_card_payment'),
+    summary: 'Payment received',
+  })
+  const suggest = (
+    txns: TxnLite[],
+    id: string,
+    kind: 'unlinked_debit' | 'card_credit_without_bank'
+  ) =>
+    suggestCardPaymentLink({
+      check: { txn: txns.find((t) => t.id === id)!, kind },
+      txns,
+      bankAccountIds: bank,
+      cardAccountIds: card,
+      cards: [
+        {
+          id: 'card',
+          name: 'HDFC Regalia',
+          last4: null,
+          institutionTerms: [],
+          latestBalance: null,
+        },
+      ],
+      nameById: names,
+      institutionTermsById: new Map(),
+    })
+
+  test('a debit gets the one exact card credit near it', () => {
+    const txns = [debit('d', '2026-01-10', 5000), credit('c', '2026-01-11', 5000)]
+    expect(suggest(txns, 'd', 'unlinked_debit')).toMatchObject({
+      kind: 'transaction',
+      transactionId: 'c',
+      accountName: 'HDFC Regalia',
+    })
+  })
+
+  test('a card credit gets the bank debit, ignoring one already paired with another credit', () => {
+    const paired = {
+      ...credit('other', '2026-01-10', 5000),
+      linkedEntityId: 'd1',
+      linkedEntityType: 'transaction',
+    }
+    const txns = [
+      debit('d1', '2026-01-10', 5000),
+      debit('d2', '2026-01-12', 5000),
+      paired,
+      credit('c', '2026-01-11', 5000),
+    ]
+    expect(suggest(txns, 'c', 'card_credit_without_bank')).toMatchObject({
+      kind: 'transaction',
+      transactionId: 'd2',
+    })
+  })
+
+  test('several close candidates leave the choice to the user', () => {
+    const txns = [
+      debit('d', '2026-01-10', 5000),
+      credit('c1', '2026-01-10', 5000),
+      credit('c2', '2026-01-11', 5000),
+    ]
+    expect(suggest(txns, 'd', 'unlinked_debit')).toBeNull()
+  })
+
+  test('with no credit around, a debit falls back to the card it paid', () => {
+    expect(suggest([debit('d', '2026-01-10', 5000)], 'd', 'unlinked_debit')).toEqual({
+      kind: 'card',
+      accountId: 'card',
+      accountName: 'HDFC Regalia',
+      reason: 'Only card you have',
+    })
   })
 })
 

@@ -11,6 +11,8 @@ export const PREFERENCE_KEYS = {
   CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
+  DISMISSED_CARD_PAYMENTS: 'data_health.dismissed_card_payments',
+  MANUALLY_UNLINKED: 'card_payments.manually_unlinked',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
   STATEMENT_CATEGORISATION_PROVIDER: 'statement.categorisation.provider',
   STATEMENT_CATEGORISATION_MODEL: 'statement.categorisation.model',
@@ -245,6 +247,57 @@ export async function setDuplicatesDismissed(
     else current.delete(signature)
   }
   await setPreference(userId, PREFERENCE_KEYS.DISMISSED_DUPLICATES, JSON.stringify([...current]))
+}
+
+/**
+ * Helper: Get the transaction ids of card payment checks the user marked as correct (user-wide)
+ */
+export async function getDismissedCardPayments(userId: string): Promise<string[]> {
+  const value = await getPreference(userId, PREFERENCE_KEYS.DISMISSED_CARD_PAYMENTS, null)
+  return value ? parseCategoryList(value) : []
+}
+
+/**
+ * Helper: Mark card payment checks as correct (hidden from Data Health), or bring them back
+ */
+export async function setCardPaymentsDismissed(
+  userId: string,
+  transactionIds: string[],
+  dismissed: boolean
+): Promise<void> {
+  const current = new Set(await getDismissedCardPayments(userId))
+  for (const id of transactionIds) {
+    if (dismissed) current.add(id)
+    else current.delete(id)
+  }
+  await setPreference(userId, PREFERENCE_KEYS.DISMISSED_CARD_PAYMENTS, JSON.stringify([...current]))
+}
+
+/**
+ * Helper: Get the transactions the user unlinked by hand; the auto-linker leaves them alone
+ */
+export async function getManuallyUnlinked(userId: string): Promise<string[]> {
+  const value = await getPreference(userId, PREFERENCE_KEYS.MANUALLY_UNLINKED, null)
+  return value ? parseCategoryList(value) : []
+}
+
+/**
+ * Helper: Remember transactions unlinked by hand, or forget them after an explicit link
+ */
+export async function setManuallyUnlinked(
+  userId: string,
+  transactionIds: string[],
+  unlinked: boolean
+): Promise<void> {
+  if (transactionIds.length === 0) return
+  const current = new Set(await getManuallyUnlinked(userId))
+  const before = current.size
+  for (const id of transactionIds) {
+    if (unlinked) current.add(id)
+    else current.delete(id)
+  }
+  if (current.size === before && !unlinked) return
+  await setPreference(userId, PREFERENCE_KEYS.MANUALLY_UNLINKED, JSON.stringify([...current]))
 }
 
 /**
