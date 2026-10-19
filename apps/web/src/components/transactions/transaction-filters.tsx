@@ -23,9 +23,9 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TransactionFilters, Category, CategoryKind, Account, Statement } from '@/lib/api'
-import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
+import type { TransactionFilters, Category, Account, Statement } from '@/lib/api'
 import { MetaLabel } from '@/components/ui/meta-label'
+import { CategoryPicker } from './category-picker'
 
 interface TransactionFiltersBarProps {
   filters: TransactionFilters
@@ -75,9 +75,8 @@ export function TransactionFiltersBar({
     filters.isSubscription ||
     filters.onlyHidden
 
-  // Track manual toggle, but auto-show if advanced filters exist
-  const [manualShowAdvanced, setManualShowAdvanced] = useState(false)
-  const showAdvanced = manualShowAdvanced || hasAdvancedFilters
+  // Start open when advanced filters are already applied (e.g. from the URL), but let it collapse
+  const [showAdvanced, setShowAdvanced] = useState(hasAdvancedFilters)
 
   const removeFilter = (key: keyof TransactionFilters) => {
     const newFilters = { ...filters }
@@ -85,13 +84,13 @@ export function TransactionFiltersBar({
     onFiltersChange(newFilters)
   }
 
-  const activeFilterCount = [
-    filters.category?.length ? 1 : 0,
-    filters.accountId?.length ? 1 : 0,
-    filters.statementId?.length ? 1 : 0,
-    filters.startDate || filters.endDate ? 1 : 0,
-    filters.onlyHidden ? 1 : 0,
-  ].reduce((a, b) => a + b, 0)
+  // One per pill the advanced panel produces: each category, account and statement counts
+  const activeFilterCount =
+    (filters.category?.length ?? 0) +
+    (filters.accountId?.length ?? 0) +
+    (filters.statementId?.length ?? 0) +
+    (filters.startDate || filters.endDate ? 1 : 0) +
+    (filters.onlyHidden ? 1 : 0)
 
   return (
     <div className="space-y-3">
@@ -192,25 +191,17 @@ export function TransactionFiltersBar({
                   : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground hover:border-border-hover'
               )}
             >
-              <RefreshCw
-                className={cn(
-                  'h-3.5 w-3.5 transition-transform duration-700',
-                  filters.isSubscription && 'animate-[spin_4s_linear_infinite]'
-                )}
-              />
+              <RefreshCw className="h-3.5 w-3.5" />
               <span>Recurring</span>
-              {filters.isSubscription && (
-                <span className="flex h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
-              )}
             </button>
 
             {/* More Filters Toggle */}
             <button
-              onClick={() => setManualShowAdvanced(!showAdvanced)}
+              onClick={() => setShowAdvanced(!showAdvanced)}
               className={cn(
                 'flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200',
                 'border',
-                showAdvanced || hasAdvancedFilters
+                showAdvanced || activeFilterCount > 0
                   ? 'bg-primary/5 border-primary/20 text-primary'
                   : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground hover:border-border-hover'
               )}
@@ -257,17 +248,6 @@ export function TransactionFiltersBar({
                   delete newFilters.category
                   delete newFilters.onlyHidden
                   onFiltersChange(newFilters)
-                }}
-                onToggle={(code) => {
-                  const current = filters.category || []
-                  const isSelected = current.includes(code)
-                  const updated = isSelected
-                    ? current.filter((c) => c !== code)
-                    : [...current, code]
-                  onFiltersChange({
-                    ...filters,
-                    category: updated.length > 0 ? updated : undefined,
-                  })
                 }}
                 onSetCategories={(codes) => {
                   onFiltersChange({
@@ -553,14 +533,13 @@ export function TransactionFiltersBar({
   )
 }
 
-// Category Filter Dropdown with Search
+// Category filter: multi-select picker plus "All categories" and "Hidden" rows
 function CategoryFilterDropdown({
   categories,
   selectedCategories,
   onlyHidden,
   getCategoryLabel,
   onClear,
-  onToggle,
   onSetCategories,
   onToggleHidden,
 }: {
@@ -569,40 +548,17 @@ function CategoryFilterDropdown({
   onlyHidden?: boolean
   getCategoryLabel: (code: string) => string
   onClear: () => void
-  onToggle: (code: string) => void
   onSetCategories: (codes: string[]) => void
   onToggleHidden: () => void
 }) {
-  const [categorySearch, setCategorySearch] = useState('')
-
-  const filteredCategories = categories.filter((cat) =>
-    cat.label.toLowerCase().includes(categorySearch.toLowerCase())
-  )
-
-  const groupedCategories = CATEGORY_KIND_ORDER.map((kind) => ({
-    kind,
-    items: categoriesOfKind(filteredCategories, kind),
-  })).filter((group) => group.items.length > 0)
-
-  // Select or clear every category of one kind; a chip is active when all of its kind is selected
-  const toggleKind = (kind: CategoryKind) => {
-    const codes = categoriesOfKind(categories, kind).map((cat) => cat.code)
-    const current = selectedCategories ?? []
-    const allSelected = codes.every((code) => current.includes(code))
-    onSetCategories(
-      allSelected
-        ? current.filter((code) => !codes.includes(code))
-        : [...current, ...codes.filter((code) => !current.includes(code))]
-    )
-  }
-
-  // Determine what to show in the button
-  const getButtonLabel = () => {
-    if (onlyHidden) return 'Hidden'
-    if (selectedCategories?.length === 1) return getCategoryLabel(selectedCategories[0]!)
-    if (selectedCategories?.length) return `${selectedCategories.length} selected`
-    return 'All categories'
-  }
+  const selected = selectedCategories ?? []
+  const triggerLabel = onlyHidden
+    ? 'Hidden'
+    : selected.length === 1
+      ? getCategoryLabel(selected[0]!)
+      : selected.length
+        ? `${selected.length} selected`
+        : 'All categories'
 
   return (
     <div className="space-y-2">
@@ -610,123 +566,43 @@ function CategoryFilterDropdown({
         <Tag className="h-3 w-3" />
         Category
       </Label>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              'w-full justify-between h-10 rounded-lg font-normal',
-              'bg-surface-elevated border-border-subtle',
-              'hover:bg-surface-hover hover:border-border-hover',
-              (selectedCategories?.length || onlyHidden) && 'border-primary/30 bg-primary/5'
-            )}
-          >
-            <span className="truncate flex items-center gap-2">
-              {onlyHidden && <EyeOff className="h-4 w-4 text-muted-foreground" />}
-              {getButtonLabel()}
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-96 p-2" align="start">
-          {/* Search Input */}
-          <div className="relative mb-2">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search categories..."
-              value={categorySearch}
-              onChange={(e) => setCategorySearch(e.target.value)}
-              className="h-8 pl-8 text-sm bg-surface-elevated border-border-subtle"
-            />
-          </div>
-          {/* Kind chips: select or clear all categories of one kind */}
-          <div className="flex flex-wrap justify-center gap-1.5 py-2.5 mb-2 px-0.5">
-            {CATEGORY_KIND_ORDER.map((kind) => {
-              const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
-              const isActive =
-                kindCodes.length > 0 &&
-                kindCodes.every((code) => selectedCategories?.includes(code))
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={onlyHidden || kindCodes.length === 0}
-                  aria-pressed={isActive}
-                  onClick={() => toggleKind(kind)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap',
-                    'disabled:opacity-50 disabled:pointer-events-none',
-                    isActive
-                      ? 'bg-primary/10 border-primary/30 text-primary'
-                      : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {CATEGORY_KIND_LABELS[kind]}
-                </button>
-              )
-            })}
-          </div>
-          <div className="max-h-60 overflow-y-auto space-y-1">
-            {!categorySearch && (
-              <>
-                <Button
-                  variant={!selectedCategories?.length && !onlyHidden ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-full justify-start gap-2 px-2"
-                  onClick={onClear}
-                >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center" />
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
-                  All categories
-                </Button>
-                {/* Hidden option */}
-                <Button
-                  variant={onlyHidden ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-full justify-start gap-2 px-2"
-                  onClick={onToggleHidden}
-                >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                    {onlyHidden && <Check className="h-4 w-4 text-primary" />}
-                  </span>
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  Hidden
-                </Button>
-                <div className="border-t border-border-subtle my-2" />
-              </>
-            )}
-            {groupedCategories.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No categories found</p>
-            ) : (
-              groupedCategories.map(({ kind, items }) => (
-                <div key={kind} className="space-y-1">
-                  <p className="px-2 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    {CATEGORY_KIND_LABELS[kind]}
-                  </p>
-                  {items.map((cat) => {
-                    const isSelected = selectedCategories?.includes(cat.code)
-                    return (
-                      <Button
-                        key={cat.code}
-                        variant={isSelected ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="w-full justify-start gap-2 px-2"
-                        onClick={() => onToggle(cat.code)}
-                        disabled={onlyHidden} // Disable category selection when showing hidden
-                      >
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                          {isSelected && <Check className="h-4 w-4 text-primary" />}
-                        </span>
-                        <span className="truncate">{cat.label}</span>
-                      </Button>
-                    )
-                  })}
-                </div>
-              ))
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <CategoryPicker
+        multiple
+        categories={categories}
+        values={selected}
+        onValuesChange={onSetCategories}
+        triggerLabel={triggerLabel}
+        triggerIcon={onlyHidden && <EyeOff className="h-4 w-4 text-muted-foreground" />}
+        triggerClassName={cn((selected.length || onlyHidden) && 'border-primary/30 bg-primary/5')}
+        contentClassName="w-96"
+        disabled={onlyHidden}
+        leadingRows={
+          <>
+            <Button
+              variant={!selected.length && !onlyHidden ? 'secondary' : 'ghost'}
+              size="sm"
+              className="w-full justify-start gap-2 px-2"
+              onClick={onClear}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center" />
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              All categories
+            </Button>
+            <Button
+              variant={onlyHidden ? 'secondary' : 'ghost'}
+              size="sm"
+              className="w-full justify-start gap-2 px-2"
+              onClick={onToggleHidden}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                {onlyHidden && <Check className="h-4 w-4 text-primary" />}
+              </span>
+              <EyeOff className="h-4 w-4 text-muted-foreground" />
+              Hidden
+            </Button>
+          </>
+        }
+      />
     </div>
   )
 }

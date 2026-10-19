@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/domain/app-layout'
@@ -42,22 +42,67 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { ListChecks, Plus, Receipt, Upload, X } from 'lucide-react'
 
+// Filters live in the URL so a refresh, the back button or a shared link keeps them.
+// List filters are comma-separated; flags are '1'.
 interface TransactionsSearchParams {
   category?: string
+  accountId?: string
+  statementId?: string
   startDate?: string
   endDate?: string
-  statementId?: string
+  type?: 'credit' | 'debit'
+  recurring?: '1'
+  hidden?: '1'
+  q?: string
 }
+
+const str = (value: unknown): string | undefined =>
+  typeof value === 'string' && value ? value : undefined
 
 export const Route = createFileRoute('/transactions')({
   component: TransactionsPage,
   validateSearch: (search: Record<string, unknown>): TransactionsSearchParams => ({
-    category: typeof search.category === 'string' ? search.category : undefined,
-    startDate: typeof search.startDate === 'string' ? search.startDate : undefined,
-    endDate: typeof search.endDate === 'string' ? search.endDate : undefined,
-    statementId: typeof search.statementId === 'string' ? search.statementId : undefined,
+    category: str(search.category),
+    accountId: str(search.accountId),
+    statementId: str(search.statementId),
+    startDate: str(search.startDate),
+    endDate: str(search.endDate),
+    type: search.type === 'credit' || search.type === 'debit' ? search.type : undefined,
+    recurring: search.recurring === '1' || search.recurring === 1 ? '1' : undefined,
+    hidden: search.hidden === '1' || search.hidden === 1 ? '1' : undefined,
+    q: str(search.q),
   }),
 })
+
+const joinList = (values?: string[]): string | undefined =>
+  values?.length ? values.join(',') : undefined
+
+function filtersFromSearch(params: TransactionsSearchParams): TransactionFilters {
+  return {
+    ...(params.category && { category: params.category.split(',') }),
+    ...(params.accountId && { accountId: params.accountId.split(',') }),
+    ...(params.statementId && { statementId: params.statementId.split(',') }),
+    ...(params.startDate && { startDate: params.startDate }),
+    ...(params.endDate && { endDate: params.endDate }),
+    ...(params.type && { type: params.type }),
+    ...(params.recurring && { isSubscription: true }),
+    ...(params.hidden && { onlyHidden: true }),
+  }
+}
+
+function searchFromFilters(filters: TransactionFilters, q: string): TransactionsSearchParams {
+  return {
+    category: joinList(filters.category),
+    accountId: joinList(filters.accountId),
+    statementId: joinList(filters.statementId),
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    type: filters.type,
+    recurring: filters.isSubscription ? '1' : undefined,
+    hidden: filters.onlyHidden ? '1' : undefined,
+    q: q || undefined,
+  }
+}
 
 function TransactionsPage() {
   const queryClient = useQueryClient()
@@ -78,13 +123,9 @@ function TransactionsPage() {
 
   // Filter state
   const searchParams = useSearch({ from: '/transactions' })
-  const [filters, setFilters] = useState<TransactionFilters>(() => ({
-    ...(searchParams.category && { category: searchParams.category.split(',') }),
-    ...(searchParams.startDate && { startDate: searchParams.startDate }),
-    ...(searchParams.endDate && { endDate: searchParams.endDate }),
-    ...(searchParams.statementId && { statementId: [searchParams.statementId] }),
-  }))
-  const [search, setSearch] = useState('')
+  const navigate = useNavigate({ from: '/transactions' })
+  const [filters, setFilters] = useState<TransactionFilters>(() => filtersFromSearch(searchParams))
+  const [search, setSearch] = useState(searchParams.q ?? '')
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
@@ -93,6 +134,11 @@ function TransactionsPage() {
 
   // Debounce search to avoid excessive API calls
   const debouncedSearch = useDebounce(search, 300)
+
+  // Mirror the filters into the URL without adding history entries
+  useEffect(() => {
+    void navigate({ search: searchFromFilters(filters, debouncedSearch), replace: true })
+  }, [filters, debouncedSearch, navigate])
 
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = !!activeProfileId || showFamilyView
@@ -461,7 +507,7 @@ function TransactionsPage() {
             }
             action={
               hasActiveFilters
-                ? undefined
+                ? { label: 'Clear filters', onClick: clearFilters, icon: X }
                 : {
                     label: 'Upload Statement',
                     href: '/statements?upload=true',

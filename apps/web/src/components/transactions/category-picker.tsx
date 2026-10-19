@@ -7,28 +7,46 @@ import type { Category, CategoryKind } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 
-interface CategoryPickerProps {
+interface CategoryPickerBaseProps {
   id?: string
   categories: Category[]
+  placeholder?: string
+  /** Extra classes for the dropdown, e.g. a fixed width when the trigger is narrow */
+  contentClassName?: string
+  /** Extra classes for the trigger button */
+  triggerClassName?: string
+}
+
+interface SingleCategoryPickerProps extends CategoryPickerBaseProps {
+  multiple?: false
   value: string
   onChange: (code: string) => void
   /** Adds a choice that clears the selection, passing an empty code to onChange */
   noneLabel?: string
-  placeholder?: string
-  /** Extra classes for the dropdown, e.g. a fixed width when the trigger is narrow */
-  contentClassName?: string
 }
 
-/** Searchable single-select category list, grouped by kind like the transactions filter */
-export function CategoryPicker({
-  id,
-  categories,
-  value,
-  onChange,
-  noneLabel,
-  placeholder = 'Select a category',
-  contentClassName,
-}: CategoryPickerProps) {
+interface MultiCategoryPickerProps extends CategoryPickerBaseProps {
+  multiple: true
+  values: string[]
+  onValuesChange: (codes: string[]) => void
+  /** Replaces the default trigger text, e.g. "3 selected" */
+  triggerLabel?: string
+  /** Icon shown before the trigger text */
+  triggerIcon?: React.ReactNode
+  /** Rows above the list when not searching, e.g. "All categories". Receives the popover closer */
+  leadingRows?: React.ReactNode
+  /** Greys out the kind chips and category rows */
+  disabled?: boolean
+}
+
+type CategoryPickerProps = SingleCategoryPickerProps | MultiCategoryPickerProps
+
+/** Searchable category list, grouped by kind. Single-select by default, or multi-select with `multiple` */
+export function CategoryPicker(props: CategoryPickerProps) {
+  const { id, categories, placeholder = 'Select a category', contentClassName } = props
+  const selected = props.multiple ? props.values : props.value ? [props.value] : []
+  const noneLabel = props.multiple ? undefined : props.noneLabel
+  const disabled = props.multiple ? props.disabled : false
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<CategoryKind | null>(null)
@@ -54,9 +72,7 @@ export function CategoryPicker({
       ? activeCode
       : search
         ? (options.find((code) => code !== '') ?? options[0])
-        : options.includes(value)
-          ? value
-          : options[0]
+        : (options.find((code) => selected.includes(code)) ?? options[0])
 
   useEffect(() => {
     if (!open || active === undefined) return
@@ -89,9 +105,36 @@ export function CategoryPicker({
   }
 
   const select = (code: string) => {
-    onChange(code)
+    if (props.multiple) {
+      props.onValuesChange(
+        selected.includes(code) ? selected.filter((c) => c !== code) : [...selected, code]
+      )
+      return
+    }
+    props.onChange(code)
     setOpen(false)
   }
+
+  // Multi-select: select or clear every category of one kind
+  const toggleKind = (kind: CategoryKind) => {
+    if (!props.multiple) return
+    const codes = categoriesOfKind(categories, kind).map((cat) => cat.code)
+    const allSelected = codes.every((code) => selected.includes(code))
+    props.onValuesChange(
+      allSelected
+        ? selected.filter((code) => !codes.includes(code))
+        : [...selected, ...codes.filter((code) => !selected.includes(code))]
+    )
+  }
+
+  const triggerText = props.multiple
+    ? (props.triggerLabel ??
+      (selected.length === 1
+        ? categories.find((cat) => cat.code === selected[0])?.label
+        : selected.length
+          ? `${selected.length} selected`
+          : undefined))
+    : categories.find((cat) => cat.code === props.value)?.label
 
   return (
     <Popover modal open={open} onOpenChange={handleOpenChange}>
@@ -100,10 +143,19 @@ export function CategoryPicker({
           id={id}
           type="button"
           variant="outline"
-          className="h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover"
+          className={cn(
+            'h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover',
+            props.triggerClassName
+          )}
         >
-          <span className={cn('truncate', !value && 'text-muted-foreground')}>
-            {categories.find((cat) => cat.code === value)?.label ?? placeholder}
+          <span
+            className={cn(
+              'flex items-center gap-2 truncate',
+              !triggerText && 'text-muted-foreground'
+            )}
+          >
+            {props.multiple && props.triggerIcon}
+            {triggerText ?? placeholder}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -125,21 +177,27 @@ export function CategoryPicker({
             className="h-8 pl-8 text-sm bg-surface-elevated border-border-subtle"
           />
         </div>
-        {/* Kind chips: show only the categories of one kind */}
+        {/* Kind chips: single-select shows one kind, multi-select selects or clears a kind */}
         <div className="mb-2 flex flex-wrap justify-center gap-1.5 px-0.5 py-2.5">
           {CATEGORY_KIND_ORDER.map((kind) => {
-            const isActive = kindFilter === kind
+            const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
+            const isActive = props.multiple
+              ? kindCodes.length > 0 && kindCodes.every((code) => selected.includes(code))
+              : kindFilter === kind
             return (
               <button
                 key={kind}
                 type="button"
+                disabled={disabled || (props.multiple && kindCodes.length === 0)}
                 aria-pressed={isActive}
                 onClick={() => {
+                  if (props.multiple) return toggleKind(kind)
                   setKindFilter(isActive ? null : kind)
                   setActiveCode(null)
                 }}
                 className={cn(
                   'whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'disabled:pointer-events-none disabled:opacity-50',
                   isActive
                     ? 'border-primary/30 bg-primary/10 text-primary'
                     : 'border-border-subtle bg-surface-elevated text-muted-foreground hover:text-foreground'
@@ -151,6 +209,12 @@ export function CategoryPicker({
           })}
         </div>
         <div ref={listRef} className="max-h-60 space-y-1 overflow-y-auto">
+          {props.multiple && !search && props.leadingRows && (
+            <>
+              {props.leadingRows}
+              <div className="my-2 border-t border-border-subtle" />
+            </>
+          )}
           {noneLabel && (
             <Button
               type="button"
@@ -162,7 +226,7 @@ export function CategoryPicker({
               onClick={() => select('')}
             >
               <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {!value && <Check className="h-4 w-4 text-primary" />}
+                {selected.length === 0 && <Check className="h-4 w-4 text-primary" />}
               </span>
               <span className="truncate">{noneLabel}</span>
             </Button>
@@ -176,13 +240,18 @@ export function CategoryPicker({
                   {CATEGORY_KIND_LABELS[kind]}
                 </p>
                 {items.map((cat) => {
-                  const isSelected = cat.code === value
+                  const isSelected = selected.includes(cat.code)
                   return (
                     <Button
                       key={cat.code}
                       type="button"
-                      variant={cat.code === active ? 'secondary' : 'ghost'}
+                      variant={
+                        cat.code === active || (props.multiple && isSelected)
+                          ? 'secondary'
+                          : 'ghost'
+                      }
                       size="sm"
+                      disabled={disabled}
                       data-code={cat.code}
                       className="w-full justify-start gap-2 px-2"
                       onMouseMove={() => setActiveCode(cat.code)}
