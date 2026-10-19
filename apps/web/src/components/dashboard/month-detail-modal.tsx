@@ -397,70 +397,73 @@ export function MonthDetailModal({
           </div>
 
           {/* Investments & transfers (collapsed by default) */}
-          {viewMode === 'transactions' &&
-            !isLoading &&
-            (investments.length > 0 || transfers.length > 0) && (
-              <div className="pt-4 border-t border-border-subtle mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowOtherFlows((open) => !open)}
-                  aria-expanded={showOtherFlows}
-                  className="flex w-full items-center justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                >
-                  Investments & transfers (not counted as expenses)
-                  <ChevronDown
-                    className={cn(
-                      'h-3.5 w-3.5 transition-transform',
-                      showOtherFlows && 'rotate-180'
-                    )}
-                  />
-                </button>
-                {showOtherFlows && (
-                  <ScrollArea className="h-48 mt-2">
-                    <div className="space-y-0.5 pr-4">
-                      {investments.map((txn) => (
-                        <MonthTransactionRow
-                          key={txn.id}
-                          transaction={txn}
-                          getCategoryLabel={getCategoryLabel}
-                          flow="other"
-                        />
-                      ))}
-                      {transfers.map((txn) => (
-                        <MonthTransactionRow
-                          key={txn.id}
-                          transaction={txn}
-                          getCategoryLabel={getCategoryLabel}
-                          flow="other"
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            )}
+          {/* The slot keeps its height while loading so the centred dialog doesn't jump when data arrives */}
+          {viewMode === 'transactions' && (
+            <div className="mt-4 min-h-8">
+              {!isLoading && (investments.length > 0 || transfers.length > 0) && (
+                <div className="pt-4 border-t border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => setShowOtherFlows((open) => !open)}
+                    aria-expanded={showOtherFlows}
+                    className="flex w-full items-center justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  >
+                    Investments & transfers (not counted as expenses)
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        showOtherFlows && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                  {showOtherFlows && (
+                    <ScrollArea className="h-48 mt-2">
+                      <div className="space-y-0.5 pr-4">
+                        {investments.map((txn) => (
+                          <MonthTransactionRow
+                            key={txn.id}
+                            transaction={txn}
+                            getCategoryLabel={getCategoryLabel}
+                            flow="other"
+                          />
+                        ))}
+                        {transfers.map((txn) => (
+                          <MonthTransactionRow
+                            key={txn.id}
+                            transaction={txn}
+                            getCategoryLabel={getCategoryLabel}
+                            flow="other"
+                          />
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Link to the matching transactions */}
-          {viewMode === 'categories' &&
-            !isLoading &&
-            categoryCodes.length > 0 &&
-            linkStart &&
-            linkEnd && (
-              <div className="flex justify-end pt-4">
-                <Link
-                  to="/transactions"
-                  search={{
-                    category: categoryCodes.join(','),
-                    startDate: linkStart,
-                    endDate: linkEnd,
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  View transactions
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            )}
+          {viewMode === 'categories' && (
+            <div className="min-h-8">
+              {!isLoading && categoryCodes.length > 0 && linkStart && linkEnd && (
+                <div className="flex justify-end pt-4">
+                  <Link
+                    to="/transactions"
+                    search={{
+                      category: categoryCodes.join(','),
+                      startDate: linkStart,
+                      endDate: linkEnd,
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    View transactions
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
