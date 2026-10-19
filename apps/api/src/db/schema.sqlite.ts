@@ -694,6 +694,35 @@ export const transactionRules = sqliteTable(
   (table) => [index('transaction_rules_user_id_idx').on(table.userId)]
 )
 
+/**
+ * Subscription overrides - the user's changes to a detected subscription, keyed by merchant
+ * (lowercased transaction name). A frequency replaces the detected one; isRemoved hides the
+ * merchant so later charges are not detected as a subscription again.
+ */
+export const subscriptionOverrides = sqliteTable(
+  'subscription_overrides',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    merchantKey: text('merchant_key').notNull(),
+    frequency: text('frequency'), // monthly | quarterly | yearly, null = use the detected one
+    isRemoved: integer('is_removed', { mode: 'boolean' }).notNull().default(false),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    unique('subscription_overrides_user_merchant_unique').on(table.userId, table.merchantKey),
+  ]
+)
+
 // Type exports for use throughout the application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -715,6 +744,9 @@ export type NewStatement = typeof statements.$inferInsert
 
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
+
+export type SubscriptionOverride = typeof subscriptionOverrides.$inferSelect
+export type NewSubscriptionOverride = typeof subscriptionOverrides.$inferInsert
 
 export type TransactionRule = typeof transactionRules.$inferSelect
 export type NewTransactionRule = typeof transactionRules.$inferInsert

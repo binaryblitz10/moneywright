@@ -85,6 +85,13 @@
       "when": 1792391969230,
       "tag": "0011_transaction_rule_amounts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792420634590,
+      "tag": "0012_subscription_overrides",
+      "breakpoints": true
     }
   ]
 }

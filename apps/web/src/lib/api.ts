@@ -2231,6 +2231,8 @@ export async function getFxRate(from: string, to: string): Promise<FxRateRespons
  * Detected subscription
  */
 export interface DetectedSubscription {
+  /** Merchant key; identifies the subscription when editing or removing it */
+  key: string
   name: string
   category: string
   amount: number
@@ -2247,7 +2249,11 @@ export interface DetectedSubscription {
   profileId: string
   // Active status
   isActive: boolean
+  /** True when the frequency was set by the user instead of detected */
+  isFrequencySet: boolean
 }
+
+export type SubscriptionFrequency = 'monthly' | 'quarterly' | 'yearly'
 
 /**
  * Subscriptions response
@@ -2269,6 +2275,33 @@ export async function getSubscriptions(
 
   const response = await api.get(`/summary/subscriptions?${params.toString()}`)
   return response.data
+}
+
+/**
+ * Add a recurring payment as a subscription by picking one of its transactions
+ */
+export async function addSubscription(
+  transactionId: string,
+  frequency: SubscriptionFrequency
+): Promise<void> {
+  await api.post('/summary/subscriptions', { transactionId, frequency })
+}
+
+/**
+ * Set how often a subscription is billed
+ */
+export async function setSubscriptionFrequency(
+  key: string,
+  frequency: SubscriptionFrequency
+): Promise<void> {
+  await api.put('/summary/subscriptions/frequency', { key, frequency })
+}
+
+/**
+ * Remove a subscription so it is no longer detected
+ */
+export async function removeSubscription(key: string): Promise<void> {
+  await api.post('/summary/subscriptions/remove', { key })
 }
 
 // ============================================

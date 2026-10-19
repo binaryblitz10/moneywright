@@ -199,6 +199,7 @@ const tablesImpl = isPostgres
       statements: pgSchema.statements,
       transactions: pgSchema.transactions,
       transactionRules: pgSchema.transactionRules,
+      subscriptionOverrides: pgSchema.subscriptionOverrides,
       investmentSources: pgSchema.investmentSources,
       investmentHoldings: pgSchema.investmentHoldings,
       investmentTransactions: pgSchema.investmentTransactions,
@@ -220,6 +221,7 @@ const tablesImpl = isPostgres
       statements: sqliteSchema.statements,
       transactions: sqliteSchema.transactions,
       transactionRules: sqliteSchema.transactionRules,
+      subscriptionOverrides: sqliteSchema.subscriptionOverrides,
       investmentSources: sqliteSchema.investmentSources,
       investmentHoldings: sqliteSchema.investmentHoldings,
       investmentTransactions: sqliteSchema.investmentTransactions,
@@ -242,6 +244,7 @@ export const tables = tablesImpl as {
   statements: typeof pgSchema.statements
   transactions: typeof pgSchema.transactions
   transactionRules: typeof pgSchema.transactionRules
+  subscriptionOverrides: typeof pgSchema.subscriptionOverrides
   investmentSources: typeof pgSchema.investmentSources
   investmentHoldings: typeof pgSchema.investmentHoldings
   investmentTransactions: typeof pgSchema.investmentTransactions

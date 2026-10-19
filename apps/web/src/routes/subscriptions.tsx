@@ -10,10 +10,39 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Calendar, TrendingUp, Repeat, Receipt, Info, ArrowUpRight } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import {
+  Search,
+  Calendar,
+  TrendingUp,
+  Repeat,
+  Receipt,
+  Info,
+  ArrowUpRight,
+  Plus,
+  Trash2,
+} from 'lucide-react'
+import { AddSubscriptionDialog } from '@/components/subscriptions/add-subscription-dialog'
+import { FrequencySelect } from '@/components/subscriptions/frequency-select'
 import { cn } from '@/lib/utils'
 import { ProfileBadge } from '@/components/ui/profile-badge'
-import { useAuth, useCategories, useProfileSelection } from '@/hooks'
+import {
+  useAuth,
+  useCategories,
+  useProfileSelection,
+  useRemoveSubscription,
+  useSetSubscriptionFrequency,
+} from '@/hooks'
 import { getSubscriptions } from '@/lib/api'
 import type { DetectedSubscription, Profile } from '@/lib/api'
 
@@ -27,7 +56,7 @@ function formatCurrency(amount: number, currency: string): string {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount)
 }
 
@@ -75,9 +104,9 @@ function getFrequencyAbbr(frequency: DetectedSubscription['frequency']): string 
 function getMonthlyPrice(amount: number, frequency: DetectedSubscription['frequency']): number {
   switch (frequency) {
     case 'quarterly':
-      return Math.round(amount / 3)
+      return Math.round((amount / 3) * 100) / 100
     case 'yearly':
-      return Math.round(amount / 12)
+      return Math.round((amount / 12) * 100) / 100
     default:
       return amount
   }
@@ -110,9 +139,8 @@ function SubscriptionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
-  const [selectedSubscription, setSelectedSubscription] = useState<DetectedSubscription | null>(
-    null
-  )
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [showAddDialog, setShowAddDialog] = useState(false)
 
   const countryCode = user?.country?.toLowerCase() || 'in'
 
@@ -143,6 +171,8 @@ function SubscriptionsPage() {
     [subscriptionsData?.subscriptions]
   )
   const currency = subscriptionsData?.currency || 'INR'
+  // Looked up by key so the open dialog follows edits
+  const selectedSubscription = subscriptions.find((s) => s.key === selectedKey) ?? null
 
   // Calculate stats (for active subscriptions only)
   const stats = useMemo(() => {
@@ -208,12 +238,18 @@ function SubscriptionsPage() {
           title="Subscriptions"
           description="Track and manage your recurring payments"
           actions={
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4" />
+                Add subscription
+              </Button>
+              <ProfileSelector
+                selectedProfileId={selectorProfileId}
+                onProfileChange={handleProfileChange}
+                showFamilyView={showFamilyView}
+                onFamilyViewChange={handleFamilyViewChange}
+              />
+            </div>
           }
         />
 
@@ -389,12 +425,12 @@ function SubscriptionsPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
             {filteredSubscriptions.map((sub) => (
               <SubscriptionCard
-                key={`${sub.name}-${sub.lastChargeDate}`}
+                key={sub.key}
                 subscription={sub}
                 currency={currency}
                 countryCode={countryCode}
                 getCategoryLabel={getCategoryLabel}
-                onClick={() => setSelectedSubscription(sub)}
+                onClick={() => setSelectedKey(sub.key)}
                 profiles={profiles}
                 showProfileBadge={showFamilyView}
               />
@@ -426,9 +462,16 @@ function SubscriptionsPage() {
           currency={currency}
           countryCode={countryCode}
           getCategoryLabel={getCategoryLabel}
-          onClose={() => setSelectedSubscription(null)}
+          onClose={() => setSelectedKey(null)}
           profiles={profiles}
           showProfileBadge={showFamilyView}
+        />
+
+        <AddSubscriptionDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          profileId={activeProfileId}
+          currency={currency}
         />
       </div>
     </AppLayout>
@@ -589,6 +632,10 @@ function TransactionHistoryModal({
   profiles?: Profile[]
   showProfileBadge?: boolean
 }) {
+  const setFrequency = useSetSubscriptionFrequency()
+  const removeSubscription = useRemoveSubscription()
+  const [confirmRemove, setConfirmRemove] = useState(false)
+
   if (!sub) return null
 
   const institutionId = sub.institution || ''
@@ -650,6 +697,56 @@ function TransactionHistoryModal({
             )}
           </div>
         </DialogHeader>
+
+        {/* Edit */}
+        <div className="flex items-end gap-3 pt-3">
+          <div className="flex-1 space-y-1.5">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              Billed
+            </p>
+            <FrequencySelect
+              value={sub.frequency === 'unknown' ? undefined : sub.frequency}
+              onChange={(frequency) => setFrequency.mutate({ key: sub.key, frequency })}
+              disabled={setFrequency.isPending}
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirmRemove(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Remove
+          </Button>
+        </div>
+
+        <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove {sub.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                It stops showing as a subscription, and future payments will not be detected as one.
+                Your transactions are kept. You can add it back with Add subscription.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-white hover:bg-destructive/90"
+                onClick={() =>
+                  removeSubscription.mutate(sub.key, {
+                    onSuccess: () => {
+                      setConfirmRemove(false)
+                      onClose()
+                    },
+                  })
+                }
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Transaction list */}
         <div className="py-2">

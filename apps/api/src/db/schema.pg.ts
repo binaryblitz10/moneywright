@@ -685,6 +685,34 @@ export type NewStatement = typeof statements.$inferInsert
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
 
+/**
+ * Subscription overrides - the user's changes to a detected subscription, keyed by merchant
+ * (lowercased transaction name). A frequency replaces the detected one; isRemoved hides the
+ * merchant so later charges are not detected as a subscription again.
+ */
+export const subscriptionOverrides = pgTable(
+  'subscription_overrides',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    merchantKey: text('merchant_key').notNull(),
+    frequency: varchar('frequency', { length: 20 }), // monthly | quarterly | yearly, null = use the detected one
+    isRemoved: boolean('is_removed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('subscription_overrides_user_merchant_unique').on(table.userId, table.merchantKey),
+  ]
+)
+
+export type SubscriptionOverride = typeof subscriptionOverrides.$inferSelect
+export type NewSubscriptionOverride = typeof subscriptionOverrides.$inferInsert
+
 export type TransactionRule = typeof transactionRules.$inferSelect
 export type NewTransactionRule = typeof transactionRules.$inferInsert
 

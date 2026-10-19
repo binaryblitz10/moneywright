@@ -22,6 +22,7 @@ import { getAccountByIdRaw } from './accounts'
 import { logger } from '../lib/logger'
 import { getDismissedDuplicates, setManuallyUnlinked } from './preferences'
 import { merchantKey, merchantName } from './spending-changes'
+import { getSubscriptionOverrides } from './subscription-overrides'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
 import { duplicateKey } from '../lib/duplicate-key'
@@ -1089,6 +1090,8 @@ export async function getTransactionStats(
  * Detected subscription
  */
 export interface DetectedSubscription {
+  /** Merchant key; identifies the subscription when the user edits or removes it */
+  key: string
   name: string
   category: string
   amount: number
@@ -1105,6 +1108,12 @@ export interface DetectedSubscription {
   profileId: string
   // Active status
   isActive: boolean
+  /** True when the user set the frequency instead of it being detected */
+  isFrequencySet: boolean
+}
+
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
 /**
@@ -1204,8 +1213,14 @@ export async function getDetectedSubscriptions(
   const subscriptions: DetectedSubscription[] = []
   const today = new Date()
 
-  for (const [, group] of subscriptionGroups) {
+  const overrides = await getSubscriptionOverrides(userId)
+
+  for (const [key, group] of subscriptionGroups) {
     if (group.transactions.length === 0) continue
+
+    // The user removed this subscription
+    const override = overrides.get(key)
+    if (override?.isRemoved) continue
 
     // Sort transactions by date (newest first)
     group.transactions.sort((a, b) => b.date.localeCompare(a.date))
@@ -1237,7 +1252,10 @@ export async function getDetectedSubscriptions(
     // Get unique months sorted (newest first)
     const uniqueMonths = Array.from(monthlyTotals.keys()).sort((a, b) => b.localeCompare(a))
 
-    if (uniqueMonths.length >= 2) {
+    if (override?.frequency) {
+      // The user set the frequency, so skip detection
+      frequency = override.frequency
+    } else if (uniqueMonths.length >= 2) {
       // Calculate gaps between months (not individual transactions)
       // This handles cases like Furlenco where there are multiple charges per month
       const monthGaps: number[] = []
@@ -1310,9 +1328,10 @@ export async function getDetectedSubscriptions(
     }
 
     subscriptions.push({
+      key,
       name: group.name,
       category: group.category,
-      amount: Math.round(avgAmount),
+      amount: round2(avgAmount),
       frequency,
       lastChargeDate: group.transactions[0]!.date,
       chargeCount: group.transactions.length,
@@ -1323,6 +1342,7 @@ export async function getDetectedSubscriptions(
       institution: group.institution,
       profileId: group.profileId,
       isActive,
+      isFrequencySet: !!override?.frequency,
     })
   }
 
@@ -1368,7 +1388,7 @@ export async function getDetectedSubscriptions(
 
   return {
     subscriptions,
-    totalMonthly: Math.round(totalMonthly),
+    totalMonthly: round2(totalMonthly),
     currency,
   }
 }

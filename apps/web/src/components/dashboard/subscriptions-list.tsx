@@ -8,9 +8,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 function getMonthlyPrice(amount: number, frequency: DetectedSubscription['frequency']): number {
   switch (frequency) {
     case 'quarterly':
-      return Math.round(amount / 3)
+      return Math.round((amount / 3) * 100) / 100
     case 'yearly':
-      return Math.round(amount / 12)
+      return Math.round((amount / 12) * 100) / 100
     default:
       return amount
   }
@@ -63,7 +63,7 @@ function formatCurrency(amount: number, currency: string): string {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount)
 }
 

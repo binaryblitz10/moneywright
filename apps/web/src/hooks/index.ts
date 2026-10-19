@@ -166,6 +166,13 @@ export { useDebounce } from './useDebounce'
 export { useProfileSelection } from './useProfileSelection'
 export { useUpdateChecker } from './useUpdateChecker'
 
+// Subscription hooks
+export {
+  useAddSubscription,
+  useSetSubscriptionFrequency,
+  useRemoveSubscription,
+} from './useSubscriptions'
+
 // Data health hooks
 export { dataHealthKeys, useDataHealth } from './useDataHealth'
 

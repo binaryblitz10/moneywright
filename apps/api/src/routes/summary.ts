@@ -1,8 +1,16 @@
 import { Hono } from 'hono'
+import { z } from 'zod/v4'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { calculateNetWorth } from '../services/accounts'
 import { getInvestmentSummary } from '../services/investment-holdings'
 import { getDetectedSubscriptions } from '../services/transactions'
+import {
+  SUBSCRIPTION_FREQUENCIES,
+  SubscriptionNotFoundError,
+  addSubscription,
+  removeSubscription,
+  setSubscriptionFrequency,
+} from '../services/subscription-overrides'
 import { fetchFxRates, getConversionRate } from '../services/fx-rates'
 import {
   getDataStartMonth,
@@ -277,6 +285,69 @@ summaryRoutes.get('/subscriptions', async (c) => {
   const result = await getDetectedSubscriptions(userId, profileId)
 
   return c.json(result)
+})
+
+const frequencySchema = z.enum(SUBSCRIPTION_FREQUENCIES)
+const addSubscriptionSchema = z.object({
+  transactionId: z.string().min(1),
+  frequency: frequencySchema,
+})
+const setFrequencySchema = z.object({ key: z.string().min(1), frequency: frequencySchema })
+const removeSubscriptionSchema = z.object({ key: z.string().min(1) })
+
+/**
+ * POST /summary/subscriptions
+ * Add a recurring payment by picking one of its transactions
+ * Body: { transactionId, frequency }
+ */
+summaryRoutes.post('/subscriptions', async (c) => {
+  const userId = c.get('userId')
+  const result = addSubscriptionSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!result.success) {
+    return c.json({ error: 'validation_error', message: result.error.issues[0]?.message }, 400)
+  }
+
+  try {
+    const key = await addSubscription(userId, result.data.transactionId, result.data.frequency)
+    return c.json({ key }, 201)
+  } catch (error) {
+    if (error instanceof SubscriptionNotFoundError) {
+      return c.json({ error: 'not_found', message: error.message }, 404)
+    }
+    throw error
+  }
+})
+
+/**
+ * PUT /summary/subscriptions/frequency
+ * Set how often a subscription is billed
+ * Body: { key, frequency }
+ */
+summaryRoutes.put('/subscriptions/frequency', async (c) => {
+  const userId = c.get('userId')
+  const result = setFrequencySchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!result.success) {
+    return c.json({ error: 'validation_error', message: result.error.issues[0]?.message }, 400)
+  }
+
+  await setSubscriptionFrequency(userId, result.data.key, result.data.frequency)
+  return c.json({ success: true })
+})
+
+/**
+ * POST /summary/subscriptions/remove
+ * Remove a subscription so it is no longer detected
+ * Body: { key }
+ */
+summaryRoutes.post('/subscriptions/remove', async (c) => {
+  const userId = c.get('userId')
+  const result = removeSubscriptionSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!result.success) {
+    return c.json({ error: 'validation_error', message: result.error.issues[0]?.message }, 400)
+  }
+
+  await removeSubscription(userId, result.data.key)
+  return c.json({ success: true })
 })
 
 /**
