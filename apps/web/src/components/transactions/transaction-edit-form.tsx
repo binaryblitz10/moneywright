@@ -97,10 +97,12 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const hasChanges = single ? !!category : hasNameOrCategoryChange || isHidden !== null
 
   // "Create Rule" is offered once the name or category is changed
-  const [applyState, setApplyState] = useState<ApplyToMatchingState>(() => {
-    const term = single ? suggestTerm(single.originalDescription, single.summary) : ''
-    return { terms: term ? [term] : [], updateExisting: true, saveRule: true }
+  // Adding any term means the user wants a rule, so nothing is prefilled; the suggestion is one click
+  const [applyState, setApplyState] = useState<ApplyToMatchingState>({
+    terms: [],
+    updateExisting: true,
   })
+  const suggestedTerm = single ? suggestTerm(single.originalDescription, single.summary) : ''
   const { data: preview, isFetching: isPreviewFetching } = useRulePreview(
     applyState.terms,
     null,
@@ -220,19 +222,17 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       }
     }
 
-    if (applyState.saveRule) {
-      try {
-        await createTransactionRule({
-          matchTerms: applyState.terms,
-          name: trimmedSummary || null,
-          category: category || null,
-          transactionType: null,
-        })
-        queryClient.invalidateQueries({ queryKey: transactionRuleKeys.all })
-        toast.success('Rule saved')
-      } catch {
-        toast.error('Failed to save rule')
-      }
+    try {
+      await createTransactionRule({
+        matchTerms: applyState.terms,
+        name: trimmedSummary || null,
+        category: category || null,
+        transactionType: null,
+      })
+      queryClient.invalidateQueries({ queryKey: transactionRuleKeys.all })
+      toast.success('Rule saved')
+    } catch {
+      toast.error('Failed to save rule')
     }
   }
 
@@ -281,7 +281,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="space-y-2">
         <Label htmlFor="summary">Summary</Label>
         <Input
@@ -356,6 +356,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         <ApplyToMatching
           state={applyState}
           onChange={setApplyState}
+          suggestedTerm={suggestedTerm}
+          totalCount={hasTerms ? (preview?.count ?? 0) : 0}
           count={matchingCount}
           samples={matchingSamples}
           isFetching={isPreviewFetching}
