@@ -43,9 +43,9 @@ function parseAmountSearch(search: string): number | null {
  * Search condition: description/summary text match, plus an exact amount match
  * when the term is a number (tolerance covers float storage on SQLite)
  */
-function buildSearchCondition(search: string) {
-  const searchTerm = `%${search}%`
-  const amount = parseAmountSearch(search)
+function buildTermCondition(term: string) {
+  const searchTerm = `%${term}%`
+  const amount = parseAmountSearch(term)
   const textMatch = [
     like(tables.transactions.originalDescription, searchTerm),
     like(tables.transactions.summary, searchTerm),
@@ -54,6 +54,16 @@ function buildSearchCondition(search: string) {
     textMatch.push(sql`ABS(${tables.transactions.amount} - ${amount}) < 0.005`)
   }
   return or(...textMatch)!
+}
+
+/**
+ * Whitespace-separated terms are searched independently; a transaction must
+ * match every term (in any order, in either description or summary)
+ */
+function buildSearchCondition(search: string) {
+  const terms = search.split(/\s+/).filter(Boolean)
+  if (terms.length <= 1) return buildTermCondition(search.trim())
+  return and(...terms.map(buildTermCondition))!
 }
 
 export interface TransactionResponse {
