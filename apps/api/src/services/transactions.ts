@@ -331,6 +331,29 @@ export async function getTransactions(
   }
 }
 
+/** Most transactions one bulk action or "select all matching" covers */
+export const MAX_BULK_TRANSACTIONS = 5000
+
+/**
+ * IDs of every transaction matching the filters (newest first), capped at MAX_BULK_TRANSACTIONS
+ */
+export async function getTransactionIds(
+  userId: string,
+  filters?: TransactionFilters
+): Promise<{ ids: string[]; truncated: boolean }> {
+  const rows = await db
+    .select({ id: tables.transactions.id })
+    .from(tables.transactions)
+    .where(and(...buildFilterConditions(userId, filters)))
+    .orderBy(desc(tables.transactions.date))
+    .limit(MAX_BULK_TRANSACTIONS + 1)
+
+  return {
+    ids: rows.slice(0, MAX_BULK_TRANSACTIONS).map((row) => row.id),
+    truncated: rows.length > MAX_BULK_TRANSACTIONS,
+  }
+}
+
 /**
  * Get a transaction by ID
  */

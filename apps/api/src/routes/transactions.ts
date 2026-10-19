@@ -8,6 +8,8 @@ import {
   createManualTransaction,
   bulkUpdateTransactions,
   bulkDeleteTransactions,
+  getTransactionIds,
+  MAX_BULK_TRANSACTIONS,
   findDuplicateGroups,
   getReviewCounts,
   type TransactionFilters,
@@ -73,7 +75,10 @@ const createTransactionSchema = z.object({
  */
 const bulkUpdateSchema = z
   .object({
-    transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
+    transactionIds: z
+      .array(z.string().min(1))
+      .min(1, 'Select at least one transaction')
+      .max(MAX_BULK_TRANSACTIONS),
     category: z
       .string()
       .min(1)
@@ -106,7 +111,10 @@ const dismissCardPaymentsSchema = z.object({
 })
 
 const bulkDeleteSchema = z.object({
-  transactionIds: z.array(z.string().min(1)).min(1, 'Select at least one transaction').max(500),
+  transactionIds: z
+    .array(z.string().min(1))
+    .min(1, 'Select at least one transaction')
+    .max(MAX_BULK_TRANSACTIONS),
 })
 
 /**
@@ -202,6 +210,15 @@ transactionRoutes.get('/', async (c) => {
   })
 
   return c.json(result)
+})
+
+/**
+ * GET /transactions/ids
+ * IDs of every transaction matching the filters, for "select all matching"
+ */
+transactionRoutes.get('/ids', async (c) => {
+  const userId = c.get('userId')
+  return c.json(await getTransactionIds(userId, parseTransactionFilters(c)))
 })
 
 /**
