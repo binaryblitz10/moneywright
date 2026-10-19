@@ -4,7 +4,6 @@ import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import { getCategoryKind, TRANSACTION_CATEGORIES } from '../lib/constants'
 import { getAccountsByUserId } from './accounts'
 import { accountKind } from './data-health'
-import { getCashflowExcludedCategories } from './preferences'
 
 /**
  * Spending changes service
@@ -89,7 +88,6 @@ export interface SpendingChangesOptions {
   baselineMonths?: number
   /** YYYY-MM-DD, used to decide which month is still in progress */
   today: string
-  excludeCategories?: string[]
   /** YYYY-MM; the first complete month of data across accounts. Earlier months are never baselines */
   dataStartMonth?: string
 }
@@ -284,10 +282,7 @@ export function computeSpendingChanges(
     }
   }
 
-  const excluded = new Set(options.excludeCategories ?? [])
-  const spending = transactions.filter(
-    (txn) => getCategoryKind(txn.category) === 'expense' && !excluded.has(txn.category)
-  )
+  const spending = transactions.filter((txn) => getCategoryKind(txn.category) === 'expense')
   const baselineSet = new Set(baselineMonths)
   const current = spending.filter((txn) => txn.date.startsWith(month))
   const baseline = spending.filter((txn) => baselineSet.has(txn.date.substring(0, 7)))
@@ -581,7 +576,6 @@ export async function getSpendingChanges(
       baselineMonths,
       today,
       dataStartMonth: (await getDataStartMonth(userId, options.profileId)) ?? undefined,
-      excludeCategories: await getCashflowExcludedCategories(userId),
     }
   )
 

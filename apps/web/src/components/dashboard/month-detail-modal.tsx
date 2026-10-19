@@ -84,7 +84,7 @@ export function MonthDetailModal({
   const [viewMode, setViewMode] = useState<ViewMode>('transactions')
   const [showOtherFlows, setShowOtherFlows] = useState(false)
 
-  // Use data from the API response (already has netting and exclusions applied)
+  // Use data from the API response (already has netting applied)
   const totals = data?.totals ?? EMPTY_TOTALS
   const currency = data?.currency || 'INR'
 

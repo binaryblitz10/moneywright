@@ -1,6 +1,5 @@
-import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
-import { logger } from '../lib/logger'
 
 /**
  * Preference keys used in the app
@@ -8,7 +7,6 @@ import { logger } from '../lib/logger'
 export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
-  CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
   DISMISSED_CARD_PAYMENTS: 'data_health.dismissed_card_payments',
@@ -18,20 +16,6 @@ export const PREFERENCE_KEYS = {
   STATEMENT_CATEGORISATION_MODEL: 'statement.categorisation.model',
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const
-
-/**
- * Legacy per-widget exclusion keys, only read by migrateExcludedCategoryPreferences
- */
-const OLD_EXCLUSION_KEYS = [
-  'dashboard.excluded_categories',
-  'dashboard.income_expenses.excluded_categories',
-  'dashboard.spending_by_category.excluded_categories',
-]
-
-/**
- * Categories that never count toward income/expenses, so they are dropped during migration
- */
-const NEVER_EXCLUDED_CATEGORIES = ['investment', 'transfer', 'credit_card_payment']
 
 /**
  * Ollama custom model definition
@@ -216,16 +200,6 @@ function parseCategoryList(value: string): string[] {
 }
 
 /**
- * Helper: Get categories excluded from income/expense calculations (user-wide)
- */
-export async function getCashflowExcludedCategories(userId: string): Promise<string[]> {
-  const value = await getPreference(userId, PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES, null)
-  if (!value) return []
-
-  return parseCategoryList(value)
-}
-
-/**
  * Helper: Get the duplicate groups the user marked as not duplicates (user-wide)
  */
 export async function getDismissedDuplicates(userId: string): Promise<string[]> {
@@ -298,82 +272,6 @@ export async function setManuallyUnlinked(
   }
   if (current.size === before && !unlinked) return
   await setPreference(userId, PREFERENCE_KEYS.MANUALLY_UNLINKED, JSON.stringify([...current]))
-}
-
-/**
- * One-time migration: merge the old per-widget exclusion preferences into
- * cashflow.excluded_categories and delete the old keys. Safe to run on every startup.
- */
-export async function migrateExcludedCategoryPreferences(): Promise<void> {
-  try {
-    const rows = await db
-      .select()
-      .from(tables.userPreferences)
-      .where(inArray(tables.userPreferences.key, OLD_EXCLUSION_KEYS))
-
-    if (rows.length === 0) return
-
-    // Group rows by user so each user's merge succeeds or fails independently
-    const rowsByUser = new Map<string, typeof rows>()
-    for (const row of rows) {
-      const userRows = rowsByUser.get(row.userId) ?? []
-      userRows.push(row)
-      rowsByUser.set(row.userId, userRows)
-    }
-
-    let migratedCount = 0
-    for (const [userId, userRows] of rowsByUser) {
-      try {
-        const merged = new Set<string>()
-        for (const row of userRows) {
-          for (const code of parseCategoryList(row.value)) {
-            merged.add(code)
-          }
-        }
-        for (const code of NEVER_EXCLUDED_CATEGORIES) {
-          merged.delete(code)
-        }
-        const list = [...merged]
-
-        // An existing user-level value wins; only fill in when none is saved
-        const existing = await getPreference(
-          userId,
-          PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES,
-          null
-        )
-        if (!existing && list.length > 0) {
-          await setPreference(
-            userId,
-            PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES,
-            JSON.stringify(list),
-            null
-          )
-        }
-
-        await db
-          .delete(tables.userPreferences)
-          .where(
-            and(
-              eq(tables.userPreferences.userId, userId),
-              inArray(tables.userPreferences.key, OLD_EXCLUSION_KEYS)
-            )
-          )
-
-        migratedCount++
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error('[Preferences] Failed to migrate excluded categories', {
-          userId,
-          error: message,
-        })
-      }
-    }
-
-    logger.debug(`[Preferences] Migrated excluded categories for ${migratedCount} user(s)`)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    logger.error('[Preferences] Excluded category migration failed', { error: message })
-  }
 }
 
 /**

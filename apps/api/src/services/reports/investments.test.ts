@@ -95,7 +95,6 @@ describe('computeInvestments', () => {
     period,
     sources,
     holdings,
-    excludeCategories: [],
   })
 
   test('totals put in, taken out and net, with the comparison', () => {
@@ -153,7 +152,6 @@ describe('computeInvestments', () => {
       period: resolvePeriod('2026-09', '2026-09', '2026-09'),
       sources,
       holdings: [],
-      excludeCategories: [],
     })
     expect(early.totals.previous).toBeNull()
     expect(early.totals.putInChange).toBeNull()
@@ -166,7 +164,6 @@ describe('computeInvestments', () => {
       period,
       sources,
       holdings: [],
-      excludeCategories: [],
     })
     expect(noHoldings.platforms[0]).toMatchObject({
       currentValue: null,

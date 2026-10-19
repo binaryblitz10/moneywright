@@ -106,8 +106,6 @@ export interface TransactionFilters {
   category?: string | string[]
   /** Category kind; unknown codes count as expenses, matching getCategoryKind */
   kind?: CategoryKind
-  /** Categories to leave out (e.g. the user's cash flow exclusions) */
-  excludeCategories?: string[]
   type?: 'credit' | 'debit'
   startDate?: string
   endDate?: string
@@ -232,10 +230,6 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
     } else {
       conditions.push(inArray(tables.transactions.category, getCategoryCodesByKind(kind)))
     }
-  }
-
-  if (filters?.excludeCategories?.length) {
-    conditions.push(notInArray(tables.transactions.category, filters.excludeCategories))
   }
 
   if (filters?.type) {

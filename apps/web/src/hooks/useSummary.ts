@@ -6,7 +6,6 @@ import {
   getMonthlyTrends,
   getPreferences,
   setPreference,
-  PREFERENCE_KEYS,
 } from '@/lib/api'
 
 import type { MonthlyTrendsOptions } from '@/lib/api'
@@ -93,13 +92,9 @@ export function useSetPreference() {
       value: string
       profileId?: string | null
     }) => setPreference(key, value, profileId),
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       // Invalidate preferences queries
       queryClient.invalidateQueries({ queryKey: preferencesKeys.all })
-      // Exclusions affect every summary query (cards, trends, month popup)
-      if (variables.key === PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES) {
-        queryClient.invalidateQueries({ queryKey: summaryKeys.all })
-      }
     },
   })
 }

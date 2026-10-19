@@ -509,7 +509,7 @@ export const userPreferences = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     profileId: text('profile_id').references(() => profiles.id, { onDelete: 'cascade' }), // null = applies to all profiles
-    key: text('key').notNull(), // e.g., 'dashboard.excluded_categories', 'dashboard.chart_timeframe'
+    key: text('key').notNull(), // e.g., 'dashboard.chart_timeframe'
     value: text('value').notNull(), // JSON string for complex values
 
     createdAt: text('created_at')

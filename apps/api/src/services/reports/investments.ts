@@ -7,7 +7,6 @@ import { logger } from '../../lib/logger'
 import { getConversionRate } from '../fx-rates'
 import { getHoldingsByUserId } from '../investment-holdings'
 import { getSourcesByUserId, type InvestmentSourceResponse } from '../investment-sources'
-import { getCashflowExcludedCategories } from '../preferences'
 import { merchantKey, merchantName } from '../spending-changes'
 import {
   changeBetween,
@@ -219,11 +218,9 @@ export function computeInvestments(input: {
   period: ReportPeriod
   sources: ReportSource[]
   holdings: ReportHolding[]
-  excludeCategories: string[]
 }): InvestmentsData {
   const { period } = input
-  const excluded = new Set(input.excludeCategories)
-  const all = input.transactions.filter((t) => !excluded.has(t.category))
+  const all = input.transactions
   const current = inRange(all, period)
   const previous = period.comparison ? inRange(all, period.comparison) : null
 
@@ -360,11 +357,10 @@ export async function getInvestmentsReport(
   const bounds = await getReportBounds(userId, profileId)
   const period = resolvePeriod(options.from, options.to, bounds.earliestMonth)
 
-  const [loaded, sources, holdings, excludeCategories] = await Promise.all([
+  const [loaded, sources, holdings] = await Promise.all([
     loadReportTransactions(userId, { profileId, kind: 'investment' }),
     getSourcesByUserId(userId, profileId),
     loadHoldings(userId, profileId),
-    getCashflowExcludedCategories(userId),
   ])
 
   return {
@@ -373,7 +369,6 @@ export async function getInvestmentsReport(
       period,
       sources,
       holdings,
-      excludeCategories,
     }),
     period,
     currency: loaded.currency,

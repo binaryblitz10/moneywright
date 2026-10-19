@@ -1,6 +1,5 @@
 import { computeCashFlow, computeSavings, toBreakdown, type CashFlowResult } from '../cashflow'
 import { getAccountsByUserId } from '../accounts'
-import { getCashflowExcludedCategories } from '../preferences'
 import { getCategoryKind } from '../../lib/constants'
 import { categoryLabel } from '../spending-changes'
 import { computeTotals, type TotalsGroup } from '../transaction-totals'
@@ -189,19 +188,14 @@ function accountFlow(transactions: ReportTransaction[], accountId: string): Acco
 
 /**
  * Pure calculation - no DB access (unit tested)
- * `previous` is null when there is no comparison period. Excluded categories are dropped
- * from everything, like the dashboard.
+ * `previous` is null when there is no comparison period.
  */
 export function computePeriodReport(input: {
   current: ReportTransaction[]
   previous: ReportTransaction[] | null
   accounts: ReportAccount[]
-  excludeCategories: string[]
 }): PeriodReportData {
-  const excluded = new Set(input.excludeCategories)
-  const keep = (list: ReportTransaction[]) => list.filter((t) => !excluded.has(t.category))
-  const current = keep(input.current)
-  const previous = input.previous ? keep(input.previous) : null
+  const { current, previous } = input
 
   const currentCf = computeCashFlow(current)
   const previousCf = previous ? computeCashFlow(previous) : null
@@ -353,14 +347,13 @@ export async function getPeriodReport(
   const period = resolvePeriod(options.from, options.to, bounds.earliestMonth)
   const { comparison } = period
 
-  const [loaded, accounts, excludeCategories, health] = await Promise.all([
+  const [loaded, accounts, health] = await Promise.all([
     loadReportTransactions(userId, {
       profileId,
       startDate: comparison?.startDate ?? period.startDate,
       endDate: period.endDate,
     }),
     getAccountsByUserId(userId, profileId),
-    getCashflowExcludedCategories(userId),
     getDataHealth(userId, { profileId, startDate: period.startDate, endDate: period.endDate }),
   ])
 
@@ -368,7 +361,6 @@ export async function getPeriodReport(
     current: inRange(loaded.transactions, period),
     previous: comparison ? inRange(loaded.transactions, comparison) : null,
     accounts: accounts.map(toReportAccount),
-    excludeCategories,
   })
 
   return {

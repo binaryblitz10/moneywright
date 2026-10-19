@@ -26,7 +26,6 @@ export { CategoryBreakdown } from './category-breakdown'
 export { AccountBalanceCard } from './account-balance-card'
 export { MonthDetailModal } from './month-detail-modal'
 export { DashboardTimeframePicker } from './dashboard-timeframe-picker'
-export { ExcludedCategoriesPicker } from './excluded-categories-picker'
 
 // Card components
 export { IncomeExpensesCard } from './income-expenses-card'

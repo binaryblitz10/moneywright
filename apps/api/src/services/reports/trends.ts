@@ -1,5 +1,4 @@
 import { getAccountsByUserId } from '../accounts'
-import { getCashflowExcludedCategories } from '../preferences'
 import { getCategoryKind } from '../../lib/constants'
 import { categoryLabel, merchantKey, merchantName } from '../spending-changes'
 import { signedForKind } from '../transaction-totals'
@@ -120,19 +119,16 @@ function addTo(
 
 /**
  * Pure calculation - no DB access (unit tested)
- * Only expense-kind transactions count; excluded categories are dropped. Rows are sorted
- * by total, largest first.
+ * Only expense-kind transactions count. Rows are sorted by total, largest first.
  */
 export function computeTrends(input: {
   transactions: ReportTransaction[]
   months: string[]
   accounts: ReportAccount[]
-  excludeCategories: string[]
   /** The last month is still in progress, so it is left out of the trend */
   lastMonthPartial?: boolean
 }): TrendsData {
   const { months } = input
-  const excluded = new Set(input.excludeCategories)
   const monthIndex = new Map(months.map((m, i) => [m, i] as const))
   const accountsById = new Map(input.accounts.map((a) => [a.id, a] as const))
 
@@ -143,7 +139,7 @@ export function computeTrends(input: {
   for (const txn of input.transactions) {
     const index = monthIndex.get(txn.date.substring(0, 7))
     if (index === undefined) continue
-    if (excluded.has(txn.category) || getCategoryKind(txn.category) !== 'expense') continue
+    if (getCategoryKind(txn.category) !== 'expense') continue
     addTo(categories, txn.category, categoryLabel(txn.category), index, months.length, txn)
     addTo(merchants, merchantKey(txn), merchantName(txn), index, months.length, txn)
     addTo(
@@ -205,14 +201,13 @@ export async function getTrendsReport(
 ): Promise<TrendsResponse> {
   const { profileId, from, to } = options
   const months = monthsBetween(from, to)
-  const [loaded, accounts, excludeCategories] = await Promise.all([
+  const [loaded, accounts] = await Promise.all([
     loadReportTransactions(userId, {
       profileId,
       startDate: `${from}-01`,
       endDate: monthEndDate(to),
     }),
     getAccountsByUserId(userId, profileId),
-    getCashflowExcludedCategories(userId),
   ])
 
   return {
@@ -220,7 +215,6 @@ export async function getTrendsReport(
       transactions: loaded.transactions,
       months,
       accounts: accounts.map(toReportAccount),
-      excludeCategories,
       lastMonthPartial: to === localToday().substring(0, 7),
     }),
     from,

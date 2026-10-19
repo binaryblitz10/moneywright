@@ -27,7 +27,6 @@ import {
 import { PREFERENCE_KEYS } from '@/lib/api'
 import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from '@/lib/api'
 import type { MonthlyTrendData } from '@/lib/api'
-import { categoriesOfKind } from '@/lib/category-kinds'
 import { DASHBOARD_WIDGETS, type DashboardWidgetId } from '@/lib/dashboard-widgets'
 import { cn } from '@/lib/utils'
 
@@ -41,7 +40,6 @@ import {
   getTimeframeDateRange,
   parseSavedTimeframe,
   DashboardTimeframePicker,
-  ExcludedCategoriesPicker,
   IncomeExpensesCard,
   WhatChangedCard,
   SpendingByCategoryCard,
@@ -145,12 +143,6 @@ function DashboardPage() {
   const { data: categoriesData } = useCategories(isAuthenticated)
   const categories = useMemo(() => categoriesData?.categories || [], [categoriesData?.categories])
 
-  // Categories that can be excluded from income and expense figures
-  const exclusionCategories = useMemo(
-    () => [...categoriesOfKind(categories, 'income'), ...categoriesOfKind(categories, 'expense')],
-    [categories]
-  )
-
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = isAuthenticated && (!!profileId || showFamilyView)
   // Date-based widgets wait for the saved timeframe so they don't fetch the default range first
@@ -173,45 +165,7 @@ function DashboardPage() {
     [categories]
   )
 
-  // Categories excluded from every income and expense figure (user-wide preference)
-  const excludedCategories = useMemo(() => {
-    const prefValue = preferences?.[PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES]
-    if (!prefValue) return []
-    try {
-      const parsed: unknown = JSON.parse(prefValue)
-      return Array.isArray(parsed)
-        ? parsed.filter((code): code is string => typeof code === 'string')
-        : []
-    } catch {
-      return []
-    }
-  }, [preferences])
-
-  const saveExcludedCategories = useCallback(
-    (list: string[]) => {
-      setPreferenceMutation.mutate({
-        key: PREFERENCE_KEYS.CASHFLOW_EXCLUDED_CATEGORIES,
-        value: JSON.stringify(list),
-      })
-    },
-    [setPreferenceMutation]
-  )
-
-  const toggleExcludedCategory = useCallback(
-    (categoryCode: string) => {
-      const next = excludedCategories.includes(categoryCode)
-        ? excludedCategories.filter((c) => c !== categoryCode)
-        : [...excludedCategories, categoryCode]
-      saveExcludedCategories(next)
-    },
-    [excludedCategories, saveExcludedCategories]
-  )
-
-  const clearExcludedCategories = useCallback(() => {
-    saveExcludedCategories([])
-  }, [saveExcludedCategories])
-
-  // Fetch summary (already respects the excluded categories server side)
+  // Fetch summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['summary', profileId ?? 'family', dateRange.startDate, dateRange.endDate],
     queryFn: () =>
@@ -244,7 +198,6 @@ function DashboardPage() {
       selectedMonth?.month,
       dateRange.startDate,
       dateRange.endDate,
-      excludedCategories,
     ],
     queryFn: () =>
       getMonthTransactions(profileId, selectedMonth!.month, {
@@ -315,12 +268,6 @@ function DashboardPage() {
         description="Your financial overview"
         actions={
           <div className="flex items-center gap-2">
-            <ExcludedCategoriesPicker
-              categories={exclusionCategories}
-              excluded={excludedCategories}
-              onToggle={toggleExcludedCategory}
-              onClear={clearExcludedCategories}
-            />
             <DashboardTimeframePicker
               selection={timeframeSelection}
               onChange={handleTimeframeChange}

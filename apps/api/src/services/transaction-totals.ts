@@ -1,6 +1,5 @@
 import type { CategoryKind } from '../lib/constants'
 import { getAccountsByUserId, type AccountResponse } from './accounts'
-import { getCashflowExcludedCategories } from './preferences'
 import { categoryLabel, merchantKey, merchantName } from './spending-changes'
 import { getTransactions } from './transactions'
 
@@ -209,18 +208,16 @@ function accountLabel(account: AccountResponse): string {
 /** Upper bound on rows read for one total; far above any personal history */
 const MAX_ROWS = 1_000_000
 
-/** Load the period's transactions of one kind, leaving out the user's cash flow exclusions */
+/** Load the period's transactions of one kind */
 async function loadTotalsTransactions(
   userId: string,
-  filters: TotalsFilters & { startDate?: string; endDate?: string },
-  excludeCategories: string[]
+  filters: TotalsFilters & { startDate?: string; endDate?: string }
 ): Promise<{ transactions: TotalsTransaction[]; currency: string }> {
   const { transactions } = await getTransactions(
     userId,
     {
       profileId: filters.profileId,
       kind: filters.kind,
-      excludeCategories,
       category: filters.category,
       accountId: filters.accountId,
       search: filters.search,
@@ -242,9 +239,8 @@ export async function getTotals(
   userId: string,
   options: TotalsFilters & { startDate?: string; endDate?: string; groupBy: TotalsGroupBy }
 ): Promise<TotalsResult & { currency: string }> {
-  const excluded = await getCashflowExcludedCategories(userId)
   const [{ transactions, currency }, accountNames] = await Promise.all([
-    loadTotalsTransactions(userId, options, excluded),
+    loadTotalsTransactions(userId, options),
     options.groupBy === 'account' ? getAccountNames(userId) : undefined,
   ])
   return {
@@ -270,10 +266,9 @@ export async function comparePeriods(
   userId: string,
   options: TotalsFilters & { periodA: DateRange; periodB: DateRange; groupBy: CompareGroupBy }
 ): Promise<PeriodComparison & { currency: string }> {
-  const excluded = await getCashflowExcludedCategories(userId)
   const [a, b, accountNames] = await Promise.all([
-    loadTotalsTransactions(userId, { ...options, ...options.periodA }, excluded),
-    loadTotalsTransactions(userId, { ...options, ...options.periodB }, excluded),
+    loadTotalsTransactions(userId, { ...options, ...options.periodA }),
+    loadTotalsTransactions(userId, { ...options, ...options.periodB }),
     options.groupBy === 'account' ? getAccountNames(userId) : undefined,
   ])
   const totalsOptions = { ...options, accountNames }

@@ -37,7 +37,6 @@ import {
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
-import { getCashflowExcludedCategories } from '../preferences'
 import { comparePeriods, daysInRange, getTotals } from '../transaction-totals'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
@@ -314,7 +313,7 @@ export function createTools(context: ToolContext) {
 
 **Filters** (all optional):
 - startDate/endDate: ISO dates (YYYY-MM-DD)
-- kind: 'expense' | 'income' | 'investment' | 'transfer' - the same labels the dashboard uses. With kind set, card bill payments and own-account transfers are already left out (unless kind is 'transfer'), as are categories the user excluded from cash flow
+- kind: 'expense' | 'income' | 'investment' | 'transfer' - the same labels the dashboard uses. With kind set, card bill payments and own-account transfers are already left out (unless kind is 'transfer')
 - category: Transaction category
 - type: 'credit' | 'debit'. Refunds are credits under kind 'expense', so use kind 'expense' + type 'debit' for purchases
 - minAmount/maxAmount: Amount range
@@ -396,8 +395,6 @@ For totals per category, merchant, month or account use getTotals instead of add
           startDate: params.startDate ?? undefined,
           endDate: params.endDate ?? undefined,
           kind: params.kind ?? undefined,
-          // Match the dashboard: a kind leaves out the user's cash flow exclusions
-          excludeCategories: params.kind ? await getCashflowExcludedCategories(userId) : undefined,
           category: params.category ?? undefined,
           type: params.type ?? undefined,
           minAmount: params.minAmount ?? undefined,
@@ -994,7 +991,6 @@ Refunds are already subtracted from expenses. Investments are NOT expenses. Alwa
             creditCount: cat.creditCount,
             debitCount: cat.debitCount,
           })),
-          excludedCategories: result.excludedCategories,
           currency: result.currency,
         }
       },
@@ -1067,7 +1063,6 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
 - income: credits minus reversals
 - investment: money put into investments
 - transfer: card bill payments and moves between own accounts
-Categories the user excluded from cash flow are left out, so totals match the dashboard.
 
 **groupBy**: 'category' | 'merchant' | 'month' | 'account'
 - merchant is the transaction's whole name (e.g. "Swiggy", "Rahul Sharma")
@@ -1129,7 +1124,7 @@ Change is always periodB minus periodA, so pass the earlier period as periodA. c
 Groups are sorted by the size of the change, largest first; groups that appear in only one period are included.
 daysA/daysB give each period's length: when they differ (or a period is still in progress), say so rather than comparing the totals as equals.
 
-Uses the same kinds, signs and exclusions as getTotals (default kind 'expense').
+Uses the same kinds and signs as getTotals (default kind 'expense').
 For one month against the user's usual months, getSpendingChanges is better.`,
       inputSchema: z.object({
         periodA: z

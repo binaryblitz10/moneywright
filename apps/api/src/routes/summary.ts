@@ -148,7 +148,6 @@ summaryRoutes.get('/', async (c) => {
       currency: cf.currency,
       incomeBreakdown: toBreakdown(cf.byCategory, 'income'),
       categoryBreakdown: toBreakdown(cf.byCategory, 'expense'),
-      excludedCategories: cf.excludedCategories,
       // Spending in the previous period of the same length; null when there is no full data for it
       previousPeriod:
         previousRange && previousCf && previousComparable
@@ -212,13 +211,12 @@ summaryRoutes.get('/monthly-trends', async (c) => {
       savingsRate: periodSavings.savingsRate,
     },
     currency: cf.currency,
-    excludedCategories: cf.excludedCategories,
   })
 })
 
 /**
  * GET /summary/month-transactions
- * Get transactions for a specific month grouped by kind, with exclusions applied
+ * Get transactions for a specific month grouped by kind
  * Query params:
  *   - profileId (optional): Profile to get transactions for. If not provided, aggregates all profiles.
  *   - month (required): Month in YYYY-MM format

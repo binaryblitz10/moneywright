@@ -1,7 +1,6 @@
 import { eq, and, gte, lte, desc } from 'drizzle-orm'
 import { db, tables, type Transaction } from '../db'
 import { getCategoryKind, type CategoryKind } from '../lib/constants'
-import { getCashflowExcludedCategories } from './preferences'
 import { toTransactionResponse, type TransactionResponse } from './transactions'
 
 /**
@@ -57,7 +56,6 @@ export interface CashFlowResult extends CashFlowTotals {
   byCategory: CategoryCashFlow[]
   /** Chronological; only months that have transactions; empty unless groupByMonth */
   months: MonthCashFlow[]
-  excludedCategories: string[]
   /** First transaction's currency, default 'INR' */
   currency: string
 }
@@ -70,8 +68,6 @@ export interface CashFlowOptions {
   /** YYYY-MM-DD inclusive */
   endDate?: string
   groupByMonth?: boolean
-  /** Defaults to the user's saved cashflow.excluded_categories */
-  excludeCategories?: string[]
 }
 
 /**
@@ -155,21 +151,18 @@ function aggregateCategories(transactions: CashFlowTransaction[]): CategoryCashF
 /**
  * Pure calculation - no DB access (unit tested)
  * Income = credits - debits for income categories; expenses, invested and transfers
- * are debits - credits. Excluded categories are dropped entirely.
+ * are debits - credits.
  */
 export function computeCashFlow(
   transactions: CashFlowTransaction[],
-  options?: { excludeCategories?: string[]; groupByMonth?: boolean }
-): Omit<CashFlowResult, 'excludedCategories' | 'currency'> {
-  const excluded = new Set(options?.excludeCategories ?? [])
-  const included = transactions.filter((txn) => !excluded.has(txn.category))
-
-  const byCategory = aggregateCategories(included)
+  options?: { groupByMonth?: boolean }
+): Omit<CashFlowResult, 'currency'> {
+  const byCategory = aggregateCategories(transactions)
   const months: MonthCashFlow[] = []
 
   if (options?.groupByMonth) {
     const byMonth = new Map<string, CashFlowTransaction[]>()
-    for (const txn of included) {
+    for (const txn of transactions) {
       const month = txn.date.substring(0, 7)
       const bucket = byMonth.get(month)
       if (bucket) {
@@ -328,17 +321,12 @@ export async function getCashFlow(
     endDate: options?.endDate,
   })
 
-  const excludedCategories =
-    options?.excludeCategories ?? (await getCashflowExcludedCategories(userId))
-
   const result = computeCashFlow(rows.map(toCashFlowTransaction), {
-    excludeCategories: excludedCategories,
     groupByMonth: options?.groupByMonth,
   })
 
   return {
     ...result,
-    excludedCategories,
     currency: rows[0]?.currency || 'INR',
   }
 }
@@ -400,7 +388,6 @@ export interface MonthCashFlowDetail {
   }
   incomeBreakdown: { category: string; total: number; count: number }[]
   categoryBreakdown: { category: string; total: number; count: number }[]
-  excludedCategories: string[]
   currency: string
 }
 
@@ -438,11 +425,7 @@ export async function getMonthCashFlow(
     startDate,
     endDate,
   })
-  const excludedCategories = await getCashflowExcludedCategories(userId)
-  const excluded = new Set(excludedCategories)
-  const cf = computeCashFlow(rows.map(toCashFlowTransaction), {
-    excludeCategories: excludedCategories,
-  })
+  const cf = computeCashFlow(rows.map(toCashFlowTransaction))
 
   const grouped: Record<CategoryKind, TransactionResponse[]> = {
     income: [],
@@ -451,7 +434,6 @@ export async function getMonthCashFlow(
     transfer: [],
   }
   for (const row of rows) {
-    if (excluded.has(row.category)) continue
     grouped[getCategoryKind(row.category)].push(toTransactionResponse(row))
   }
 
@@ -476,7 +458,6 @@ export async function getMonthCashFlow(
     },
     incomeBreakdown: toBreakdown(cf.byCategory, 'income'),
     categoryBreakdown: toBreakdown(cf.byCategory, 'expense'),
-    excludedCategories,
     currency: rows[0]?.currency || 'INR',
   }
 }

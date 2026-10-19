@@ -57,10 +57,9 @@ describe('computeTrends', () => {
     txn('2026-08-10', 20000, 'rent', 'Landlord'),
     txn('2026-07-01', 90000, 'salary', 'Employer', 'credit'),
     txn('2026-08-20', 5000, 'investment', 'Zerodha'),
-    txn('2026-09-09', 4000, 'shopping', 'Excluded merchant'),
     txn('2026-06-30', 999, 'rent', 'Before range'),
   ]
-  const result = computeTrends({ transactions, months, accounts, excludeCategories: ['shopping'] })
+  const result = computeTrends({ transactions, months, accounts })
 
   test('category matrix holds net expense per month, with totals and averages', () => {
     expect(result.categories.map((c) => c.key)).toEqual(['rent', 'food_dining'])
@@ -96,7 +95,6 @@ describe('computeTrends', () => {
       transactions: [txn('2026-09-05', 3000, 'food_dining', 'Swiggy')],
       months: ['2026-09'],
       accounts,
-      excludeCategories: [],
     })
     expect(one.merchants[0]!.trend).toBeNull()
   })

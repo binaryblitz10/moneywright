@@ -27,7 +27,6 @@ const current = [
   txn('2026-09-12', 1000, 'food_dining', 'Swiggy', 'credit', 'card'),
   txn('2026-09-15', 20000, 'rent', 'Landlord'),
   txn('2026-09-20', 10000, 'investment', 'Zerodha'),
-  txn('2026-09-25', 7000, 'shopping', 'Excluded merchant'),
 ]
 const previous = [
   txn('2026-08-01', 80000, 'salary', 'Employer', 'credit'),
@@ -41,10 +40,9 @@ describe('computePeriodReport', () => {
     current,
     previous,
     accounts,
-    excludeCategories: ['shopping'],
   })
 
-  test('totals match the cash flow maths and drop excluded categories', () => {
+  test('totals match the cash flow maths', () => {
     expect(report.totals.current).toEqual({
       income: 100000,
       expenses: 27000,
@@ -88,7 +86,6 @@ describe('computePeriodReport', () => {
     const swiggy = report.merchants.find((s) => s.label === 'Swiggy')
     expect(swiggy).toMatchObject({ current: 4000, previous: 2000, count: 2 })
     expect(report.merchants.find((s) => s.label === 'Zerodha')).toBeUndefined()
-    expect(report.merchants.find((s) => s.label === 'Excluded merchant')).toBeUndefined()
   })
 
   test('accounts with no transactions are left out', () => {
@@ -99,7 +96,7 @@ describe('computePeriodReport', () => {
   })
 
   test('without a comparison nothing has a previous value', () => {
-    const solo = computePeriodReport({ current, previous: null, accounts, excludeCategories: [] })
+    const solo = computePeriodReport({ current, previous: null, accounts })
     expect(solo.totals.previous).toBeNull()
     expect(solo.totals.changes).toBeNull()
     expect(solo.expenseCategories.every((c) => c.previous === null && c.deltaPct === null)).toBe(

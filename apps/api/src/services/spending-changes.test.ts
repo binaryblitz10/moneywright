@@ -268,18 +268,6 @@ describe('computeSpendingChanges', () => {
     expect(result.totals.current).toBe(25000)
   })
 
-  test('respects excluded categories', () => {
-    const txns = [...steadyBaseline(), txn('2026-09-05', 50000, 'Swiggy')]
-    const result = ok(
-      computeSpendingChanges(txns, months.slice(0, 6), {
-        today: TODAY,
-        excludeCategories: ['food_dining'],
-      })
-    )
-    expect(result.categories).toHaveLength(0)
-    expect(result.totals.current).toBe(0)
-  })
-
   test('marks the current month as partial without pro-rating', () => {
     const txns = [...steadyBaseline(), txn('2026-10-05', 30000, 'Swiggy')]
     const result = ok(computeSpendingChanges(txns, months, { month: '2026-10', today: TODAY }))

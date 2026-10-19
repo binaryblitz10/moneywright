@@ -1757,7 +1757,6 @@ export interface FinancialSummary {
     incomeBreakdown: { category: string; total: number; count: number }[]
     /** Totals can be negative (net refund) */
     categoryBreakdown: { category: string; total: number; count: number }[]
-    excludedCategories: string[]
     /** Spending in the same number of whole months just before the period; null without full data */
     previousPeriod: {
       startDate: string
@@ -1954,7 +1953,6 @@ export interface MonthlyTrendsResponse {
     savingsRate: number | null
   }
   currency: string
-  excludedCategories: string[]
 }
 
 /**
@@ -1995,7 +1993,7 @@ export async function getMonthlyTrends(
 }
 
 /**
- * Month transactions response (with netting and exclusions applied)
+ * Month transactions response (with netting applied)
  */
 export interface MonthTransactionsResponse {
   month: string
@@ -2013,12 +2011,11 @@ export interface MonthTransactionsResponse {
   }
   incomeBreakdown: { category: string; total: number; count: number }[]
   categoryBreakdown: { category: string; total: number; count: number }[]
-  excludedCategories: string[]
   currency: string
 }
 
 /**
- * Get transactions for a specific month, grouped by kind, with exclusions applied
+ * Get transactions for a specific month, grouped by kind
  */
 export async function getMonthTransactions(
   profileId: string | undefined,
@@ -2128,9 +2125,6 @@ export async function getSpendingChanges(
  * Preference keys
  */
 export const PREFERENCE_KEYS = {
-  // Per-card category exclusions
-  CASHFLOW_EXCLUDED_CATEGORIES: 'cashflow.excluded_categories',
-  // Other preferences
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   // Dashboard widgets switched off in Settings (JSON array of widget ids)
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',

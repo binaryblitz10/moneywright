@@ -621,7 +621,7 @@ export const userPreferences = pgTable(
     profileId: varchar('profile_id', { length: 21 }).references(() => profiles.id, {
       onDelete: 'cascade',
     }), // null = applies to all profiles
-    key: varchar('key', { length: 100 }).notNull(), // e.g., 'dashboard.excluded_categories', 'dashboard.chart_timeframe'
+    key: varchar('key', { length: 100 }).notNull(), // e.g., 'dashboard.chart_timeframe'
     value: text('value').notNull(), // JSON string for complex values
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

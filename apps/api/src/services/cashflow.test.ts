@@ -55,12 +55,6 @@ describe('computeCashFlow', () => {
     expect(credits - debits).toBe(43000)
   })
 
-  test('excluded category is dropped from totals and byCategory', () => {
-    const result = computeCashFlow(sample, { excludeCategories: ['rent'] })
-    expect(result.expenses).toBe(17000)
-    expect(result.byCategory.some((c) => c.category === 'rent')).toBe(false)
-  })
-
   test('groupByMonth months sum to the overall totals', () => {
     const transactions: CashFlowTransaction[] = [
       ...sample,

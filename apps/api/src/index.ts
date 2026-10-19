@@ -38,7 +38,6 @@ import dataHealthRoutes from './routes/data-health'
 import reportRoutes from './routes/reports'
 import constantsRoutes from './routes/constants'
 import preferencesRoutes from './routes/preferences'
-import { migrateExcludedCategoryPreferences } from './services/preferences'
 import chatRoutes from './routes/chat'
 import { insuranceRoutes } from './routes/insurance'
 import { loanRoutes } from './routes/loans'
@@ -73,7 +72,6 @@ if (!isDevelopment()) {
     process.exit(1)
   }
 }
-await migrateExcludedCategoryPreferences()
 
 // Recover statements left half-processed by a previous quit/restart
 await recoverInterruptedProcessing()
