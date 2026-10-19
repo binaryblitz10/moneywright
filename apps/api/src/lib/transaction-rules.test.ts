@@ -8,7 +8,7 @@ import {
 } from './transaction-rules'
 
 const UPI = 'UPI/P2A/622825390935/SAGAR  SI/AXIS BANK/remarks//P2V/'
-const UBER = 'UBERDIRECTES_PBV AMSTERDAM'
+const UBER = 'UBER TRIP AMSTERDAM'
 const ZERODHA = 'ACH-DR-ZERODHA BROKING LTD-2S56F2Q916ZSU5-UTIB701'
 const SWIGGY = 'SWIGGY,BENGALURU RESTAURANTS'
 
@@ -35,11 +35,16 @@ describe('normalizeTerms', () => {
 })
 
 describe('termMatches', () => {
-  test('one-word term matches part of a word, ignoring case', () => {
+  test('one-word term matches a whole word, ignoring case', () => {
     expect(termMatches('uber', UBER)).toBe(true)
     expect(termMatches('Zerodha', ZERODHA)).toBe(true)
-    expect(termMatches('swig', SWIGGY)).toBe(true)
     expect(termMatches('lyft', UBER)).toBe(false)
+  })
+
+  test('one-word term does not match part of a word', () => {
+    expect(termMatches('swig', SWIGGY)).toBe(false)
+    expect(termMatches('ola', 'POS COCA COLA')).toBe(false)
+    expect(termMatches('ola', 'UPI/OLA/CAB')).toBe(true)
   })
 
   test('phrase matches words in order with any spacing or punctuation between', () => {
@@ -48,11 +53,8 @@ describe('termMatches', () => {
     expect(termMatches('sagar si', UPI)).toBe(true)
   })
 
-  test('last word of a phrase may start a longer word', () => {
-    expect(termMatches('sagar si', 'UPI/P2A/1/SAGAR SINGHVI/AXIS BANK')).toBe(true)
-  })
-
-  test('earlier words of a phrase must be whole words', () => {
+  test('every word of a phrase must be a whole word', () => {
+    expect(termMatches('sagar si', 'UPI/P2A/1/SAGAR SINGHVI/AXIS BANK')).toBe(false)
     expect(termMatches('sagar si', 'UPI/P2A/1/SAGARS SI/AXIS BANK')).toBe(false)
     expect(termMatches('sagar si', 'UPI/P2A/1/XSAGAR SI/AXIS BANK')).toBe(false)
   })
@@ -70,7 +72,7 @@ describe('termMatches', () => {
 
   test('handles accented letters as word characters', () => {
     expect(termMatches('café noir', 'POS CAFÉ  NOIR PARIS')).toBe(true)
-    expect(termMatches('noir', 'CAFÉNOIR')).toBe(true)
+    expect(termMatches('noir', 'CAFÉNOIR')).toBe(false)
     expect(termMatches('café noir', 'XCAFÉ NOIR')).toBe(false)
   })
 })
@@ -142,7 +144,7 @@ describe('resolveRuleFields', () => {
 
   test('a rule with amount limits wins over one without when the term count is equal', () => {
     const rules = [
-      rule({ matchTerms: ['uberdirect'], category: 'transport' }),
+      rule({ matchTerms: ['amsterdam'], category: 'transport' }),
       rule({ matchTerms: ['uber'], minAmount: 50, category: 'travel' }),
     ]
     expect(resolveRuleFields(rules, txn)).toEqual({ category: 'travel' })
@@ -150,8 +152,8 @@ describe('resolveRuleFields', () => {
 
   test('longer terms win when the term count is equal', () => {
     const rules = [
-      rule({ matchTerms: ['ube'], category: 'shopping' }),
-      rule({ matchTerms: ['uberdirect'], category: 'transport' }),
+      rule({ matchTerms: ['uber'], category: 'shopping' }),
+      rule({ matchTerms: ['amsterdam'], category: 'transport' }),
     ]
     expect(resolveRuleFields(rules, txn)).toEqual({ category: 'transport' })
   })

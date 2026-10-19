@@ -59,32 +59,25 @@ export function normalizeTerms(terms: string[]): string[] {
 }
 
 /**
- * Regex for a multi-word term: the words in order, separated by non-alphanumeric characters.
- * Every word except the last must be a whole word; the last may be the start of a longer word.
+ * Regex for a term: its words in order, separated by non-alphanumeric characters.
+ * Every word must be a whole word, so "ola" does not match "COCA COLA".
  */
-function buildPhraseRegex(term: string): RegExp {
-  const words = term.split(' ').map(escapeRegExp)
-  const body = words
-    .map((word, i) => (i < words.length - 1 ? `${word}(?!${WORD_CHAR})` : word))
-    .join(`${NOT_WORD_CHAR}+`)
-  return new RegExp(`(?<!${WORD_CHAR})${body}`, 'iu')
+function buildTermRegex(term: string): RegExp {
+  const body = term.split(' ').map(escapeRegExp).join(`${NOT_WORD_CHAR}+`)
+  return new RegExp(`(?<!${WORD_CHAR})${body}(?!${WORD_CHAR})`, 'iu')
 }
 
 /**
  * Whether a single term matches a description, ignoring case.
- * One-word terms match anywhere inside the description; terms with spaces match as a phrase.
+ * The term's words must appear as whole words, in order.
  */
 export function termMatches(term: string, description: string): boolean {
   const normalized = term.trim().toLowerCase().replace(/\s+/g, ' ')
   if (!normalized) return false
 
-  if (!normalized.includes(' ')) {
-    return description.toLowerCase().includes(normalized)
-  }
-
   let regex = termRegexCache.get(normalized)
   if (!regex) {
-    regex = buildPhraseRegex(normalized)
+    regex = buildTermRegex(normalized)
     termRegexCache.set(normalized, regex)
   }
   return regex.test(description)
