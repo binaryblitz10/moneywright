@@ -12,6 +12,8 @@ export const PREFERENCE_KEYS = {
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
+  STATEMENT_CATEGORISATION_PROVIDER: 'statement.categorisation.provider',
+  STATEMENT_CATEGORISATION_MODEL: 'statement.categorisation.model',
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
 } as const
 

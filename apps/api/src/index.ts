@@ -47,6 +47,7 @@ import backupRoutes from './routes/backups'
 import { securityHeaders } from './middleware/security-headers'
 import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
+import { recoverInterruptedProcessing } from './services/statements'
 
 // Get the directory where the binary/script is located
 const APP_DIR = getAppDir()
@@ -72,6 +73,9 @@ if (!isDevelopment()) {
   }
 }
 await migrateExcludedCategoryPreferences()
+
+// Recover statements left half-processed by a previous quit/restart
+await recoverInterruptedProcessing()
 
 // Handle CLI arguments
 const args = process.argv.slice(2)

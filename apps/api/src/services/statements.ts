@@ -1,9 +1,17 @@
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray, isNull, like } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Statement } from '../db'
 import { logger } from '../lib/logger'
 import type { CountryCode, FileType } from '../lib/constants'
 import { nanoid } from '../lib/id'
+import {
+  INTERRUPTED_STATEMENT_MESSAGE,
+  PLACEHOLDER_ACCOUNT_PREFIX,
+  findOrphanPlaceholderAccountIds,
+  groupByAccount,
+  isCategorizableDocumentType,
+  type UncategorizedAccountGroup,
+} from '../lib/statement-recovery'
 
 /**
  * Statement service - simplified
@@ -490,6 +498,58 @@ async function processQueue(): Promise<void> {
 }
 
 /**
+ * Mark a statement as failed and remove any partially inserted transactions
+ */
+async function failStatementAndCleanup(statementId: string, errorMessage: string): Promise<void> {
+  await updateStatementStatus(statementId, 'failed', errorMessage)
+  await db.delete(tables.transactions).where(eq(tables.transactions.statementId, statementId))
+}
+
+/**
+ * Categorize all transactions of the given statements (one account), then link entities
+ */
+async function categorizeAndLinkAccount(params: {
+  accountId: string | null
+  statementIds: string[]
+  profileId?: string
+  userId?: string
+  countryCode: CountryCode
+  categorizationModel?: string
+  categorizationHints?: string
+}): Promise<void> {
+  const { categorizeStatements } = await import('../lib/pdf')
+  const { linkEntitiesForAccount } = await import('./entity-linking')
+  const { accountId, statementIds, profileId, userId, countryCode } = params
+  const label = accountId ?? 'no-account'
+
+  try {
+    const result = await categorizeStatements(
+      statementIds,
+      countryCode,
+      params.categorizationModel,
+      undefined,
+      profileId,
+      params.categorizationHints
+    )
+    logger.debug(
+      `[Statement] Categorized ${result.categorizedCount}/${result.totalCount} transactions for account ${label}`
+    )
+
+    // Run entity linking for this account after categorization
+    if (accountId && userId) {
+      try {
+        await linkEntitiesForAccount(accountId, userId, params.categorizationModel)
+        logger.debug(`[Statement] Entity linking completed for account ${label}`)
+      } catch (linkError) {
+        logger.error(`[Statement] Entity linking failed for account ${label}:`, linkError)
+      }
+    }
+  } catch (error) {
+    logger.error(`[Statement] Categorization failed for account ${label}:`, error)
+  }
+}
+
+/**
  * Process statements: parse serially, then categorize per account, then run entity linking
  */
 async function processStatements(
@@ -499,9 +559,7 @@ async function processStatements(
   categorizationHints?: string
 ): Promise<void> {
   const { parseStatement } = await import('../llm/parser')
-  const { categorizeStatements } = await import('../lib/pdf')
   const { updateStatementPassword } = await import('./accounts')
-  const { linkEntitiesForAccount } = await import('./entity-linking')
 
   const successfulStatements: Array<{
     statementId: string
@@ -560,12 +618,7 @@ async function processStatements(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error(`[Statement] Failed to parse ${stmt.statementId}:`, errorMessage)
-      await updateStatementStatus(stmt.statementId, 'failed', errorMessage)
-
-      // Clean up partial transactions
-      await db
-        .delete(tables.transactions)
-        .where(eq(tables.transactions.statementId, stmt.statementId))
+      await failStatementAndCleanup(stmt.statementId, errorMessage)
     }
   }
 
@@ -598,35 +651,198 @@ async function processStatements(
         `[Statement] Categorizing account ${accountId}: ${statementIds.length} statements`
       )
 
-      try {
-        const result = await categorizeStatements(
-          statementIds,
-          countryCode,
-          categorizationModel,
-          undefined,
-          profileId,
-          categorizationHints
-        )
-        logger.debug(
-          `[Statement] Categorized ${result.categorizedCount}/${result.totalCount} transactions for account ${accountId}`
-        )
-
-        // Step 3: Run entity linking for this account after categorization
-        if (accountId !== 'no-account' && userId) {
-          try {
-            await linkEntitiesForAccount(accountId, userId, categorizationModel)
-            logger.debug(`[Statement] Entity linking completed for account ${accountId}`)
-          } catch (linkError) {
-            logger.error(`[Statement] Entity linking failed for account ${accountId}:`, linkError)
-          }
-        }
-      } catch (error) {
-        logger.error(`[Statement] Categorization failed for account ${accountId}:`, error)
-      }
+      await categorizeAndLinkAccount({
+        accountId: accountId === 'no-account' ? null : accountId,
+        statementIds,
+        profileId,
+        userId,
+        countryCode,
+        categorizationModel,
+        categorizationHints,
+      })
     }
   }
 
   categorizationStatus = { active: false, type: null }
+}
+
+// ============================================================================
+// STARTUP RECOVERY
+// ============================================================================
+
+/**
+ * Fail statements left 'pending'/'parsing' by an interrupted run and drop their
+ * partial transactions. Returns the number of statements recovered.
+ */
+async function failInterruptedStatements(): Promise<number> {
+  const interrupted = await db
+    .select({ id: tables.statements.id })
+    .from(tables.statements)
+    .where(inArray(tables.statements.status, ['pending', 'parsing']))
+
+  for (const stmt of interrupted) {
+    await failStatementAndCleanup(stmt.id, INTERRUPTED_STATEMENT_MESSAGE)
+  }
+  return interrupted.length
+}
+
+/**
+ * Delete 'Pending - <file>' placeholder accounts that nothing needs any more.
+ * Failed statements still pointing at a placeholder are detached first (accountId is
+ * nullable), since deleting the account would cascade-delete the failed statement the
+ * user needs to see and remove.
+ */
+async function deleteOrphanPlaceholderAccounts(): Promise<number> {
+  const candidates = await db
+    .select({ id: tables.accounts.id, name: tables.accounts.accountName })
+    .from(tables.accounts)
+    .where(like(tables.accounts.accountName, `${PLACEHOLDER_ACCOUNT_PREFIX}%`))
+  if (candidates.length === 0) return 0
+  const ids = candidates.map((a) => a.id)
+
+  await db
+    .update(tables.statements)
+    .set({ accountId: null })
+    .where(and(eq(tables.statements.status, 'failed'), inArray(tables.statements.accountId, ids)))
+
+  const stmtRefs = await db
+    .selectDistinct({ accountId: tables.statements.accountId })
+    .from(tables.statements)
+    .where(inArray(tables.statements.accountId, ids))
+  const txnRefs = await db
+    .selectDistinct({ accountId: tables.transactions.accountId })
+    .from(tables.transactions)
+    .where(inArray(tables.transactions.accountId, ids))
+
+  const orphanIds = findOrphanPlaceholderAccountIds(
+    candidates,
+    new Set(stmtRefs.map((r) => r.accountId).filter((id): id is string => !!id)),
+    new Set(txnRefs.map((r) => r.accountId))
+  )
+  if (orphanIds.length > 0) {
+    await db.delete(tables.accounts).where(inArray(tables.accounts.id, orphanIds))
+  }
+  return orphanIds.length
+}
+
+/**
+ * Find completed bank/credit card statements that still have uncategorized
+ * transactions (summary IS NULL), grouped by account.
+ */
+async function findUncategorizedAccountGroups(): Promise<UncategorizedAccountGroup[]> {
+  const rows = await db
+    .selectDistinct({
+      statementId: tables.statements.id,
+      documentType: tables.statements.documentType,
+      accountId: tables.transactions.accountId,
+      userId: tables.statements.userId,
+      profileId: tables.statements.profileId,
+    })
+    .from(tables.statements)
+    .innerJoin(tables.transactions, eq(tables.transactions.statementId, tables.statements.id))
+    .where(and(eq(tables.statements.status, 'completed'), isNull(tables.transactions.summary)))
+
+  return groupByAccount(rows.filter((r) => isCategorizableDocumentType(r.documentType)))
+}
+
+/**
+ * Categorize leftover uncategorized transactions in the background, one account at a time
+ */
+async function recoverUncategorizedTransactions(
+  groups: UncategorizedAccountGroup[]
+): Promise<void> {
+  const { findUserById } = await import('./user')
+  const { getPreference, PREFERENCE_KEYS } = await import('./preferences')
+
+  categorizationStatus = {
+    active: true,
+    type: 'categorizing',
+    progress: { current: 0, total: groups.length },
+  }
+
+  try {
+    for (const [index, group] of groups.entries()) {
+      categorizationStatus.progress = { current: index + 1, total: groups.length }
+
+      const user = await findUserById(group.userId)
+      if (!user?.country) {
+        logger.warn(`[Recovery] Skipping account ${group.accountId}: user country not set`)
+        continue
+      }
+
+      // Same defaults the upload form prefills: the saved categorization model (unset falls
+      // back to the first configured provider) and the account's hints, else the default hints
+      const provider = await getPreference(
+        group.userId,
+        PREFERENCE_KEYS.STATEMENT_CATEGORISATION_PROVIDER,
+        group.profileId
+      )
+      const model = await getPreference(
+        group.userId,
+        PREFERENCE_KEYS.STATEMENT_CATEGORISATION_MODEL,
+        group.profileId
+      )
+      const [account] = await db
+        .select({ hints: tables.accounts.categorizationHints })
+        .from(tables.accounts)
+        .where(eq(tables.accounts.id, group.accountId))
+        .limit(1)
+      // Account hints are applied by the categorizer itself when none are passed
+      const defaultHints = account?.hints?.trim()
+        ? undefined
+        : (
+            await getPreference(
+              group.userId,
+              PREFERENCE_KEYS.DEFAULT_CATEGORIZATION_HINTS,
+              group.profileId
+            )
+          )?.trim() || undefined
+
+      await categorizeAndLinkAccount({
+        ...group,
+        countryCode: user.country as CountryCode,
+        categorizationModel: provider && model ? `${provider}:${model}` : undefined,
+        categorizationHints: defaultHints,
+      })
+    }
+  } finally {
+    categorizationStatus = { active: false, type: null }
+  }
+}
+
+/**
+ * Recover from an app quit/restart mid-processing. Safe to run on every startup:
+ * with nothing interrupted it only runs a few read queries.
+ *
+ * - 'pending'/'parsing' statements are marked failed and their partial transactions deleted
+ * - orphaned 'Pending - <file>' placeholder accounts are deleted
+ * - completed statements with uncategorized transactions are re-queued for
+ *   categorization in the background (not awaited), skipped if no LLM is configured
+ */
+export async function recoverInterruptedProcessing(): Promise<void> {
+  const failedCount = await failInterruptedStatements()
+  const removedAccounts = await deleteOrphanPlaceholderAccounts()
+  const groups = await findUncategorizedAccountGroups()
+
+  if (failedCount > 0 || removedAccounts > 0 || groups.length > 0) {
+    logger.info(
+      `[Recovery] Failed ${failedCount} interrupted statement(s), removed ${removedAccounts} orphan placeholder account(s), ${groups.length} account(s) with uncategorized transactions`
+    )
+  }
+  if (groups.length === 0) return
+
+  const { getLLMSettings } = await import('./config')
+  if (!(await getLLMSettings()).isConfigured) {
+    logger.warn(
+      '[Recovery] No LLM provider configured, skipping categorization of leftover transactions'
+    )
+    return
+  }
+
+  // Run in the background so startup is not blocked
+  void recoverUncategorizedTransactions(groups).catch((error) => {
+    logger.error('[Recovery] Background categorization failed:', error)
+  })
 }
 
 // ============================================================================
