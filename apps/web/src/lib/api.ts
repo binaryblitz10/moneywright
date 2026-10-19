@@ -1937,6 +1937,8 @@ export interface MonthlyTrendData {
   isPartial: boolean
   /** YYYY-MM-DD the partial month runs through; null for complete months */
   throughDate: string | null
+  /** Largest expense category of the month; null when there are no expenses */
+  topExpenseCategory: { category: string; total: number } | null
 }
 
 /**

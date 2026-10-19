@@ -201,6 +201,7 @@ summaryRoutes.get('/monthly-trends', async (c) => {
         savingsRate: savings.savingsRate,
         isPartial: coverage.isPartial,
         throughDate: coverage.throughDate,
+        topExpenseCategory: m.topExpenseCategory,
       }
     }),
     totals: {

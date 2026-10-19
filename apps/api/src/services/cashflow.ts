@@ -47,6 +47,8 @@ export interface MonthCashFlow extends CashFlowTotals {
   month: string
   /** e.g. "Jan 24" */
   monthLabel: string
+  /** Largest expense category of the month; null when there are no expenses */
+  topExpenseCategory: { category: string; total: number } | null
 }
 
 /** Full cash flow result */
@@ -183,10 +185,18 @@ export function computeCashFlow(
         'en-US',
         { month: 'short', year: '2-digit' }
       )
+      const categories = aggregateCategories(byMonth.get(month)!)
+      const top = categories
+        .filter((cat) => cat.kind === 'expense' && cat.net < 0)
+        .reduce<CategoryCashFlow | null>(
+          (max, cat) => (!max || cat.net < max.net ? cat : max),
+          null
+        )
       months.push({
         month,
         monthLabel,
-        ...buildTotals(aggregateCategories(byMonth.get(month)!)),
+        ...buildTotals(categories),
+        topExpenseCategory: top ? { category: top.category, total: -top.net } : null,
       })
     }
   }

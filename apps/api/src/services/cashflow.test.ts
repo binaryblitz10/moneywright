@@ -79,6 +79,19 @@ describe('computeCashFlow', () => {
     expect(result.months[1]?.income).toBe(90000)
   })
 
+  test('groupByMonth reports each month’s largest expense category', () => {
+    const transactions: CashFlowTransaction[] = [
+      { date: '2026-10-02', type: 'credit', amount: 90000, category: 'salary' },
+      { date: '2026-10-05', type: 'debit', amount: 4000, category: 'food_dining' },
+      { date: '2026-10-06', type: 'debit', amount: 25000, category: 'rent' },
+      { date: '2026-11-02', type: 'credit', amount: 90000, category: 'salary' },
+    ]
+    const result = computeCashFlow(transactions, { groupByMonth: true })
+
+    expect(result.months[0]?.topExpenseCategory).toEqual({ category: 'rent', total: 25000 })
+    expect(result.months[1]?.topExpenseCategory).toBeNull()
+  })
+
   test('months is empty unless groupByMonth is set', () => {
     expect(computeCashFlow(sample).months).toEqual([])
   })
