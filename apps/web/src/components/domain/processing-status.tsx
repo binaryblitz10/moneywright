@@ -1,4 +1,7 @@
+import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { useCategorizationStatus } from '@/hooks'
+import type { CategorizationStatus } from '@/lib/api'
 
 /**
  * ProcessingStatus - Shows parsing/categorization status as a small capsule
@@ -10,6 +13,24 @@ import { useCategorizationStatus } from '@/hooks'
  */
 export function ProcessingStatus() {
   const { data: status } = useCategorizationStatus()
+
+  // Tell the user when background work finishes (active -> idle), using the last kind seen
+  const lastActiveType = useRef<CategorizationStatus['type']>(null)
+  const wasActive = useRef(false)
+  useEffect(() => {
+    if (!status) return
+    if (status.active) {
+      wasActive.current = true
+      lastActiveType.current = status.type
+    } else if (wasActive.current) {
+      wasActive.current = false
+      toast.success(
+        lastActiveType.current === 'recategorizing'
+          ? 'Recategorization complete'
+          : 'Statements processed. Your transactions are ready'
+      )
+    }
+  }, [status])
 
   if (!status?.active) {
     return null
