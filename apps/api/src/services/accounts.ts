@@ -4,6 +4,7 @@ import type { Account } from '../db'
 import { encryptOptional, decryptOptional } from '../lib/encryption'
 import { getAccountTypesForCountry, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
+import { accountNumbersMatch, getLast4 } from '../lib/account-number'
 import { getLoanLiabilities, type LoanLiabilityInfo } from './loans'
 import { computeCardBalance, type LinkedCardPayment } from './card-balance'
 
@@ -218,57 +219,40 @@ export async function getAccountByIdRaw(
 }
 
 /**
- * Find account by encrypted account number (for deduplication)
- * Matches by exact account number OR by first 4 + last 4 digits if the number contains masked characters (X)
+ * Find an account of the profile whose stored number matches the given (possibly masked) number.
+ * See accountNumbersMatch for the rules; institution and type are needed to match on the last 4 only.
  */
 export async function findAccountByNumber(
   profileId: string,
-  accountNumber: string
+  accountNumber: string,
+  options: { institution?: string | null; type?: string | null; excludeAccountId?: string } = {}
 ): Promise<Account | null> {
-  // Get all accounts for profile and check decrypted numbers
   const accounts = await db
     .select()
     .from(tables.accounts)
     .where(eq(tables.accounts.profileId, profileId))
 
-  // Extract digits only for comparison
-  const searchDigits = accountNumber.replace(/[^0-9]/g, '')
-  const searchFirst4 = searchDigits.slice(0, 4)
-  const searchLast4 = searchDigits.slice(-4)
-
   logger.debug(
-    `[Account] findAccountByNumber: searching for "${accountNumber}" (first4: ${searchFirst4}, last4: ${searchLast4}) in ${accounts.length} accounts`
+    `[Account] findAccountByNumber: searching for number ending ${getLast4(accountNumber) ?? '?'} in ${accounts.length} accounts`
   )
 
   for (const account of accounts) {
-    if (account.accountNumber) {
-      const decrypted = decryptOptional(account.accountNumber)
-      if (!decrypted) continue
+    if (account.id === options.excludeAccountId) continue
+    const decrypted = decryptOptional(account.accountNumber)
+    if (!decrypted) continue
 
-      // Extract digits from stored account
-      const storedDigits = decrypted.replace(/[^0-9]/g, '')
-      const storedFirst4 = storedDigits.slice(0, 4)
-      const storedLast4 = storedDigits.slice(-4)
-
-      // Exact match
-      if (decrypted === accountNumber) {
-        logger.debug(`[Account] Exact match found: ${account.id}`)
-        return account
-      }
-
-      // For masked account numbers (containing X), match by first 4 + last 4 digits
-      // This handles variations like "4572XXXXXXXXXX68" vs "4572XXXXXXXXXXXX4468"
-      const isMasked = accountNumber.includes('X') || decrypted.includes('X')
-      if (isMasked && searchFirst4 === storedFirst4 && searchLast4 === storedLast4) {
-        logger.debug(
-          `[Account] First4+Last4 match found: ${account.id} (${searchFirst4}...${searchLast4})`
-        )
-        return account
-      }
+    if (
+      accountNumbersMatch(
+        { accountNumber, institution: options.institution, type: options.type },
+        { accountNumber: decrypted, institution: account.institution, type: account.type }
+      )
+    ) {
+      logger.debug(`[Account] Match found: ${account.id}`)
+      return account
     }
   }
 
-  logger.debug(`[Account] No match found for "${accountNumber}"`)
+  logger.debug(`[Account] No match found`)
   return null
 }
 

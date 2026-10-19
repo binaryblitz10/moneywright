@@ -37,14 +37,16 @@ import {
   type FileType,
 } from '../lib/constants'
 import { db, tables, dbType } from '../db'
+import type { Account } from '../db'
 import { eq } from 'drizzle-orm'
 import { getAccountByIdRaw, findAccountByNumber } from '../services/accounts'
+import { accountNumbersMatch, getLast4 } from '../lib/account-number'
 import {
   updateStatementResults,
   updateStatementStatus,
   type StatementSummary,
 } from '../services/statements'
-import { encryptOptional } from '../lib/encryption'
+import { decryptOptional, encryptOptional } from '../lib/encryption'
 import { logger } from '../lib/logger'
 import {
   generateParserCode,
@@ -400,6 +402,64 @@ If this is CSV/Excel data (columnar transaction rows without a summary section):
 }
 
 /**
+ * Check that a statement's extracted account number belongs to the account the user picked.
+ * Throws a plain-language error (the statement is then failed and cleaned up by the caller).
+ * Accounts without a stored number accept the statement and get the number filled in.
+ */
+async function verifyPickedAccount(
+  picked: Account,
+  accountInfo: AccountInfo,
+  profileId: string
+): Promise<void> {
+  const extractedLast4 = getLast4(accountInfo.account_number)
+  if (!extractedLast4) return // Nothing reliable to compare
+
+  const institution = accountInfo.institution_id.toLowerCase()
+  const type = accountInfo.account_type
+  const storedNumber = decryptOptional(picked.accountNumber)
+
+  if (!storedNumber) {
+    const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+    await db
+      .update(tables.accounts)
+      .set({ accountNumber: encryptOptional(accountInfo.account_number), updatedAt: now as Date })
+      .where(eq(tables.accounts.id, picked.id))
+    logger.debug(
+      `[Parser] Filled missing account number on ${picked.id} (ending ${extractedLast4})`
+    )
+    return
+  }
+  if (!getLast4(storedNumber)) return // Stored number is not comparable
+
+  // A picked account without institution/type info can't disprove a last-4 match
+  const matches = accountNumbersMatch(
+    { accountNumber: accountInfo.account_number, institution, type },
+    {
+      accountNumber: storedNumber,
+      institution: picked.institution || institution,
+      type: picked.type && picked.type !== 'other' ? picked.type : type,
+    }
+  )
+  if (matches) return
+
+  const pickedName = picked.accountName || 'the selected account'
+  const other = await findAccountByNumber(profileId, accountInfo.account_number, {
+    institution,
+    type,
+    excludeAccountId: picked.id,
+  })
+  logger.warn(`[Parser] Account number mismatch for picked account ${picked.id}`)
+  if (other) {
+    throw new Error(
+      `This statement looks like it's for ${other.accountName || 'another account'}, not ${pickedName}. Upload it again under the right account.`
+    )
+  }
+  throw new Error(
+    `The account number on this statement (ending ${extractedLast4}) doesn't match ${pickedName}.`
+  )
+}
+
+/**
  * Parse a full statement (main entry point)
  *
  * Flow:
@@ -640,7 +700,10 @@ export async function parseStatement(options: {
 
   if (account && account.accountName?.startsWith('Pending -') && accountInfo) {
     // Look for existing account with same account number
-    const existingAccount = await findAccountByNumber(profileId, accountInfo.account_number)
+    const existingAccount = await findAccountByNumber(profileId, accountInfo.account_number, {
+      institution: accountInfo.institution_id.toLowerCase(),
+      type: accountInfo.account_type,
+    })
 
     logger.debug(
       `[Parser] Checking for existing account with number ending in ...${accountInfo.account_number.slice(-4)}: found=${!!existingAccount}, existingId=${existingAccount?.id || 'none'}`
@@ -666,7 +729,10 @@ export async function parseStatement(options: {
     } else {
       // No existing account found - double-check before updating placeholder
       // (defensive: re-query in case another statement just created the account)
-      const doubleCheckAccount = await findAccountByNumber(profileId, accountInfo.account_number)
+      const doubleCheckAccount = await findAccountByNumber(profileId, accountInfo.account_number, {
+        institution: accountInfo.institution_id.toLowerCase(),
+        type: accountInfo.account_type,
+      })
       if (doubleCheckAccount && doubleCheckAccount.id !== accountIdToUse) {
         // Race condition detected! Another process created the account
         logger.warn(
@@ -722,6 +788,11 @@ export async function parseStatement(options: {
         logger.debug(`[Parser] Updated account ${accountIdToUse} with extracted info`)
       }
     }
+  }
+
+  // The user picked this account at upload: make sure the statement really belongs to it
+  if (account && accountInfo && !account.accountName?.startsWith('Pending -')) {
+    await verifyPickedAccount(account, accountInfo, profileId)
   }
 
   // Generate bank key for caching using institution ID and file type
