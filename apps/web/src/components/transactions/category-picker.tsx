@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +29,9 @@ export function CategoryPicker({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<CategoryKind | null>(null)
+  // Option highlighted for the keyboard; null falls back to the default below
+  const [activeCode, setActiveCode] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const matching = categories.filter((cat) =>
     cat.label.toLowerCase().includes(search.toLowerCase())
@@ -37,11 +40,48 @@ export function CategoryPicker({
     .map((kind) => ({ kind, items: categoriesOfKind(matching, kind) }))
     .filter((group) => group.items.length > 0)
 
+  // Options in display order ('' is the none choice)
+  const options = [
+    ...(noneLabel ? [''] : []),
+    ...groups.flatMap((group) => group.items.map((cat) => cat.code)),
+  ]
+  // Searching highlights the top match, otherwise the current value
+  const active =
+    activeCode !== null && options.includes(activeCode)
+      ? activeCode
+      : search
+        ? (options.find((code) => code !== '') ?? options[0])
+        : options.includes(value)
+          ? value
+          : options[0]
+
+  useEffect(() => {
+    if (!open || active === undefined) return
+    listRef.current
+      ?.querySelector(`[data-code="${CSS.escape(active)}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [open, active])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (options.length === 0) return
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      const index = active === undefined ? -1 : options.indexOf(active)
+      setActiveCode(options[(index + step + options.length) % options.length] ?? null)
+    } else if (e.key === 'Enter') {
+      // Keep Enter from submitting the surrounding form
+      e.preventDefault()
+      if (active !== undefined) select(active)
+    }
+  }
+
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (next) {
       setSearch('')
       setKindFilter(null)
+      setActiveCode(null)
     }
   }
 
@@ -71,7 +111,11 @@ export function CategoryPicker({
           <Input
             placeholder="Search categories..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setActiveCode(null)
+            }}
+            onKeyDown={handleKeyDown}
             className="h-8 pl-8 text-sm bg-surface-elevated border-border-subtle"
           />
         </div>
@@ -84,7 +128,10 @@ export function CategoryPicker({
                 key={kind}
                 type="button"
                 aria-pressed={isActive}
-                onClick={() => setKindFilter(isActive ? null : kind)}
+                onClick={() => {
+                  setKindFilter(isActive ? null : kind)
+                  setActiveCode(null)
+                }}
                 className={cn(
                   'whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                   isActive
@@ -97,13 +144,15 @@ export function CategoryPicker({
             )
           })}
         </div>
-        <div className="max-h-60 space-y-1 overflow-y-auto">
+        <div ref={listRef} className="max-h-60 space-y-1 overflow-y-auto">
           {noneLabel && (
             <Button
               type="button"
-              variant={!value ? 'secondary' : 'ghost'}
+              variant={active === '' ? 'secondary' : 'ghost'}
               size="sm"
+              data-code=""
               className="w-full justify-start gap-2 px-2"
+              onMouseMove={() => setActiveCode('')}
               onClick={() => select('')}
             >
               <span className="flex h-4 w-4 shrink-0 items-center justify-center">
@@ -126,9 +175,11 @@ export function CategoryPicker({
                     <Button
                       key={cat.code}
                       type="button"
-                      variant={isSelected ? 'secondary' : 'ghost'}
+                      variant={cat.code === active ? 'secondary' : 'ghost'}
                       size="sm"
+                      data-code={cat.code}
                       className="w-full justify-start gap-2 px-2"
+                      onMouseMove={() => setActiveCode(cat.code)}
                       onClick={() => select(cat.code)}
                     >
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
