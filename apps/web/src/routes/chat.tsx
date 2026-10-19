@@ -388,7 +388,10 @@ function ChatPage() {
             icon={AlertCircle}
             title="Chat Not Configured"
             description="Please configure your LLM provider in settings to use the chat feature."
-            action={{ label: 'Go to Settings', href: '/settings/llm' }}
+            action={{
+              label: 'Go to Settings',
+              onClick: () => navigate({ to: '/settings', search: { section: 'ai' } }),
+            }}
           />
         </div>
       </AppLayout>
