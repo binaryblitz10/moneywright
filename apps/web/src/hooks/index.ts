@@ -65,6 +65,15 @@ export {
   useDeleteTransactionRule,
 } from './useTransactionRules'
 
+// Backup hooks
+export {
+  backupKeys,
+  useBackups,
+  useCreateBackup,
+  useRestoreBackup,
+  useExportBackup,
+} from './useBackups'
+
 // Statement hooks
 export {
   statementKeys,

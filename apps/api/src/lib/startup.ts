@@ -8,7 +8,7 @@
  * 3. Development/Docker/Cloud - Direct bun execution, uses DATABASE_URL or local SQLite
  */
 
-import { existsSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, writeFileSync, readFileSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 
 /**
@@ -149,6 +149,33 @@ export function getAppDir(): string {
 }
 
 /**
+ * Get the SQLite database file path
+ * Priority: SQLITE_PATH env var > DATA_DIR/data/app.db > <app dir>/data/app.db
+ */
+export function getSqlitePath(): string {
+  if (process.env.SQLITE_PATH) {
+    return process.env.SQLITE_PATH
+  }
+  // Desktop sidecar: Tauri sets DATA_DIR to writable location
+  if (process.env.DATA_DIR) {
+    return join(normalizePath(process.env.DATA_DIR), 'data', 'app.db')
+  }
+  // Standalone binary: data/ folder next to binary
+  if (isCompiledBinary()) {
+    return join(dirname(process.execPath), 'data', 'app.db')
+  }
+  // Development: apps/api/data/
+  return join(import.meta.dir, '..', '..', 'data', 'app.db')
+}
+
+/**
+ * Check whether a SQLite database file already exists and holds data
+ */
+export function hasExistingDatabase(sqlitePath: string): boolean {
+  return existsSync(sqlitePath) && statSync(sqlitePath).size > 0
+}
+
+/**
  * Generate a cryptographically secure random base64 string
  */
 function generateRandomBase64(bytes: number): string {
@@ -210,6 +237,22 @@ export function initializeBinaryEnvironment(): void {
 
   const dataDir = getDataDir()
   const envPath = join(dataDir, '.env')
+
+  // Never replace a lost .env when data already exists: a new encryption key
+  // could not decrypt the saved account numbers, passwords and API keys.
+  if (!existsSync(envPath) && !process.env.DATABASE_URL && hasExistingDatabase(getSqlitePath())) {
+    console.error('\n========================================')
+    console.error('  Missing configuration file (.env)')
+    console.error('========================================\n')
+    console.error(`  Your data already exists at: ${getSqlitePath()}`)
+    console.error('  but the .env file that holds its encryption key is missing:')
+    console.error(`  ${envPath}\n`)
+    console.error('  Without that key, your saved data cannot be read.')
+    console.error('  Please restore the .env file from a backup (a downloaded backup')
+    console.error('  zip contains it) and start the app again.')
+    console.error('  No new key was created and nothing was changed.\n')
+    process.exit(1)
+  }
 
   // Auto-generate .env if it doesn't exist
   if (!existsSync(envPath)) {

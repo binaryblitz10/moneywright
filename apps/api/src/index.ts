@@ -43,6 +43,7 @@ import chatRoutes from './routes/chat'
 import { insuranceRoutes } from './routes/insurance'
 import { loanRoutes } from './routes/loans'
 import pinRoutes from './routes/pin'
+import backupRoutes from './routes/backups'
 import { securityHeaders } from './middleware/security-headers'
 import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
@@ -62,7 +63,13 @@ validateEnv()
 // Run database migrations automatically (except in development)
 // In dev mode, use `bun run db:migrate` or `bun run db:push` manually
 if (!isDevelopment()) {
-  await runMigrations()
+  try {
+    await runMigrations()
+  } catch (error) {
+    // Do not serve requests on a half-migrated database
+    console.error(`\n${error instanceof Error ? error.message : String(error)}\n`)
+    process.exit(1)
+  }
 }
 await migrateExcludedCategoryPreferences()
 
@@ -152,6 +159,7 @@ app.route('/api/preferences', preferencesRoutes)
 app.route('/api/chat', chatRoutes)
 app.route('/api/insurance', insuranceRoutes)
 app.route('/api/loans', loanRoutes)
+app.route('/api/backups', backupRoutes)
 
 // Static file serving for SPA (non-development mode)
 // In development, Vite dev server handles this

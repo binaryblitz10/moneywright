@@ -22,6 +22,7 @@ import {
   TransactionRulesSection,
   DataHealthSection,
   DashboardWidgetsSection,
+  BackupsSection,
 } from '@/components/settings'
 
 export const Route = createFileRoute('/settings')({
@@ -86,6 +87,9 @@ function SettingsPage() {
 
         {/* Data Health - checks across all profiles */}
         <DataHealthSection profileId={undefined} />
+
+        {/* Backups - hidden when the database does not support them */}
+        <BackupsSection />
 
         {/* Profiles Section */}
         <ProfilesSection profiles={profiles} />

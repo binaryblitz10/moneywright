@@ -10,7 +10,8 @@ import { join, dirname } from 'path'
 import * as pgSchema from './schema.pg'
 import * as sqliteSchema from './schema.sqlite'
 import { logger } from '../lib/logger'
-import { normalizePath } from '../lib/startup'
+import { normalizePath, getSqlitePath } from '../lib/startup'
+import { applyPendingRestore, backupBeforeMigrations } from '../services/backups'
 
 // Type alias for the database - use Postgres type for IntelliSense
 // Both SQLite and Postgres have the same runtime API
@@ -31,21 +32,7 @@ const isCompiledBinary = (() => {
 const APP_DIR = isCompiledBinary ? dirname(process.execPath) : import.meta.dir
 
 // SQLite database path
-// Priority: SQLITE_PATH env var > DATA_DIR env var > APP_DIR/data/app.db
-const getDefaultSqlitePath = () => {
-  // Desktop sidecar: Tauri sets DATA_DIR to writable location
-  if (process.env.DATA_DIR) {
-    return join(process.env.DATA_DIR, 'data', 'app.db')
-  }
-  // Standalone binary: data/ folder next to binary
-  if (isCompiledBinary) {
-    return join(APP_DIR, 'data', 'app.db')
-  }
-  // Development: apps/api/data/
-  return join(APP_DIR, '..', '..', 'data', 'app.db')
-}
-
-const SQLITE_PATH = process.env.SQLITE_PATH || getDefaultSqlitePath()
+const SQLITE_PATH = getSqlitePath()
 
 // Migrations path
 // Priority: MIGRATIONS_PATH env var > ./drizzle/<type> relative to binary/project
@@ -92,6 +79,9 @@ export async function runMigrations() {
     return
   }
 
+  // Back up SQLite before changing it, so a bad migration can be undone
+  const backupPath = isPostgres ? null : backupBeforeMigrations(client as Database, migrationsPath)
+
   logger.debug(`[DB] Running migrations from ${migrationsPath}`)
   try {
     if (isPostgres) {
@@ -107,9 +97,10 @@ export async function runMigrations() {
   } catch (error) {
     // If migrations fail due to already applied, that's OK
     const errorMessage = error instanceof Error ? error.message : String(error)
-    if (!errorMessage.includes('already been applied')) {
-      logger.error('[DB] Migration error:', errorMessage)
-    }
+    if (errorMessage.includes('already been applied')) return
+
+    const backupNote = backupPath ? ` Your data was backed up before the update: ${backupPath}` : ''
+    throw new Error(`Database migration failed: ${errorMessage}.${backupNote}`, { cause: error })
   }
 }
 
@@ -124,6 +115,9 @@ function initDatabase() {
     return { db, client, type: 'postgres' as const, schema: pgSchema }
   } else {
     logger.debug(`[DB] Using SQLite at ${SQLITE_PATH}`)
+
+    // A restore chosen in Settings is applied here, before the file is opened
+    applyPendingRestore()
 
     // Ensure data directory exists
     const dataDir = dirname(SQLITE_PATH)

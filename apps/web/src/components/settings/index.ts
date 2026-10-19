@@ -17,6 +17,7 @@ export { CategorizationHintsSection } from './categorization-hints-section'
 export { TransactionRulesSection } from './transaction-rules-section'
 export { DataHealthSection } from './data-health-section'
 export { DashboardWidgetsSection } from './dashboard-widgets-section'
+export { BackupsSection } from './backups-section'
 
 // Individual components
 export { ProviderCard } from './provider-card'

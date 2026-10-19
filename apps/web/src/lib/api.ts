@@ -3181,3 +3181,50 @@ export async function getInvestmentsReport(params: ReportRangeParams): Promise<I
   const response = await api.get('/reports/investments', { params })
   return response.data
 }
+
+// ============================================
+// Backups
+// ============================================
+
+export type BackupKind = 'auto' | 'manual' | 'before-restore'
+
+export interface BackupInfo {
+  name: string
+  size: number
+  createdAt: string
+  kind: BackupKind
+}
+
+export interface BackupsResponse {
+  /** False when the database does not support file backups (PostgreSQL) */
+  supported: boolean
+  backups: BackupInfo[]
+}
+
+/** All saved backups, newest first */
+export async function getBackups(): Promise<BackupsResponse> {
+  const response = await api.get('/backups')
+  return response.data
+}
+
+/** Save a backup of the current data now */
+export async function createBackup(): Promise<BackupInfo> {
+  const response = await api.post('/backups')
+  return response.data.backup
+}
+
+/** Choose a backup to restore the next time the app starts */
+export async function restoreBackup(name: string): Promise<void> {
+  await api.post(`/backups/${encodeURIComponent(name)}/restore`)
+}
+
+/** Link that downloads a backup as a zip (opened by the browser, which sends the login cookie) */
+export function getBackupDownloadUrl(name: string): string {
+  return `/api/backups/${encodeURIComponent(name)}/download`
+}
+
+/** Save a backup zip to the Downloads folder (desktop app); returns where it was saved */
+export async function exportBackup(name: string): Promise<string> {
+  const response = await api.post(`/backups/${encodeURIComponent(name)}/export`)
+  return response.data.path
+}
