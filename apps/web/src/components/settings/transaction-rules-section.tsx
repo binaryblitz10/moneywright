@@ -296,11 +296,6 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
               Description contains
             </Label>
             <TermChipsInput id="rule-dialog-terms" value={terms} onChange={setTerms} />
-            {terms.length > 0 && (
-              <p className="text-sm font-medium">
-                Matches {count} transaction{count === 1 ? '' : 's'}
-              </p>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -350,6 +345,12 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
 
           {terms.length > 0 && !trimmedName && !category && (
             <p className="text-xs text-muted-foreground">Set a name or a category to save.</p>
+          )}
+
+          {terms.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Matches {count} transaction{count === 1 ? '' : 's'}
+            </p>
           )}
         </div>
 
