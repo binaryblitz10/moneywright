@@ -1,5 +1,6 @@
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from './app-sidebar'
+import { BackButton } from './back-button'
 import { Separator } from '@/components/ui/separator'
 
 interface AppLayoutProps {
@@ -27,7 +28,10 @@ export function AppLayout({ children, title, description, hideHeader }: AppLayou
             </div>
           </header>
         )}
-        <main className="flex-1 overflow-x-auto overflow-y-scroll p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-x-auto overflow-y-scroll p-6 lg:p-8">
+          <BackButton />
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )

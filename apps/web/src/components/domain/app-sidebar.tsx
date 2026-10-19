@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useAuth, useProfileSelection, useReviewCounts, useUpdateChecker } from '@/hooks'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
+import { markSidebarNavigation } from '@/lib/back-navigation'
 import {
   Sidebar,
   SidebarContent,
@@ -143,7 +144,11 @@ export function AppSidebar() {
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
-          onClick={() => !item.disabled && navigate({ to: item.href })}
+          onClick={() => {
+            if (item.disabled) return
+            markSidebarNavigation()
+            navigate({ to: item.href })
+          }}
           disabled={item.disabled}
           className={cn(
             'relative h-10 transition-all duration-200',
@@ -309,7 +314,10 @@ export function AppSidebar() {
                     {isDark && <Check className="ml-auto h-4 w-4 text-primary" />}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => navigate({ to: '/settings' })}
+                    onClick={() => {
+                      markSidebarNavigation()
+                      navigate({ to: '/settings' })
+                    }}
                     className="cursor-pointer"
                   >
                     <Settings className="mr-2 h-4 w-4" />
