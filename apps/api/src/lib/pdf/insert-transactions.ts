@@ -4,9 +4,10 @@
  */
 
 import { createHash } from 'crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, lte, ne } from 'drizzle-orm'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
+import { duplicateKey, selectRowsToInsert } from '../duplicate-key'
 import type { RawPdfTransaction, InsertResult } from './types'
 
 /**
@@ -32,6 +33,55 @@ function generateTransactionHash(
 }
 
 /**
+ * Count the account's existing transactions from other statements per duplicate key,
+ * limited to the date range of the incoming rows. Hidden transactions count: they still exist.
+ */
+async function countExistingByKey(
+  accountId: string,
+  statementId: string,
+  transactions: RawPdfTransaction[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  if (transactions.length === 0) return counts
+
+  let minDate = transactions[0]!.date
+  let maxDate = minDate
+  for (const txn of transactions) {
+    if (txn.date < minDate) minDate = txn.date
+    if (txn.date > maxDate) maxDate = txn.date
+  }
+
+  const rows = await db
+    .select({
+      date: tables.transactions.date,
+      type: tables.transactions.type,
+      amount: tables.transactions.amount,
+      description: tables.transactions.originalDescription,
+    })
+    .from(tables.transactions)
+    .where(
+      and(
+        eq(tables.transactions.accountId, accountId),
+        ne(tables.transactions.statementId, statementId),
+        gte(tables.transactions.date, minDate),
+        lte(tables.transactions.date, maxDate)
+      )
+    )
+
+  for (const row of rows) {
+    const key = duplicateKey({
+      accountId,
+      date: row.date,
+      type: row.type,
+      amount: parseFloat(String(row.amount)),
+      description: row.description,
+    })
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
+}
+
+/**
  * Insert raw transactions into the database
  * Returns IDs of inserted transactions for categorization step
  */
@@ -51,15 +101,26 @@ export async function insertRawTransactions(
   logger.debug(`[InsertTransactions] Inserting ${transactions.length} transactions`)
 
   const insertedIds: string[] = []
-  let skippedCount = 0
+
+  // Skip rows already imported from an earlier statement that overlaps this one
+  const existingCounts = await countExistingByKey(accountId, statementId, transactions)
+  const keyed = transactions.map((txn, position) => ({ txn, position }))
+  const { toInsert, skipped } = selectRowsToInsert(keyed, existingCounts, ({ txn }) =>
+    duplicateKey({
+      accountId,
+      date: txn.date,
+      type: txn.type,
+      amount: txn.amount,
+      description: txn.description,
+    })
+  )
+  let skippedCount = skipped
 
   // Process in batches
-  for (let i = 0; i < transactions.length; i += INSERT_BATCH_SIZE) {
-    const batch = transactions.slice(i, i + INSERT_BATCH_SIZE)
+  for (let i = 0; i < toInsert.length; i += INSERT_BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + INSERT_BATCH_SIZE)
 
-    for (let j = 0; j < batch.length; j++) {
-      const txn = batch[j]!
-      const position = i + j // Global position in the transaction list
+    for (const { txn, position } of batch) {
       const hash = generateTransactionHash(
         accountId,
         txn.date,

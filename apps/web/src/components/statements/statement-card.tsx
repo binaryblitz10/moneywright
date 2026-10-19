@@ -74,6 +74,10 @@ export function StatementCard({
     ? source?.accountIdentifier?.slice(-4)
     : account?.accountNumber?.slice(-4)
 
+  const skippedDuplicateCount =
+    typeof statement.summary?.skippedDuplicateCount === 'number'
+      ? statement.summary.skippedDuplicateCount
+      : 0
   const count = isInvestment ? (statement.holdingsCount ?? 0) : statement.transactionCount
 
   const displayName = isInvestment
@@ -255,6 +259,15 @@ export function StatementCard({
           {/* Error Message */}
           {isFailed && statement.errorMessage && (
             <p className="text-xs text-negative/80 mt-2 line-clamp-2">{statement.errorMessage}</p>
+          )}
+
+          {/* Rows an earlier statement had already imported */}
+          {isCompleted && !isInvestment && skippedDuplicateCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {skippedDuplicateCount}{' '}
+              {skippedDuplicateCount === 1 ? 'transaction was' : 'transactions were'} already
+              imported from an earlier statement
+            </p>
           )}
 
           {/* Footer: File Info + Status */}

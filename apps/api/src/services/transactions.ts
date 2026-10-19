@@ -20,6 +20,7 @@ import { getDismissedDuplicates } from './preferences'
 import { merchantKey, merchantName } from './spending-changes'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
+import { duplicateKey } from '../lib/duplicate-key'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
 
 /**
@@ -526,8 +527,13 @@ export async function findDuplicateGroups(
   const groups = new Map<string, TransactionResponse[]>()
   for (const row of rows) {
     const txn = toTransactionResponse(row)
-    const description = txn.originalDescription.toLowerCase().replace(/\s+/g, ' ').trim()
-    const key = [txn.accountId, txn.date, txn.type, txn.amount.toFixed(2), description].join('|')
+    const key = duplicateKey({
+      accountId: txn.accountId,
+      date: txn.date,
+      type: txn.type,
+      amount: txn.amount,
+      description: txn.originalDescription,
+    })
     const group = groups.get(key)
     if (group) {
       group.push(txn)

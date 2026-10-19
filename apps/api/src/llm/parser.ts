@@ -920,6 +920,14 @@ export async function parseStatement(options: {
     }
   }
 
+  // Remember how many rows an earlier overlapping statement had already imported
+  if (insertResult.skippedDuplicates > 0) {
+    statementSummary = {
+      ...(statementSummary ?? { type: 'bank_statement' as const }),
+      skippedDuplicateCount: insertResult.skippedDuplicates,
+    }
+  }
+
   // Update statement with results
   await updateStatementResults(statementId, {
     periodStart,

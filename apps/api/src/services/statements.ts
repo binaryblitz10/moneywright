@@ -27,6 +27,8 @@ export interface BankStatementSummary {
   totalDebits?: number
   creditCount?: number
   debitCount?: number
+  /** Transactions skipped because an earlier overlapping statement already imported them */
+  skippedDuplicateCount?: number
 }
 
 export interface CreditCardStatementSummary {
@@ -41,6 +43,8 @@ export interface CreditCardStatementSummary {
   dueDate?: string
   creditCount?: number
   debitCount?: number
+  /** Transactions skipped because an earlier overlapping statement already imported them */
+  skippedDuplicateCount?: number
 }
 
 export type StatementSummary = BankStatementSummary | CreditCardStatementSummary

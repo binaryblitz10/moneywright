@@ -32,6 +32,8 @@ export interface StatementLite {
   openingBalance: number | null
   closingBalance: number | null
   deletedTransactionCount: number
+  /** Rows skipped at import because an earlier overlapping statement already holds them */
+  skippedDuplicateCount: number
   filename: string
 }
 
@@ -185,6 +187,20 @@ function toNumber(value: unknown): number {
 
 function toMs(date: string): number {
   return Date.parse(`${date}T00:00:00Z`)
+}
+
+/** The overlap count stored in a statement's summary JSON (a string on SQLite) */
+function readSkippedDuplicateCount(summary: unknown): number {
+  let parsed: unknown = summary
+  if (typeof summary === 'string') {
+    try {
+      parsed = JSON.parse(summary)
+    } catch {
+      return 0
+    }
+  }
+  const count = (parsed as { skippedDuplicateCount?: unknown } | null)?.skippedDuplicateCount
+  return typeof count === 'number' && count > 0 ? count : 0
 }
 
 /** Whole days from a to b (b - a) */
@@ -608,6 +624,7 @@ export async function getDataHealth(
             openingBalance: s.openingBalance === null ? null : toNumber(s.openingBalance),
             closingBalance: s.closingBalance === null ? null : toNumber(s.closingBalance),
             deletedTransactionCount: s.deletedTransactionCount ?? 0,
+            skippedDuplicateCount: readSkippedDuplicateCount(s.summary),
             filename: s.originalFilename,
           },
         ]
@@ -672,7 +689,19 @@ export async function getDataHealth(
       balanceBreaks: findBalanceBreaks(sorted),
       missingPeriod: missingByAccount.get(account.id) ?? [],
       reconciliation: sorted
-        .map((s) => reconcileStatement(kind, s, txnsByStatement.get(s.id) ?? []))
+        .map((s) =>
+          // A statement whose overlapping rows live under an earlier statement is checked
+          // against every transaction of the account in its period instead of only its own
+          reconcileStatement(
+            kind,
+            s,
+            s.skippedDuplicateCount > 0
+              ? (txnsByAccount.get(account.id) ?? []).filter(
+                  (t) => t.date >= s.periodStart && t.date <= s.periodEnd
+                )
+              : (txnsByStatement.get(s.id) ?? [])
+          )
+        )
         .filter((r) => r.status !== 'ok'),
     }
   })

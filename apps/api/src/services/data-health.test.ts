@@ -29,6 +29,7 @@ function stmt(
     openingBalance,
     closingBalance,
     deletedTransactionCount: 0,
+    skippedDuplicateCount: 0,
     filename: `${id}.pdf`,
   }
 }
@@ -266,6 +267,7 @@ describe('resolveStatementPeriods', () => {
       openingBalance,
       closingBalance,
       deletedTransactionCount: 0,
+      skippedDuplicateCount: 0,
       filename: `${id}.pdf`,
     }
   }
