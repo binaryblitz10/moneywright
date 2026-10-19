@@ -4,10 +4,11 @@
  */
 
 import { useState } from 'react'
+import { cn } from '@/lib/utils'
 import { useMutation } from '@tanstack/react-query'
 import { Loader2, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -63,6 +64,13 @@ const DIRECTION_LABELS: Record<Direction, string> = {
   debit: 'Money out',
 }
 
+/** Direction as shown on a rule in the list */
+const ROW_DIRECTION_LABELS: Record<Direction, string> = {
+  both: 'Money in & out',
+  credit: 'Money in',
+  debit: 'Money out',
+}
+
 const labelClass = 'text-xs font-medium text-muted-foreground uppercase tracking-wider'
 
 function getCategoryLabel(categories: Category[], code: string | null): string | null {
@@ -81,20 +89,21 @@ export function TransactionRulesSection() {
 
   return (
     <Card className="border-border-subtle hover:border-border-hover transition-colors animate-fade-in">
-      <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          Transaction Rules
-        </CardTitle>
+      <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            Transaction Rules
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Set the name or category of transactions that match all terms. Applied before the AI.
+          </CardDescription>
+        </div>
         <Button size="sm" onClick={() => setEditing('new')}>
           <Plus className="mr-2 h-4 w-4" />
           Add rule
         </Button>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Set the name or category of transactions that match all terms. Applied before the AI.
-        </p>
-
         {isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -175,40 +184,44 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
   const categoryLabel = getCategoryLabel(categories, rule.category)
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border-subtle bg-surface-elevated p-3 sm:flex-row sm:items-center">
+    <div className="flex items-start gap-3 rounded-xl border border-border-subtle bg-surface-elevated px-4 py-3">
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <span className={cn('font-medium', !rule.name && 'text-muted-foreground font-normal')}>
+            {rule.name ?? 'Keep name'}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className={cn(!categoryLabel && 'text-muted-foreground')}>
+            {categoryLabel ?? 'Keep category'}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{ROW_DIRECTION_LABELS[direction]}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
           {rule.matchTerms.map((term) => (
             <span
               key={term}
-              className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium border bg-muted text-foreground border-border-subtle"
+              className="inline-flex items-center rounded-md border border-border-subtle bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
             >
               <span className="max-w-37.5 truncate uppercase">{term}</span>
             </span>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <span className="text-muted-foreground">{DIRECTION_LABELS[direction]}</span>
-          <span>
-            <span className={labelClass}>Name </span>
-            {rule.name ?? <span className="text-muted-foreground">Unchanged</span>}
-          </span>
-          <span>
-            <span className={labelClass}>Category </span>
-            {categoryLabel ?? <span className="text-muted-foreground">Unchanged</span>}
-          </span>
-          <span className="text-muted-foreground">
-            {rule.matchCount} match{rule.matchCount === 1 ? '' : 'es'}
-          </span>
-        </div>
       </div>
-      <div className="flex shrink-0 gap-1">
-        <Button variant="ghost" size="icon" aria-label="Edit rule" onClick={onEdit}>
+      <div className="flex shrink-0 gap-0.5 text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Edit rule"
+          onClick={onEdit}
+        >
           <Pencil className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
+          className="h-8 w-8"
           aria-label="Apply to existing transactions"
           title="Apply to existing transactions"
           disabled={rule.matchCount === 0}
@@ -216,7 +229,13 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
         >
           <Wand2 className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Delete rule" onClick={onDelete}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Delete rule"
+          onClick={onDelete}
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
