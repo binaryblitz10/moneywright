@@ -38,10 +38,8 @@ import {
   CHART_TIMEFRAME_OPTIONS,
   formatCompact,
   formatCurrency,
-  getFinancialYearRange,
-  getCalendarMonthRange,
+  getTimeframeDateRange,
   parseSavedTimeframe,
-  toLocalDateString,
   DashboardTimeframePicker,
   ExcludedCategoriesPicker,
   IncomeExpensesCard,
@@ -132,29 +130,13 @@ function DashboardPage() {
     CHART_TIMEFRAME_OPTIONS.find((t) => t.key === dashboardTimeframe)?.label ?? ''
 
   // Explicit date range from the shared timeframe, used by every date-based widget
-  const dateRange = useMemo((): DateRange => {
-    const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === dashboardTimeframe)
-
-    if (dashboardTimeframe === 'custom' && customDateRange) {
-      return { startDate: customDateRange.startDate, endDate: customDateRange.endDate }
-    }
-    if (option?.monthOffset !== undefined) {
-      return getCalendarMonthRange(option.monthOffset)
-    }
-    if (dashboardTimeframe === 'current_fy') {
-      const fy = getFinancialYearRange(user?.country, 0)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-    if (dashboardTimeframe === 'last_fy') {
-      const fy = getFinancialYearRange(user?.country, -1)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-    // Month-count timeframes: from the first day of the earliest month through today
-    const months = option?.months ?? 12
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
-    return { startDate: toLocalDateString(start), endDate: toLocalDateString(now) }
-  }, [dashboardTimeframe, customDateRange, user?.country])
+  const dateRange = useMemo(
+    (): DateRange =>
+      customDateRange && dashboardTimeframe === 'custom'
+        ? { startDate: customDateRange.startDate, endDate: customDateRange.endDate }
+        : getTimeframeDateRange(dashboardTimeframe, user?.country)!,
+    [dashboardTimeframe, customDateRange, user?.country]
+  )
 
   // Total months for the "/mo" averages
   const categoryTotalMonths = useMemo(() => getElapsedMonths(dateRange), [dateRange])

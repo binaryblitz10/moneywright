@@ -5,139 +5,34 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframeKey } from '@/components/dashboard/types'
+import { getFinancialYearRange, getTimeframeDateRange } from '@/components/dashboard/utils'
 
-// Date preset type
-export type DatePresetKey =
-  | 'last_6m'
-  | 'last_1y'
-  | 'last_2y'
-  | 'last_3y'
-  | 'last_5y'
-  | 'all_time'
-  | 'current_fy'
-  | 'last_fy'
-  | 'custom'
+// Same presets as the dashboard timeframe picker. 'all' means no date filter here.
+const TIME_PRESETS = CHART_TIMEFRAME_OPTIONS.filter((o) => o.key !== 'custom' && !o.isFiscal)
 
-interface DatePreset {
-  key: Exclude<DatePresetKey, 'custom'>
-  label: string
-}
-
-// Standard time presets (matching dashboard)
-const TIME_PRESETS: DatePreset[] = [
-  { key: 'last_6m', label: 'Last 6 months' },
-  { key: 'last_1y', label: 'Last 1 year' },
-  { key: 'last_2y', label: 'Last 2 years' },
-  { key: 'last_3y', label: 'Last 3 years' },
-  { key: 'last_5y', label: 'Last 5 years' },
-  { key: 'all_time', label: 'All time' },
-]
+type FiscalKey = 'current_fy' | 'last_fy'
+const FISCAL_KEYS: FiscalKey[] = ['current_fy', 'last_fy']
 
 /**
- * Get financial year start month based on country
- * Returns 0-indexed month (0 = January, 3 = April, etc.)
+ * Get the date range for a preset (empty for All time, which has no date filter)
  */
-function getFiscalYearStartMonth(country: string | null | undefined): number {
-  switch (country) {
-    case 'IN': // India: April 1 - March 31
-    case 'AU': // Australia
-    case 'GB': // UK
-    case 'NZ': // New Zealand
-      return 3 // April
-    case 'US': // USA: Calendar year
-    default:
-      return 0 // January
-  }
-}
-
-/**
- * Calculate financial year date range
- */
-function getFinancialYearRange(
-  country: string | null | undefined,
-  offset: number = 0 // 0 = current FY, -1 = last FY
-): { startDate: string; endDate: string; label: string } {
-  const fyStartMonth = getFiscalYearStartMonth(country)
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth()
-
-  // Determine which FY we're currently in
-  let fyStartYear = currentYear
-  if (currentMonth < fyStartMonth) {
-    fyStartYear = currentYear - 1
-  }
-
-  // Apply offset
-  fyStartYear += offset
-
-  const fyEndYear = fyStartYear + 1
-
-  // Format dates
-  const startMonth = String(fyStartMonth + 1).padStart(2, '0')
-  const startDate = `${fyStartYear}-${startMonth}-01`
-
-  // End date is last day of month before FY start month
-  const endMonth = fyStartMonth === 0 ? 12 : fyStartMonth
-  const endYear = fyStartMonth === 0 ? fyEndYear - 1 : fyEndYear
-  const lastDay = new Date(endYear, endMonth, 0).getDate()
-  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-  // Label like "FY 2024-25" or "FY 2024"
-  const label =
-    fyStartMonth === 0 ? `FY ${fyStartYear}` : `FY ${fyStartYear}-${String(fyEndYear).slice(-2)}`
-
-  return { startDate, endDate, label }
-}
-
-/**
- * Get date range from preset
- */
-export function getPresetDateRange(
-  preset: DatePresetKey,
-  country?: string | null
+function getPresetRange(
+  key: ChartTimeframeKey,
+  country: string | null | undefined
 ): { startDate?: string; endDate?: string } {
-  const now = new Date()
-  const formatDateStr = (d: Date) => d.toISOString().split('T')[0]
+  if (key === 'all') return {}
+  return getTimeframeDateRange(key, country) ?? {}
+}
 
-  switch (preset) {
-    case 'last_6m': {
-      const start = new Date(now)
-      start.setMonth(start.getMonth() - 6)
-      return { startDate: formatDateStr(start), endDate: formatDateStr(now) }
-    }
-    case 'last_1y': {
-      const start = new Date(now)
-      start.setFullYear(start.getFullYear() - 1)
-      return { startDate: formatDateStr(start), endDate: formatDateStr(now) }
-    }
-    case 'last_2y': {
-      const start = new Date(now)
-      start.setFullYear(start.getFullYear() - 2)
-      return { startDate: formatDateStr(start), endDate: formatDateStr(now) }
-    }
-    case 'last_3y': {
-      const start = new Date(now)
-      start.setFullYear(start.getFullYear() - 3)
-      return { startDate: formatDateStr(start), endDate: formatDateStr(now) }
-    }
-    case 'last_5y': {
-      const start = new Date(now)
-      start.setFullYear(start.getFullYear() - 5)
-      return { startDate: formatDateStr(start), endDate: formatDateStr(now) }
-    }
-    case 'current_fy': {
-      const fy = getFinancialYearRange(country, 0)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-    case 'last_fy': {
-      const fy = getFinancialYearRange(country, -1)
-      return { startDate: fy.startDate, endDate: fy.endDate }
-    }
-    case 'all_time':
-    case 'custom':
-      return {} // No date filter for all_time or custom (custom uses explicit dates)
-  }
+function rangeMatches(
+  key: ChartTimeframeKey,
+  country: string | null | undefined,
+  startDate?: string,
+  endDate?: string
+): boolean {
+  const range = getPresetRange(key, country)
+  return range.startDate === startDate && range.endDate === endDate
 }
 
 /**
@@ -150,23 +45,13 @@ export function getDateRangeLabel(
 ): string {
   if (!startDate && !endDate) return 'All time'
 
-  // Check time presets
   for (const preset of TIME_PRESETS) {
-    const range = getPresetDateRange(preset.key, country)
-    if (range.startDate === startDate && range.endDate === endDate) {
-      return preset.label
+    if (rangeMatches(preset.key, country, startDate, endDate)) return preset.label
+  }
+  for (const key of FISCAL_KEYS) {
+    if (rangeMatches(key, country, startDate, endDate)) {
+      return getFinancialYearRange(country, key === 'current_fy' ? 0 : -1).label
     }
-  }
-
-  // Check FY presets
-  const currentFy = getFinancialYearRange(country, 0)
-  if (currentFy.startDate === startDate && currentFy.endDate === endDate) {
-    return currentFy.label
-  }
-
-  const lastFy = getFinancialYearRange(country, -1)
-  if (lastFy.startDate === startDate && lastFy.endDate === endDate) {
-    return lastFy.label
   }
 
   // Custom range - format nicely
@@ -219,18 +104,11 @@ export function DateRangePicker({
   const hasDateFilter = startDate || endDate
 
   // Check if current selection is a custom range (not matching any preset)
-  const isCustomSelection = (() => {
-    if (!startDate && !endDate) return false
-    for (const preset of TIME_PRESETS) {
-      const range = getPresetDateRange(preset.key, country)
-      if (range.startDate === startDate && range.endDate === endDate) return false
-    }
-    const currentFy = getFinancialYearRange(country, 0)
-    if (currentFy.startDate === startDate && currentFy.endDate === endDate) return false
-    const lastFy = getFinancialYearRange(country, -1)
-    if (lastFy.startDate === startDate && lastFy.endDate === endDate) return false
-    return true
-  })()
+  const isCustomSelection =
+    !!(startDate || endDate) &&
+    ![...TIME_PRESETS.map((p) => p.key), ...FISCAL_KEYS].some((key) =>
+      rangeMatches(key, country, startDate, endDate)
+    )
 
   // Initialize custom range from current selection if it's custom
   const effectiveCustomRange =
@@ -269,7 +147,7 @@ export function DateRangePicker({
           {/* Standard time presets */}
           <div className="grid grid-cols-2 gap-1.5">
             {TIME_PRESETS.map((preset) => {
-              const range = getPresetDateRange(preset.key, country)
+              const range = getPresetRange(preset.key, country)
               const isSelected =
                 startDate === range.startDate && endDate === range.endDate && !isCustomSelection
 
@@ -303,7 +181,7 @@ export function DateRangePicker({
                   Financial Year
                 </Label>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {(['current_fy', 'last_fy'] as const).map((key) => {
+                  {FISCAL_KEYS.map((key) => {
                     const fy = getFinancialYearRange(country, key === 'current_fy' ? 0 : -1)
                     const isSelected =
                       startDate === fy.startDate && endDate === fy.endDate && !isCustomSelection
