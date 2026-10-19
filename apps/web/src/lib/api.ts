@@ -964,11 +964,30 @@ export async function updateTransaction(
     category?: string
     summary?: string
     isHidden?: boolean
+    date?: string
+    amount?: number
+    type?: 'credit' | 'debit'
     linkedEntityId?: string | null
     linkedEntityType?: 'credit_card' | 'insurance' | 'loan' | null
   }
 ): Promise<Transaction> {
   const response = await api.patch(`/transactions/${transactionId}`, data)
+  return response.data.transaction
+}
+
+/**
+ * Add a transaction by hand (cash expense, row missed by the parser)
+ */
+export async function createTransaction(data: {
+  accountId: string
+  date: string
+  amount: number
+  type: 'credit' | 'debit'
+  summary: string
+  category: string
+  isHidden?: boolean
+}): Promise<Transaction> {
+  const response = await api.post('/transactions', data)
   return response.data.transaction
 }
 

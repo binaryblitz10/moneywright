@@ -1,5 +1,6 @@
-import { eq, and, desc, gt } from 'drizzle-orm'
+import { eq, and, desc, gt, ne } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
+import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import type { Account } from '../db'
 import { encryptOptional, decryptOptional } from '../lib/encryption'
 import { getAccountTypesForCountry, type CountryCode } from '../lib/constants'
@@ -108,7 +109,12 @@ async function getLatestAccountBalance(
     })
     .from(tables.statements)
     .where(
-      and(eq(tables.statements.accountId, account.id), eq(tables.statements.status, 'completed'))
+      and(
+        eq(tables.statements.accountId, account.id),
+        eq(tables.statements.status, 'completed'),
+        // Manual entries have no period or balance (and Postgres sorts NULLs first in DESC)
+        ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE)
+      )
     )
     .orderBy(desc(tables.statements.periodEnd))
     .limit(1)

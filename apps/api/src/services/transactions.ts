@@ -14,7 +14,10 @@ import {
   isNotNull,
 } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
-import type { Transaction } from '../db'
+import type { Account, Transaction } from '../db'
+import { nanoid } from '../lib/id'
+import { MANUAL_DOCUMENT_TYPE, MANUAL_STATEMENT_FILENAME } from '../lib/manual-statement'
+import { getAccountByIdRaw } from './accounts'
 import { logger } from '../lib/logger'
 import { getDismissedDuplicates } from './preferences'
 import { merchantKey, merchantName } from './spending-changes'
@@ -342,7 +345,9 @@ export async function getTransactionById(
 }
 
 /**
- * Update a transaction (category, summary, isHidden, entity linking)
+ * Update a transaction (category, summary, isHidden, date, amount, type, entity linking).
+ * The dedupe hash and any existing links are left alone, so re-importing the same statement
+ * still dedupes and edits never detach a card, loan or insurance link.
  */
 export async function updateTransaction(
   transactionId: string,
@@ -351,6 +356,9 @@ export async function updateTransaction(
     category?: string
     summary?: string
     isHidden?: boolean
+    date?: string
+    amount?: number
+    type?: 'credit' | 'debit'
     linkedEntityId?: string | null
     linkedEntityType?: 'credit_card' | 'insurance' | 'loan' | null
   }
@@ -392,6 +400,16 @@ export async function updateTransaction(
     updateData.isHidden = data.isHidden
   }
 
+  if (data.date !== undefined) {
+    updateData.date = data.date
+  }
+  if (data.amount !== undefined) {
+    updateData.amount = data.amount.toString() as unknown as Transaction['amount']
+  }
+  if (data.type !== undefined) {
+    updateData.type = data.type
+  }
+
   // Handle entity linking/unlinking
   if (data.linkedEntityId !== undefined) {
     updateData.linkedEntityId = data.linkedEntityId
@@ -410,6 +428,101 @@ export async function updateTransaction(
 
   logger.debug(`[Transaction] Updated transaction ${transactionId}`)
   return toTransactionResponse(updated)
+}
+
+/**
+ * Get the account's "manual entries" statement, creating it on first use.
+ * It is a placeholder (no period, no balances) so manual transactions satisfy the
+ * statement_id foreign key; coverage, balance and period logic skips it.
+ */
+async function getOrCreateManualStatement(account: Account): Promise<string> {
+  const [existing] = await db
+    .select({ id: tables.statements.id })
+    .from(tables.statements)
+    .where(
+      and(
+        eq(tables.statements.accountId, account.id),
+        eq(tables.statements.documentType, MANUAL_DOCUMENT_TYPE)
+      )
+    )
+    .limit(1)
+  if (existing) return existing.id
+
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+  const [created] = await db
+    .insert(tables.statements)
+    .values({
+      accountId: account.id,
+      profileId: account.profileId,
+      userId: account.userId,
+      documentType: MANUAL_DOCUMENT_TYPE,
+      originalFilename: MANUAL_STATEMENT_FILENAME,
+      fileType: MANUAL_DOCUMENT_TYPE,
+      status: 'completed',
+      transactionCount: 0,
+      createdAt: now as Date,
+      updatedAt: now as Date,
+    })
+    .returning({ id: tables.statements.id })
+
+  if (!created) throw new Error('Failed to create manual entries statement')
+  return created.id
+}
+
+/**
+ * Add a transaction by hand to an account the user owns. The category is chosen by the
+ * user, so transaction rules and the categorizer are not applied.
+ */
+export async function createManualTransaction(
+  userId: string,
+  data: {
+    accountId: string
+    date: string
+    amount: number
+    type: 'credit' | 'debit'
+    summary: string
+    category: string
+    isHidden?: boolean
+  }
+): Promise<TransactionResponse> {
+  const account = await getAccountByIdRaw(data.accountId, userId)
+  if (!account) {
+    throw new Error('Account not found')
+  }
+
+  const statementId = await getOrCreateManualStatement(account)
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+
+  const [created] = await db
+    .insert(tables.transactions)
+    .values({
+      accountId: account.id,
+      statementId,
+      profileId: account.profileId,
+      userId,
+      date: data.date,
+      type: data.type,
+      amount: data.amount.toString(),
+      currency: account.currency,
+      originalDescription: data.summary,
+      summary: data.summary,
+      nameVersion: NAME_VERSION,
+      category: data.category,
+      categoryConfidence: '1.00' as unknown as Transaction['categoryConfidence'],
+      isManuallyCategorized: true,
+      isHidden: data.isHidden ?? false,
+      hash: `manual:${nanoid()}`,
+      createdAt: now as Date,
+      updatedAt: now as Date,
+    })
+    .returning()
+
+  if (!created) {
+    throw new Error('Failed to create transaction')
+  }
+
+  logger.debug(`[Transaction] Added manual transaction ${created.id} to account ${account.id}`)
+  return toTransactionResponse(created)
 }
 
 /**

@@ -1,5 +1,6 @@
-import { eq, and, desc, inArray, isNull, like } from 'drizzle-orm'
+import { eq, and, desc, inArray, isNull, like, ne } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
+import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import type { Statement } from '../db'
 import { logger } from '../lib/logger'
 import type { CountryCode, FileType } from '../lib/constants'
@@ -153,7 +154,10 @@ export async function getStatementsByUserId(
   userId: string,
   options?: { profileId?: string; accountId?: string }
 ): Promise<StatementResponse[]> {
-  const conditions = [eq(tables.statements.userId, userId)]
+  const conditions = [
+    eq(tables.statements.userId, userId),
+    ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE),
+  ]
   if (options?.profileId) conditions.push(eq(tables.statements.profileId, options.profileId))
   if (options?.accountId) conditions.push(eq(tables.statements.accountId, options.accountId))
 

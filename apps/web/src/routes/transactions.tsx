@@ -30,13 +30,14 @@ import {
   TransactionFiltersBar,
   TransactionTable,
   TransactionEditForm,
+  TransactionAddForm,
   Pagination,
   PaginationSummary,
 } from '@/components/transactions'
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { ListChecks, Pencil, Receipt, Upload, X } from 'lucide-react'
+import { ListChecks, Pencil, Plus, Receipt, Upload, X } from 'lucide-react'
 
 interface TransactionsSearchParams {
   category?: string
@@ -70,6 +71,7 @@ function TransactionsPage() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   // Filter state
   const searchParams = useSearch({ from: '/transactions' })
@@ -241,18 +243,24 @@ function TransactionsPage() {
           title="Transactions"
           description="View and manage your transactions"
           actions={
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={(profile) => {
-                handleProfileChange(profile)
-                setPage(1)
-              }}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={(enabled) => {
-                handleFamilyViewChange(enabled)
-                setPage(1)
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={() => setAddOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add transaction
+              </Button>
+              <ProfileSelector
+                selectedProfileId={selectorProfileId}
+                onProfileChange={(profile) => {
+                  handleProfileChange(profile)
+                  setPage(1)
+                }}
+                showFamilyView={showFamilyView}
+                onFamilyViewChange={(enabled) => {
+                  handleFamilyViewChange(enabled)
+                  setPage(1)
+                }}
+              />
+            </div>
           }
         />
 
@@ -284,6 +292,24 @@ function TransactionsPage() {
           getCategoryLabel={getCategoryLabel}
           getStatementLabel={getStatementLabel}
         />
+
+        {/* Add Transaction Dialog */}
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Add Transaction</DialogTitle>
+              <DialogDescription>
+                For cash expenses or rows missing from your statements.
+              </DialogDescription>
+            </DialogHeader>
+            <TransactionAddForm
+              accounts={(accounts ?? []).filter((a) => a.isActive)}
+              categories={categories}
+              onClose={() => setAddOpen(false)}
+              onSuccess={() => setAddOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Transaction Dialog */}
         <Dialog

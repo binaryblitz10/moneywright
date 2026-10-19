@@ -1,5 +1,6 @@
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { db, tables } from '../db'
+import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import { getAccountsByUserId } from './accounts'
 import { getCashFlow } from './cashflow'
 import { LOW_CONFIDENCE_BELOW } from './transactions'
@@ -578,6 +579,7 @@ export async function getDataHealth(
         and(
           eq(tables.statements.userId, userId),
           eq(tables.statements.status, 'completed'),
+          ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE),
           inArray(tables.statements.accountId, accountIds)
         )
       ),

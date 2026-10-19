@@ -24,6 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CategoryPicker } from './category-picker'
+import { TransactionMoneyFields } from './transaction-money-fields'
+import {
+  areMoneyValuesValid,
+  parseAmount,
+  type TransactionMoneyValues,
+} from '@/lib/transaction-money'
 import { ApplyToMatching, type ApplyToMatchingState } from './apply-to-matching'
 import { ANY_AMOUNT, toAmountLimits } from '@/lib/amount-range'
 import {
@@ -42,7 +48,7 @@ import {
   useBulkDeleteTransactions,
   useRulePreview,
 } from '@/hooks'
-import { transactionKeys } from '@/hooks/useTransactions'
+import { invalidateTransactionTotals } from '@/hooks/useTransactions'
 import { transactionRuleKeys } from '@/hooks/useTransactionRules'
 
 // Categories that support entity linking
@@ -80,6 +86,11 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
     single?.linkedEntityId ?? null
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [money, setMoney] = useState<TransactionMoneyValues>({
+    date: single?.date.slice(0, 10) ?? '',
+    amount: single ? String(single.amount) : '',
+    type: single?.type ?? 'debit',
+  })
   const queryClient = useQueryClient()
 
   // Name and category values to apply: only the ones that were changed
@@ -95,6 +106,15 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       : undefined
     : category || undefined
   const hasNameOrCategoryChange = summaryChange !== undefined || categoryChange !== undefined
+  // Date, amount and type: only the ones that differ from the stored values (single edit only)
+  const parsedAmount = parseAmount(money.amount)
+  const dateChange = single && money.date !== single.date.slice(0, 10) ? money.date : undefined
+  const amountChange =
+    single && parsedAmount !== null && parsedAmount !== single.amount ? parsedAmount : undefined
+  const typeChange = single && money.type !== single.type ? money.type : undefined
+  const hasMoneyChange =
+    dateChange !== undefined || amountChange !== undefined || typeChange !== undefined
+  const moneyInvalid = !!single && !areMoneyValuesValid(money)
   const hasChanges = single ? !!category : hasNameOrCategoryChange || isHidden !== null
 
   // "Create Rule" is offered once the name or category is changed
@@ -249,6 +269,9 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           category,
           summary: summary || undefined,
           isHidden: isHidden ?? undefined,
+          date: dateChange,
+          amount: amountChange,
+          type: typeChange,
           linkedEntityId,
           linkedEntityType: linkedEntityId && entityType ? entityType : null,
         })
@@ -264,11 +287,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       await applyToMatching()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
-      // Category changes can change or drop entity links
-      queryClient.invalidateQueries({ queryKey: ['loans'] })
-      queryClient.invalidateQueries({ queryKey: ['insurance'] })
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      // Category changes can drop entity links; date, amount and type feed every total
+      invalidateTransactionTotals(queryClient)
       toast.success(
         single ? 'Transaction updated' : `Updated ${count} transaction${count === 1 ? '' : 's'}`
       )
@@ -315,6 +335,18 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           </p>
         )}
       </div>
+
+      {single && (
+        <div className="space-y-2">
+          <TransactionMoneyFields values={money} onChange={setMoney} idPrefix="edit" />
+          {hasMoneyChange && (
+            <p className="text-xs text-muted-foreground">
+              Date, amount or type differ from the imported statement. Totals and reports will use
+              the new values.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Entity Linking Section - Only show for linkable categories */}
       {isLinkableCategory && (
@@ -407,7 +439,11 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           <Button
             onClick={() => updateMutation.mutate()}
             disabled={
-              !hasChanges || ruleIncomplete || updateMutation.isPending || deleteMutation.isPending
+              !hasChanges ||
+              moneyInvalid ||
+              ruleIncomplete ||
+              updateMutation.isPending ||
+              deleteMutation.isPending
             }
           >
             {updateMutation.isPending ? (

@@ -1,5 +1,6 @@
-import { and, eq, gte, inArray, lte, min, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, min, ne, sql } from 'drizzle-orm'
 import { db, tables } from '../db'
+import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import { getCategoryKind, TRANSACTION_CATEGORIES } from '../lib/constants'
 import { getAccountsByUserId } from './accounts'
 import { accountKind } from './data-health'
@@ -481,6 +482,7 @@ async function getAccountFirstStarts(userId: string, profileId?: string): Promis
         and(
           eq(tables.statements.userId, userId),
           eq(tables.statements.status, 'completed'),
+          ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE),
           inArray(tables.statements.accountId, accountIds)
         )
       ),

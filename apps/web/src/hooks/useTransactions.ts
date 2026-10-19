@@ -1,4 +1,10 @@
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getTransactions,
@@ -6,6 +12,7 @@ import {
   getTransactionStats,
   getCategories,
   updateTransaction,
+  createTransaction,
   bulkUpdateTransactions,
   bulkDeleteTransactions,
   getDuplicateGroups,
@@ -18,6 +25,10 @@ import {
   type TransactionFilters,
   type TransactionPagination,
 } from '@/lib/api'
+import { summaryKeys } from './useSummary'
+import { reportKeys } from './useReports'
+import { spendingChangesKeys } from './useSpendingChanges'
+import { dataHealthKeys } from './useDataHealth'
 
 // Query Keys
 export const transactionKeys = {
@@ -34,6 +45,27 @@ export const transactionKeys = {
     [...transactionKeys.all, 'reviewCounts', profileId] as const,
   linkCandidates: (transactionId: string) =>
     [...transactionKeys.all, 'linkCandidates', transactionId] as const,
+}
+
+/**
+ * Refresh everything derived from transaction rows: lists, cash flow summaries, reports,
+ * spending changes, Data Health reconciliation and account balances
+ */
+export function invalidateTransactionTotals(queryClient: QueryClient): void {
+  for (const queryKey of [
+    transactionKeys.all,
+    summaryKeys.all,
+    reportKeys.all,
+    spendingChangesKeys.all,
+    dataHealthKeys.all,
+    ['accounts'],
+    ['statements'],
+    ['subscriptions'],
+    ['loans'],
+    ['insurance'],
+  ]) {
+    queryClient.invalidateQueries({ queryKey })
+  }
 }
 
 // ============================================
@@ -135,15 +167,33 @@ export function useUpdateTransaction() {
       data,
     }: {
       transactionId: string
-      data: { category?: string; summary?: string }
+      data: Parameters<typeof updateTransaction>[1]
     }) => updateTransaction(transactionId, data),
     onSuccess: (transaction) => {
-      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      invalidateTransactionTotals(queryClient)
       queryClient.invalidateQueries({ queryKey: transactionKeys.detail(transaction.id) })
       toast.success('Transaction updated')
     },
     onError: () => {
       toast.error('Failed to update transaction')
+    },
+  })
+}
+
+/**
+ * Add a transaction by hand
+ */
+export function useCreateTransaction() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: createTransaction,
+    onSuccess: () => {
+      invalidateTransactionTotals(queryClient)
+      toast.success('Transaction added')
+    },
+    onError: () => {
+      toast.error('Failed to add transaction')
     },
   })
 }

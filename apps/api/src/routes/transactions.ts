@@ -5,6 +5,7 @@ import {
   getTransactions,
   getTransactionById,
   updateTransaction,
+  createManualTransaction,
   bulkUpdateTransactions,
   bulkDeleteTransactions,
   findDuplicateGroups,
@@ -26,6 +27,12 @@ import { setDuplicatesDismissed } from '../services/preferences'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
 import { TRANSACTION_LINK_TYPES, isKnownCategory, type CountryCode } from '../lib/constants'
+import {
+  transactionAmountSchema,
+  transactionCategorySchema,
+  transactionDateSchema,
+  transactionTypeSchema,
+} from '../lib/transaction-input'
 
 const transactionRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -36,16 +43,28 @@ transactionRoutes.use('*', auth())
  * Update transaction request schema
  */
 const updateTransactionSchema = z.object({
-  category: z
-    .string()
-    .min(1)
-    .refine((c) => isKnownCategory(c), { message: 'Unknown category' })
-    .optional(),
+  category: transactionCategorySchema.optional(),
   summary: z.string().optional(),
   isHidden: z.boolean().optional(),
+  date: transactionDateSchema.optional(),
+  amount: transactionAmountSchema.optional(),
+  type: transactionTypeSchema.optional(),
   // Entity linking - allows manual linking/unlinking
   linkedEntityId: z.string().nullable().optional(),
   linkedEntityType: z.enum(['credit_card', 'insurance', 'loan']).nullable().optional(),
+})
+
+/**
+ * Create (manual) transaction request schema
+ */
+const createTransactionSchema = z.object({
+  accountId: z.string().min(1, 'Account is required'),
+  date: transactionDateSchema,
+  amount: transactionAmountSchema,
+  type: transactionTypeSchema,
+  summary: z.string().trim().min(1, 'Name is required').max(200),
+  category: transactionCategorySchema,
+  isHidden: z.boolean().optional(),
 })
 
 /**
@@ -394,6 +413,39 @@ transactionRoutes.patch('/:id', async (c) => {
     }
 
     return c.json({ error: 'update_failed', message }, 400)
+  }
+})
+
+/**
+ * POST /transactions
+ * Add a transaction by hand (cash expense, row the parser missed)
+ */
+transactionRoutes.post('/', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = createTransactionSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  try {
+    const transaction = await createManualTransaction(userId, result.data)
+    return c.json({ transaction }, 201)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create transaction'
+
+    if (message === 'Account not found') {
+      return c.json({ error: 'not_found', message }, 404)
+    }
+
+    return c.json({ error: 'create_failed', message }, 400)
   }
 })
 

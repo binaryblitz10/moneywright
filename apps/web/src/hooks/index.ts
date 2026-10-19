@@ -45,6 +45,7 @@ export {
   useCategories,
   useLinkCandidates,
   useUpdateTransaction,
+  useCreateTransaction,
   useBulkUpdateTransactions,
   useBulkDeleteTransactions,
   useDismissDuplicates,
