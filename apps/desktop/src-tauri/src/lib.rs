@@ -4,7 +4,7 @@ mod server;
 mod updater;
 
 use server::{create_server_manager, get_server_url, start_server, stop_server, kill_process_on_port, SERVER_PORT, ServerStatus, SharedServerManager};
-use updater::{check_for_updates, download_and_install, background_download_and_install, UpdateState, SharedUpdateState, UpdateReadyInfo};
+use updater::{UPDATES_ENABLED, check_for_updates, download_and_install, background_download_and_install, UpdateState, SharedUpdateState, UpdateReadyInfo};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::UpdaterExt;
 use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
@@ -217,6 +217,9 @@ async fn quit_app_cmd(app: AppHandle) -> Result<(), String> {
 /// Download and install update
 #[tauri::command]
 async fn download_update(app: AppHandle) -> Result<(), String> {
+    if !UPDATES_ENABLED {
+        return Err("Updates are disabled".to_string());
+    }
     download_and_install(app).await
 }
 
@@ -224,6 +227,10 @@ async fn download_update(app: AppHandle) -> Result<(), String> {
 /// Also checks if update is already downloaded and ready for restart
 #[tauri::command]
 async fn check_update_available(app: AppHandle, update_state: tauri::State<'_, SharedUpdateState>) -> Result<Option<UpdateInfo>, String> {
+    if !UPDATES_ENABLED {
+        return Ok(None);
+    }
+
     // First check if an update is already ready
     {
         let state = update_state.lock().await;
@@ -255,6 +262,10 @@ async fn check_update_available(app: AppHandle, update_state: tauri::State<'_, S
 /// Start background download and install of update
 #[tauri::command]
 async fn start_background_update(app: AppHandle, update_state: tauri::State<'_, SharedUpdateState>) -> Result<(), String> {
+    if !UPDATES_ENABLED {
+        return Err("Updates are disabled".to_string());
+    }
+
     // Check if already ready
     {
         let state = update_state.lock().await;
@@ -278,6 +289,10 @@ async fn start_background_update(app: AppHandle, update_state: tauri::State<'_, 
 /// Restart the app to apply a ready update
 #[tauri::command]
 async fn restart_for_update(app: AppHandle, update_state: tauri::State<'_, SharedUpdateState>) -> Result<(), String> {
+    if !UPDATES_ENABLED {
+        return Err("Updates are disabled".to_string());
+    }
+
     let state = update_state.lock().await;
     if state.ready.is_none() {
         return Err("No update ready for restart".to_string());
@@ -290,6 +305,9 @@ async fn restart_for_update(app: AppHandle, update_state: tauri::State<'_, Share
 /// Open the update window (triggers update check and shows UI)
 #[tauri::command]
 async fn show_update_window(app: AppHandle) {
+    if !UPDATES_ENABLED {
+        return;
+    }
     check_for_updates(app).await;
 }
 
@@ -779,6 +797,9 @@ fn open_about_window(app: &AppHandle) {
 
 /// Check for updates and show result
 fn trigger_update_check(app: &AppHandle) {
+    if !UPDATES_ENABLED {
+        return;
+    }
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
         check_for_updates(app_clone).await;
@@ -921,20 +942,15 @@ pub fn run() {
 fn setup_menu(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // App submenu (macOS)
     let about = MenuItem::with_id(app, "about", "About Moneywright", true, None::<&str>)?;
-    let check_updates = MenuItem::with_id(app, "check_updates", "Check for Updates...", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Moneywright", true, Some("CmdOrCtrl+Q"))?;
 
-    let app_menu = Submenu::with_items(
-        app,
-        "Moneywright",
-        true,
-        &[
-            &about,
-            &check_updates,
-            &PredefinedMenuItem::separator(app)?,
-            &quit,
-        ],
-    )?;
+    let app_menu = Submenu::with_items(app, "Moneywright", true, &[&about])?;
+    if UPDATES_ENABLED {
+        let check_updates = MenuItem::with_id(app, "check_updates", "Check for Updates...", true, None::<&str>)?;
+        app_menu.append(&check_updates)?;
+    }
+    app_menu.append(&PredefinedMenuItem::separator(app)?)?;
+    app_menu.append(&quit)?;
 
     // View submenu
     let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, Some("CmdOrCtrl+R"))?;

@@ -22,6 +22,9 @@ declare global {
   }
 }
 
+// Auto-update is OFF: the updater endpoint points at upstream releases, not this fork. Set true to re-enable.
+const UPDATES_ENABLED = false
+
 const DISMISSED_KEY = 'update-banner-dismissed'
 
 // Module-level cache to persist across component remounts
@@ -66,6 +69,7 @@ function isMajorOrMinorUpdate(currentVersion: string, newVersion: string): boole
 
 export function useUpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState<UpdateInfo | null>(() => {
+    if (!UPDATES_ENABLED) return null
     if (typeof window !== 'undefined' && sessionStorage.getItem(DISMISSED_KEY)) {
       return null
     }
@@ -79,7 +83,7 @@ export function useUpdateChecker() {
   // Start background download and install
   const startBackgroundUpdate = useCallback(async () => {
     const tauri = window.__TAURI__
-    if (!tauri || backgroundDownloadStarted) return
+    if (!UPDATES_ENABLED || !tauri || backgroundDownloadStarted) return
 
     backgroundDownloadStarted = true
     setDownloadProgress(0)
@@ -104,7 +108,7 @@ export function useUpdateChecker() {
   const checkForUpdates = useCallback(
     async (force = false) => {
       const tauri = window.__TAURI__
-      if (!tauri) return
+      if (!UPDATES_ENABLED || !tauri) return
 
       if ((hasChecked && !force) || checkInProgress.current) {
         return
@@ -148,6 +152,8 @@ export function useUpdateChecker() {
 
     setIsTauri(true)
 
+    if (!UPDATES_ENABLED) return
+
     // Listen for background download progress
     let unlisten: (() => void) | null = null
     tauri.event
@@ -172,7 +178,7 @@ export function useUpdateChecker() {
 
   const restartToUpdate = useCallback(async () => {
     const tauri = window.__TAURI__
-    if (tauri) {
+    if (UPDATES_ENABLED && tauri) {
       await tauri.core.invoke('restart_for_update')
     }
   }, [])

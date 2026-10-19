@@ -6,6 +6,9 @@ use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Auto-update is OFF: the updater endpoint points at upstream releases, not this fork. Set true to re-enable.
+pub const UPDATES_ENABLED: bool = false;
+
 #[derive(Clone, Serialize)]
 struct DownloadProgress {
     downloaded: usize,
@@ -35,6 +38,9 @@ pub type SharedUpdateState = Arc<Mutex<UpdateState>>;
 
 /// Check for updates and show result to user
 pub async fn check_for_updates<R: Runtime>(app: tauri::AppHandle<R>) {
+    if !UPDATES_ENABLED {
+        return;
+    }
     match app.updater() {
         Ok(updater) => {
             match updater.check().await {
@@ -58,6 +64,9 @@ pub async fn check_for_updates<R: Runtime>(app: tauri::AppHandle<R>) {
 /// Download and install update in background (without restart)
 /// Returns update info if successful
 pub async fn background_download_and_install<R: Runtime>(app: tauri::AppHandle<R>) -> Result<UpdateReadyInfo, String> {
+    if !UPDATES_ENABLED {
+        return Err("Updates are disabled".to_string());
+    }
     let updater = app.updater().map_err(|e| format!("Failed to initialize updater: {}", e))?;
 
     let update = updater
@@ -728,6 +737,9 @@ fn open_update_window<R: Runtime>(app: &tauri::AppHandle<R>, title: &str, width:
 
 /// Download and install an update with progress reporting
 pub async fn download_and_install<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    if !UPDATES_ENABLED {
+        return Err("Updates are disabled".to_string());
+    }
     let updater = app.updater().map_err(|e| format!("Failed to initialize updater: {}", e))?;
 
     let update = updater
