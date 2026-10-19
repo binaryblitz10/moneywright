@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
@@ -66,6 +66,10 @@ function HintsCard({ saved, onSaved }: HintsCardProps) {
         <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
           Categorization Hints
         </CardTitle>
+        <CardDescription className="text-xs">
+          Prefilled when you upload a statement. Accounts with their own saved hints use those
+          instead.
+        </CardDescription>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
         <Textarea
@@ -75,10 +79,6 @@ function HintsCard({ saved, onSaved }: HintsCardProps) {
           className="min-h-[100px] resize-none"
           maxLength={MAX_HINTS_LENGTH}
         />
-        <p className="text-xs text-muted-foreground">
-          Prefilled when you upload a statement. Accounts with their own saved hints use those
-          instead.
-        </p>
         <div className="flex justify-end">
           <Button
             size="sm"
