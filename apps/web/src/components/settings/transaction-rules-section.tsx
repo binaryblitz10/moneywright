@@ -1,6 +1,7 @@
 /**
  * Transaction rules section component
- * Rules set the name and/or category of transactions whose description contains all of their terms
+ * Rules set the name and/or category of transactions whose description contains all of their terms,
+ * optionally limited to one direction and an amount range
  */
 
 import { useState } from 'react'
@@ -38,6 +39,8 @@ import {
 } from '@/components/ui/select'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { TermChipsInput } from '@/components/transactions/term-chips-input'
+import { AmountRangeInput } from '@/components/transactions/amount-range-input'
+import { amountRangeFromLimits, describeAmountLimits, toAmountLimits } from '@/lib/amount-range'
 import {
   bulkUpdateTransactions,
   previewTransactionRule,
@@ -182,6 +185,7 @@ interface RuleRowProps {
 function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) {
   const direction: Direction = rule.transactionType ?? 'both'
   const categoryLabel = getCategoryLabel(categories, rule.category)
+  const amountLabel = describeAmountLimits(rule.minAmount, rule.maxAmount)
 
   return (
     <div className="flex items-start gap-3 rounded-xl border border-border-subtle bg-surface-elevated px-4 py-3">
@@ -196,6 +200,12 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
           </span>
           <span className="text-muted-foreground">·</span>
           <span className="text-muted-foreground">{ROW_DIRECTION_LABELS[direction]}</span>
+          {amountLabel && (
+            <>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground tabular-nums">{amountLabel}</span>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {rule.matchTerms.map((term) => (
@@ -252,23 +262,33 @@ interface RuleDialogProps {
 function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
   const [terms, setTerms] = useState<string[]>(rule?.matchTerms ?? [])
   const [direction, setDirection] = useState<Direction>(rule?.transactionType ?? 'both')
+  const [amountRange, setAmountRange] = useState(() =>
+    amountRangeFromLimits(rule?.minAmount ?? null, rule?.maxAmount ?? null)
+  )
   const [name, setName] = useState(rule?.name ?? '')
   const [category, setCategory] = useState(rule?.category ?? '')
   const createMutation = useCreateTransactionRule()
   const updateMutation = useUpdateTransactionRule()
 
   const transactionType = direction === 'both' ? null : direction
-  const { data: preview } = useRulePreview(terms, transactionType)
+  // Null while the amount filter is incomplete
+  const amountLimits = toAmountLimits(amountRange)
+  const { data: preview } = useRulePreview(
+    { matchTerms: terms, transactionType, ...amountLimits },
+    !!amountLimits
+  )
   const count = terms.length > 0 ? (preview?.count ?? 0) : 0
 
   const trimmedName = name.trim()
   const isPending = createMutation.isPending || updateMutation.isPending
-  const canSave = terms.length > 0 && (!!trimmedName || !!category) && !isPending
+  const canSave = terms.length > 0 && !!amountLimits && (!!trimmedName || !!category) && !isPending
 
   const handleSubmit = () => {
+    if (!amountLimits) return
     const data = {
       matchTerms: terms,
       transactionType,
+      ...amountLimits,
       name: trimmedName || null,
       category: category || null,
     }
@@ -317,6 +337,13 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="rule-amount" className={labelClass}>
+              Amount
+            </Label>
+            <AmountRangeInput id="rule-amount" value={amountRange} onChange={setAmountRange} />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="rule-name" className={labelClass}>
               Name (optional)
             </Label>
@@ -347,7 +374,7 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
             <p className="text-xs text-muted-foreground">Set a name or a category to save.</p>
           )}
 
-          {terms.length > 0 && (
+          {terms.length > 0 && amountLimits && (
             <p className="text-sm text-muted-foreground">
               Matches {count} transaction{count === 1 ? '' : 's'}
             </p>
@@ -381,16 +408,19 @@ interface ApplyRuleDialogProps {
 
 function ApplyRuleDialog({ rule, categories, onClose }: ApplyRuleDialogProps) {
   const queryClient = useQueryClient()
-  const { data: preview, isLoading } = useRulePreview(rule.matchTerms, rule.transactionType)
+  const conditions = {
+    matchTerms: rule.matchTerms,
+    transactionType: rule.transactionType,
+    minAmount: rule.minAmount,
+    maxAmount: rule.maxAmount,
+  }
+  const { data: preview, isLoading } = useRulePreview(conditions)
   const count = preview?.count ?? 0
 
   const applyMutation = useMutation({
     mutationFn: async () => {
       // Fetch fresh ids so the update matches what the rule matches right now
-      const { transactionIds } = await previewTransactionRule({
-        matchTerms: rule.matchTerms,
-        transactionType: rule.transactionType,
-      })
+      const { transactionIds } = await previewTransactionRule(conditions)
       return bulkUpdateTransactions({
         transactionIds,
         summary: rule.name ?? undefined,

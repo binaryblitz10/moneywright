@@ -50,6 +50,13 @@
       "when": 1792387325514,
       "tag": "0006_transaction_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792391969672,
+      "tag": "0007_transaction_rule_amounts",
+      "breakpoints": true
     }
   ]
 }

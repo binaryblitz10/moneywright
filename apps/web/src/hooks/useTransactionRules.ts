@@ -6,6 +6,7 @@ import {
   updateTransactionRule,
   deleteTransactionRule,
   previewTransactionRule,
+  type TransactionRuleConditions,
   type TransactionRuleInput,
 } from '@/lib/api'
 import { transactionKeys } from './useTransactions'
@@ -15,8 +16,8 @@ import { useDebounce } from './useDebounce'
 export const transactionRuleKeys = {
   all: ['transaction-rules'] as const,
   list: () => [...transactionRuleKeys.all, 'list'] as const,
-  preview: (matchTerms: string[], transactionType: 'credit' | 'debit' | null) =>
-    [...transactionRuleKeys.all, 'preview', matchTerms, transactionType] as const,
+  preview: (conditions: TransactionRuleConditions) =>
+    [...transactionRuleKeys.all, 'preview', conditions] as const,
 }
 
 /**
@@ -30,18 +31,31 @@ export function useTransactionRules() {
 }
 
 /**
- * Live count of the transactions a set of terms matches (debounced while typing)
+ * Live count of the transactions a set of rule conditions matches (debounced while typing)
  */
 export function useRulePreview(
-  matchTerms: string[],
-  transactionType: 'credit' | 'debit' | null = null,
+  {
+    matchTerms,
+    transactionType = null,
+    minAmount = null,
+    maxAmount = null,
+  }: TransactionRuleConditions,
   enabled: boolean = true
 ) {
+  // Debounce each value on its own: the conditions object is new on every render
   const debouncedTerms = useDebounce(matchTerms)
+  const debouncedMin = useDebounce(minAmount)
+  const debouncedMax = useDebounce(maxAmount)
+  const conditions = {
+    matchTerms: debouncedTerms,
+    transactionType,
+    minAmount: debouncedMin,
+    maxAmount: debouncedMax,
+  }
 
   return useQuery({
-    queryKey: transactionRuleKeys.preview(debouncedTerms, transactionType),
-    queryFn: () => previewTransactionRule({ matchTerms: debouncedTerms, transactionType }),
+    queryKey: transactionRuleKeys.preview(conditions),
+    queryFn: () => previewTransactionRule(conditions),
     enabled: enabled && debouncedTerms.length > 0,
     placeholderData: keepPreviousData,
   })

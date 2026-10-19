@@ -16,6 +16,8 @@ function rule(overrides: Partial<RuleForMatching>): RuleForMatching {
   return {
     matchTerms: ['uber'],
     transactionType: null,
+    minAmount: null,
+    maxAmount: null,
     name: null,
     category: null,
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -75,23 +77,25 @@ describe('termMatches', () => {
 
 describe('ruleMatches', () => {
   test('all terms must match, in any order', () => {
-    const txn = { description: ZERODHA, type: 'debit' }
+    const txn = { description: ZERODHA, type: 'debit', amount: 100 }
     expect(ruleMatches(rule({ matchTerms: ['zerodha', 'ach'] }), txn)).toBe(true)
     expect(ruleMatches(rule({ matchTerms: ['ach', 'zerodha'] }), txn)).toBe(true)
   })
 
   test('fails when a term is missing', () => {
-    const txn = { description: ZERODHA, type: 'debit' }
+    const txn = { description: ZERODHA, type: 'debit', amount: 100 }
     expect(ruleMatches(rule({ matchTerms: ['zerodha', 'groww'] }), txn)).toBe(false)
   })
 
   test('a rule without terms never matches', () => {
-    expect(ruleMatches(rule({ matchTerms: [] }), { description: UBER, type: 'debit' })).toBe(false)
+    expect(
+      ruleMatches(rule({ matchTerms: [] }), { description: UBER, type: 'debit', amount: 100 })
+    ).toBe(false)
   })
 
   test('transaction type filter', () => {
-    const credit = { description: UPI, type: 'credit' }
-    const debit = { description: UPI, type: 'debit' }
+    const credit = { description: UPI, type: 'credit', amount: 100 }
+    const debit = { description: UPI, type: 'debit', amount: 100 }
     const creditOnly = rule({ matchTerms: ['sagar si'], transactionType: 'credit' })
     expect(ruleMatches(creditOnly, credit)).toBe(true)
     expect(ruleMatches(creditOnly, debit)).toBe(false)
@@ -99,10 +103,27 @@ describe('ruleMatches', () => {
     expect(ruleMatches(both, credit)).toBe(true)
     expect(ruleMatches(both, debit)).toBe(true)
   })
+
+  test('amount limits are inclusive and compare the absolute amount', () => {
+    const at = (amount: number) => ({ description: UBER, type: 'debit', amount })
+    const above = rule({ minAmount: 500 })
+    expect(ruleMatches(above, at(499.99))).toBe(false)
+    expect(ruleMatches(above, at(500))).toBe(true)
+    expect(ruleMatches(above, at(-800))).toBe(true)
+
+    const below = rule({ maxAmount: 500 })
+    expect(ruleMatches(below, at(500))).toBe(true)
+    expect(ruleMatches(below, at(500.01))).toBe(false)
+
+    const between = rule({ minAmount: 100, maxAmount: 200 })
+    expect(ruleMatches(between, at(99))).toBe(false)
+    expect(ruleMatches(between, at(150))).toBe(true)
+    expect(ruleMatches(between, at(201))).toBe(false)
+  })
 })
 
 describe('resolveRuleFields', () => {
-  const txn = { description: UBER, type: 'debit' }
+  const txn = { description: UBER, type: 'debit', amount: 100 }
 
   test('returns nothing when no rule matches', () => {
     expect(resolveRuleFields([rule({ matchTerms: ['lyft'], name: 'Lyft' })], txn)).toEqual({})
@@ -117,6 +138,14 @@ describe('resolveRuleFields', () => {
       name: 'Uber Amsterdam',
       category: 'transport',
     })
+  })
+
+  test('a rule with amount limits wins over one without when the term count is equal', () => {
+    const rules = [
+      rule({ matchTerms: ['uberdirect'], category: 'transport' }),
+      rule({ matchTerms: ['uber'], minAmount: 50, category: 'travel' }),
+    ]
+    expect(resolveRuleFields(rules, txn)).toEqual({ category: 'travel' })
   })
 
   test('longer terms win when the term count is equal', () => {
@@ -137,7 +166,7 @@ describe('resolveRuleFields', () => {
 
   test('works with other description formats', () => {
     const rules = [rule({ matchTerms: ['swiggy'], name: 'Swiggy', category: 'food_dining' })]
-    expect(resolveRuleFields(rules, { description: SWIGGY, type: 'debit' })).toEqual({
+    expect(resolveRuleFields(rules, { description: SWIGGY, type: 'debit', amount: 100 })).toEqual({
       name: 'Swiggy',
       category: 'food_dining',
     })

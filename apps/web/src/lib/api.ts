@@ -994,6 +994,9 @@ export interface TransactionRule {
   id: string
   matchTerms: string[]
   transactionType: 'credit' | 'debit' | null
+  /** Inclusive amount limits; null = no limit */
+  minAmount: number | null
+  maxAmount: number | null
   name: string | null
   category: string | null
   matchCount: number
@@ -1001,9 +1004,17 @@ export interface TransactionRule {
   updatedAt: string
 }
 
-export interface TransactionRuleInput {
+/**
+ * What a rule matches on
+ */
+export interface TransactionRuleConditions {
   matchTerms: string[]
   transactionType?: 'credit' | 'debit' | null
+  minAmount?: number | null
+  maxAmount?: number | null
+}
+
+export interface TransactionRuleInput extends TransactionRuleConditions {
   name?: string | null
   category?: string | null
 }
@@ -1015,6 +1026,7 @@ export interface TransactionRulePreview {
     id: string
     date: string
     type: 'credit' | 'debit'
+    amount: number
     originalDescription: string
     summary: string | null
     category: string
@@ -1047,12 +1059,11 @@ export async function deleteTransactionRule(id: string): Promise<void> {
 }
 
 /**
- * Find the transactions a set of terms would match
+ * Find the transactions a set of rule conditions would match
  */
-export async function previewTransactionRule(data: {
-  matchTerms: string[]
-  transactionType?: 'credit' | 'debit' | null
-}): Promise<TransactionRulePreview> {
+export async function previewTransactionRule(
+  data: TransactionRuleConditions
+): Promise<TransactionRulePreview> {
   const response = await api.post('/transaction-rules/preview', data)
   return response.data
 }

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { CategoryPicker } from './category-picker'
 import { ApplyToMatching, type ApplyToMatchingState } from './apply-to-matching'
+import { ANY_AMOUNT, toAmountLimits } from '@/lib/amount-range'
 import {
   updateTransaction,
   bulkUpdateTransactions,
@@ -100,17 +101,20 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   // Adding any term means the user wants a rule, so nothing is prefilled; the suggestion is one click
   const [applyState, setApplyState] = useState<ApplyToMatchingState>({
     terms: [],
+    amount: ANY_AMOUNT,
     updateExisting: true,
   })
   const suggestedTerm = single ? suggestTerm(single.originalDescription, single.summary) : ''
+  const hasTerms = applyState.terms.length > 0
+  // Null while the amount filter is incomplete; the rule can't be saved until it is
+  const amountLimits = toAmountLimits(applyState.amount)
+  const ruleIncomplete = hasNameOrCategoryChange && hasTerms && !amountLimits
   const { data: preview, isFetching: isPreviewFetching } = useRulePreview(
-    applyState.terms,
-    null,
-    hasNameOrCategoryChange
+    { matchTerms: applyState.terms, ...amountLimits },
+    hasNameOrCategoryChange && !!amountLimits
   )
   // Matches outside the transactions being edited, which are updated anyway
   const editedIds = new Set(transactionIds)
-  const hasTerms = applyState.terms.length > 0
   const matchingCount = hasTerms
     ? (preview?.transactionIds ?? []).filter((id) => !editedIds.has(id)).length
     : 0
@@ -198,13 +202,14 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
 
   // Update matching transactions and save the rule; failures are reported but don't undo the edit
   const applyToMatching = async () => {
-    if (!hasNameOrCategoryChange || !hasTerms) return
+    if (!hasNameOrCategoryChange || !hasTerms || !amountLimits) return
 
     if (applyState.updateExisting) {
       try {
         // Fetch matches for the current terms: the debounced preview may still be for older ones
         const { transactionIds: matchIds } = await previewTransactionRule({
           matchTerms: applyState.terms,
+          ...amountLimits,
         })
         const otherIds = matchIds.filter((id) => !editedIds.has(id))
         if (otherIds.length > 0) {
@@ -228,6 +233,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         name: trimmedSummary || null,
         category: category || null,
         transactionType: null,
+        ...amountLimits,
       })
       queryClient.invalidateQueries({ queryKey: transactionRuleKeys.all })
       toast.success('Rule saved')
@@ -400,7 +406,9 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           </Button>
           <Button
             onClick={() => updateMutation.mutate()}
-            disabled={!hasChanges || updateMutation.isPending || deleteMutation.isPending}
+            disabled={
+              !hasChanges || ruleIncomplete || updateMutation.isPending || deleteMutation.isPending
+            }
           >
             {updateMutation.isPending ? (
               <>

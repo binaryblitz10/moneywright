@@ -1,13 +1,18 @@
 /**
  * Transaction rules matching
  *
- * A rule matches a transaction when every one of its terms matches the original description.
+ * A rule matches a transaction when every one of its terms matches the original description,
+ * and the direction and amount agree when the rule limits them.
  * Pure functions, no database access, so imports and previews behave the same on SQLite and Postgres.
  */
 
 export interface RuleForMatching {
   matchTerms: string[]
   transactionType: 'credit' | 'debit' | null
+  /** Inclusive lower limit on the amount; null = no limit */
+  minAmount: number | null
+  /** Inclusive upper limit on the amount; null = no limit */
+  maxAmount: number | null
   name: string | null
   category: string | null
   updatedAt: string | Date
@@ -16,6 +21,7 @@ export interface RuleForMatching {
 export interface TransactionForRule {
   description: string
   type: string
+  amount: number
 }
 
 // A letter or digit (any script)
@@ -85,16 +91,32 @@ export function termMatches(term: string, description: string): boolean {
 }
 
 /**
- * Whether a rule matches a transaction: all terms must match, and the direction must agree
- * when the rule is limited to one.
+ * Parse a stored amount limit (Postgres decimals come back as strings). Returns null when unset.
+ */
+export function parseAmountLimit(value: string | number | null): number | null {
+  if (value === null) return null
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount : null
+}
+
+/**
+ * Whether a rule matches a transaction: all terms must match, and the direction and amount
+ * must agree when the rule limits them. Amount limits compare the absolute amount.
  */
 export function ruleMatches(
-  rule: Pick<RuleForMatching, 'matchTerms' | 'transactionType'>,
+  rule: Pick<RuleForMatching, 'matchTerms' | 'transactionType' | 'minAmount' | 'maxAmount'>,
   txn: TransactionForRule
 ): boolean {
   if (rule.matchTerms.length === 0) return false
   if (rule.transactionType && rule.transactionType !== txn.type) return false
+  const amount = Math.abs(txn.amount)
+  if (rule.minAmount !== null && amount < rule.minAmount) return false
+  if (rule.maxAmount !== null && amount > rule.maxAmount) return false
   return rule.matchTerms.every((term) => termMatches(term, txn.description))
+}
+
+function amountLimitCount(rule: RuleForMatching): number {
+  return (rule.minAmount !== null ? 1 : 0) + (rule.maxAmount !== null ? 1 : 0)
 }
 
 function totalTermLength(rule: RuleForMatching): number {
@@ -102,12 +124,13 @@ function totalTermLength(rule: RuleForMatching): number {
 }
 
 /**
- * Order rules from most to least specific: more terms, then longer terms overall,
- * then most recently updated.
+ * Order rules from most to least specific: more terms, then more amount limits,
+ * then longer terms overall, then most recently updated.
  */
 function compareSpecificity(a: RuleForMatching, b: RuleForMatching): number {
   return (
     b.matchTerms.length - a.matchTerms.length ||
+    amountLimitCount(b) - amountLimitCount(a) ||
     totalTermLength(b) - totalTermLength(a) ||
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )

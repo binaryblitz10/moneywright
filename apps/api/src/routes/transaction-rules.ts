@@ -16,10 +16,13 @@ const transactionRuleRoutes = new Hono<{ Variables: AuthVariables }>()
 transactionRuleRoutes.use('*', auth())
 
 const transactionTypeSchema = z.enum(['credit', 'debit']).nullable().optional()
+const amountSchema = z.number().nonnegative().nullable().optional()
 
 const ruleSchema = z.object({
   matchTerms: z.array(z.string()),
   transactionType: transactionTypeSchema,
+  minAmount: amountSchema,
+  maxAmount: amountSchema,
   name: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
 })
@@ -29,6 +32,8 @@ const updateRuleSchema = ruleSchema.partial()
 const previewSchema = z.object({
   matchTerms: z.array(z.string()),
   transactionType: transactionTypeSchema,
+  minAmount: amountSchema,
+  maxAmount: amountSchema,
 })
 
 function validationError(message: string | undefined): {
@@ -50,7 +55,7 @@ transactionRuleRoutes.get('/', async (c) => {
 
 /**
  * POST /transaction-rules/preview
- * Find the transactions a set of terms would match
+ * Find the transactions a set of rule conditions would match
  * NOTE: This must be defined BEFORE /:id routes
  */
 transactionRuleRoutes.post('/preview', async (c) => {

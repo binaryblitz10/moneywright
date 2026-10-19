@@ -11,7 +11,12 @@ import { createLLMClientFromSettings, type LLMClientResult } from '../../llm'
 import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../constants'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
-import { parseMatchTerms, resolveRuleFields, type RuleForMatching } from '../transaction-rules'
+import {
+  parseAmountLimit,
+  parseMatchTerms,
+  resolveRuleFields,
+  type RuleForMatching,
+} from '../transaction-rules'
 import { parseCSVLine, quoteCSVField, streamCsvLines } from './csv'
 import {
   NAME_FORMAT,
@@ -305,6 +310,8 @@ async function fetchUserRules(userId: string): Promise<RuleForMatching[]> {
     matchTerms: parseMatchTerms(r.matchTerms),
     transactionType:
       r.transactionType === 'credit' || r.transactionType === 'debit' ? r.transactionType : null,
+    minAmount: parseAmountLimit(r.minAmount),
+    maxAmount: parseAmountLimit(r.maxAmount),
     name: r.name,
     category: r.category,
     updatedAt: r.updatedAt,
@@ -345,7 +352,11 @@ async function applyRules(
   let subscriptionNames: Set<string> | undefined
 
   for (const txn of transactions) {
-    const fields = resolveRuleFields(rules, { description: txn.description, type: txn.type })
+    const fields = resolveRuleFields(rules, {
+      description: txn.description,
+      type: txn.type,
+      amount: txn.amount,
+    })
     const name = fields.name
     const category =
       fields.category && validCategories.includes(fields.category) ? fields.category : undefined

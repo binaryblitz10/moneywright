@@ -4,6 +4,7 @@ import type { TransactionRule as TransactionRuleRow } from '../db'
 import { getCategoriesForCountry, type CountryCode } from '../lib/constants'
 import {
   normalizeTerms,
+  parseAmountLimit,
   parseMatchTerms,
   ruleMatches,
   type RuleForMatching,
@@ -12,7 +13,8 @@ import { findUserById } from './user'
 
 /**
  * Transaction rules service
- * Rules set the name and/or category of transactions whose description contains all of their terms
+ * Rules set the name and/or category of transactions whose description contains all of their terms,
+ * optionally limited to one direction and an amount range
  */
 
 /** Terms must add up to at least this many characters so a rule can't match everything */
@@ -26,6 +28,8 @@ export interface TransactionRule {
   id: string
   matchTerms: string[]
   transactionType: TransactionType | null
+  minAmount: number | null
+  maxAmount: number | null
   name: string | null
   category: string | null
   matchCount: number
@@ -36,8 +40,18 @@ export interface TransactionRule {
 export interface RuleInput {
   matchTerms?: string[]
   transactionType?: TransactionType | null
+  minAmount?: number | null
+  maxAmount?: number | null
   name?: string | null
   category?: string | null
+}
+
+/** What a rule matches on, as used for previews */
+export interface RuleConditions {
+  matchTerms: string[]
+  transactionType?: TransactionType | null
+  minAmount?: number | null
+  maxAmount?: number | null
 }
 
 export interface RulePreview {
@@ -47,6 +61,7 @@ export interface RulePreview {
     id: string
     date: string
     type: TransactionType
+    amount: number
     originalDescription: string
     summary: string | null
     category: string
@@ -71,6 +86,8 @@ function toParsedRule(row: TransactionRuleRow): ParsedRule {
       row.transactionType === 'credit' || row.transactionType === 'debit'
         ? row.transactionType
         : null,
+    minAmount: parseAmountLimit(row.minAmount),
+    maxAmount: parseAmountLimit(row.maxAmount),
     name: row.name,
     category: row.category,
     updatedAt: row.updatedAt,
@@ -87,6 +104,8 @@ function toResponse(row: TransactionRuleRow, matchCount: number): TransactionRul
     id: rule.id,
     matchTerms: rule.matchTerms,
     transactionType: rule.transactionType,
+    minAmount: rule.minAmount,
+    maxAmount: rule.maxAmount,
     name: rule.name,
     category: rule.category,
     matchCount,
@@ -116,28 +135,45 @@ async function validateCategory(userId: string, category: string): Promise<void>
 }
 
 /**
+ * Store an amount limit: Postgres decimals expect strings
+ */
+function toDbAmount(value: number | null): string | null {
+  if (value === null) return null
+  return (dbType === 'postgres' ? String(value) : value) as string
+}
+
+interface TransactionForMatching {
+  id: string
+  originalDescription: string
+  type: string
+  amount: string | number
+}
+
+function toMatchInput(t: TransactionForMatching): {
+  description: string
+  type: string
+  amount: number
+} {
+  return { description: t.originalDescription, type: t.type, amount: Number(t.amount) }
+}
+
+/**
  * Fetch the fields of the user's transactions that rules are matched against
  */
-async function fetchTransactionsForMatching(
-  userId: string
-): Promise<{ id: string; originalDescription: string; type: string }[]> {
+async function fetchTransactionsForMatching(userId: string): Promise<TransactionForMatching[]> {
   return db
     .select({
       id: tables.transactions.id,
       originalDescription: tables.transactions.originalDescription,
       type: tables.transactions.type,
+      amount: tables.transactions.amount,
     })
     .from(tables.transactions)
     .where(eq(tables.transactions.userId, userId))
 }
 
-function countMatches(
-  rule: ParsedRule,
-  transactions: { originalDescription: string; type: string }[]
-): number {
-  return transactions.filter((t) =>
-    ruleMatches(rule, { description: t.originalDescription, type: t.type })
-  ).length
+function countMatches(rule: ParsedRule, transactions: TransactionForMatching[]): number {
+  return transactions.filter((t) => ruleMatches(rule, toMatchInput(t))).length
 }
 
 /**
@@ -180,6 +216,8 @@ async function prepareRule(
 ): Promise<{
   matchTerms: string
   transactionType: TransactionType | null
+  minAmount: string | null
+  maxAmount: string | null
   name: string | null
   category: string | null
 }> {
@@ -195,9 +233,19 @@ async function prepareRule(
   }
   if (category) await validateCategory(userId, category)
 
+  const { minAmount, maxAmount } = input
+  if ((minAmount !== null && minAmount < 0) || (maxAmount !== null && maxAmount < 0)) {
+    throw new RuleValidationError('Amounts cannot be negative')
+  }
+  if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+    throw new RuleValidationError('The lower amount must not be more than the upper amount')
+  }
+
   return {
     matchTerms: JSON.stringify(terms),
     transactionType: input.transactionType,
+    minAmount: toDbAmount(minAmount),
+    maxAmount: toDbAmount(maxAmount),
     name,
     category,
   }
@@ -210,6 +258,8 @@ export async function createRule(userId: string, input: RuleInput): Promise<Tran
   const values = await prepareRule(userId, {
     matchTerms: input.matchTerms ?? [],
     transactionType: input.transactionType ?? null,
+    minAmount: input.minAmount ?? null,
+    maxAmount: input.maxAmount ?? null,
     name: input.name ?? null,
     category: input.category ?? null,
   })
@@ -244,6 +294,8 @@ export async function updateRule(
     matchTerms: input.matchTerms ?? current.matchTerms,
     transactionType:
       input.transactionType !== undefined ? input.transactionType : current.transactionType,
+    minAmount: input.minAmount !== undefined ? input.minAmount : current.minAmount,
+    maxAmount: input.maxAmount !== undefined ? input.maxAmount : current.maxAmount,
     name: input.name !== undefined ? input.name : current.name,
     category: input.category !== undefined ? input.category : current.category,
   })
@@ -270,13 +322,10 @@ export async function deleteRule(userId: string, ruleId: string): Promise<boolea
 }
 
 /**
- * Find the transactions a rule with these terms would match.
+ * Find the transactions a rule with these conditions would match.
  * Empty or too-short terms match nothing, so the UI can call this while the user types.
  */
-export async function previewRule(
-  userId: string,
-  input: { matchTerms: string[]; transactionType?: TransactionType | null }
-): Promise<RulePreview> {
+export async function previewRule(userId: string, input: RuleConditions): Promise<RulePreview> {
   const terms = normalizeTerms(input.matchTerms)
   if (terms.length === 0 || !hasEnoughTerms(terms)) {
     return { count: 0, transactionIds: [], samples: [] }
@@ -287,6 +336,7 @@ export async function previewRule(
       id: tables.transactions.id,
       date: tables.transactions.date,
       type: tables.transactions.type,
+      amount: tables.transactions.amount,
       originalDescription: tables.transactions.originalDescription,
       summary: tables.transactions.summary,
       category: tables.transactions.category,
@@ -295,10 +345,13 @@ export async function previewRule(
     .where(eq(tables.transactions.userId, userId))
     .orderBy(desc(tables.transactions.date))
 
-  const rule = { matchTerms: terms, transactionType: input.transactionType ?? null }
-  const matches = rows.filter((t) =>
-    ruleMatches(rule, { description: t.originalDescription, type: t.type })
-  )
+  const rule = {
+    matchTerms: terms,
+    transactionType: input.transactionType ?? null,
+    minAmount: input.minAmount ?? null,
+    maxAmount: input.maxAmount ?? null,
+  }
+  const matches = rows.filter((t) => ruleMatches(rule, toMatchInput(t)))
 
   return {
     count: matches.length,
@@ -307,6 +360,7 @@ export async function previewRule(
       ...t,
       date: String(t.date),
       type: t.type as TransactionType,
+      amount: Number(t.amount),
     })),
   }
 }

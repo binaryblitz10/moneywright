@@ -650,6 +650,8 @@ export const transactionRules = pgTable(
     // Matching: every term must match the original description
     matchTerms: text('match_terms').notNull(), // JSON array of strings
     transactionType: varchar('transaction_type', { length: 10 }), // credit or debit, null = both
+    minAmount: decimal('min_amount', { precision: 15, scale: 2 }), // inclusive, null = no lower limit
+    maxAmount: decimal('max_amount', { precision: 15, scale: 2 }), // inclusive, null = no upper limit
 
     // Values applied to matching transactions
     name: text('name'),

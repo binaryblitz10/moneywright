@@ -677,6 +677,8 @@ export const transactionRules = sqliteTable(
     // Matching: every term must match the original description
     matchTerms: text('match_terms').notNull(), // JSON array of strings
     transactionType: text('transaction_type'), // credit or debit, null = both
+    minAmount: real('min_amount'), // inclusive, null = no lower limit
+    maxAmount: real('max_amount'), // inclusive, null = no upper limit
 
     // Values applied to matching transactions
     name: text('name'),

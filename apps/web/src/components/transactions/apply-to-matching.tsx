@@ -2,9 +2,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Loader2, Plus } from 'lucide-react'
 import { TermChipsInput } from './term-chips-input'
+import { AmountRangeInput } from './amount-range-input'
+import type { AmountRangeValue } from '@/lib/amount-range'
 
 export interface ApplyToMatchingState {
   terms: string[]
+  amount: AmountRangeValue
   updateExisting: boolean
 }
 
@@ -57,6 +60,14 @@ export function ApplyToMatching({
             <Plus className="h-3 w-3 shrink-0" />
             <span className="truncate uppercase">{suggestedTerm}</span>
           </button>
+        )}
+
+        {hasTerms && (
+          <AmountRangeInput
+            id="rule-amount"
+            value={state.amount}
+            onChange={(amount) => onChange({ ...state, amount })}
+          />
         )}
 
         {hasTerms && (
