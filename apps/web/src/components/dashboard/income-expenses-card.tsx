@@ -10,12 +10,14 @@ interface IncomeExpensesCardProps {
   trendsData: { trends: MonthlyTrendData[]; currency: string } | undefined
   isLoading: boolean
   onMonthClick: (month: MonthlyTrendData) => void
+  getCategoryLabel: (code: string) => string
 }
 
 export function IncomeExpensesCard({
   trendsData,
   isLoading,
   onMonthClick,
+  getCategoryLabel,
 }: IncomeExpensesCardProps) {
   return (
     <SectionCard title="Cash Flow & Savings Rate" className="mb-6">
@@ -24,6 +26,7 @@ export function IncomeExpensesCard({
         currency={trendsData?.currency || 'INR'}
         isLoading={isLoading}
         onMonthClick={onMonthClick}
+        getCategoryLabel={getCategoryLabel}
       />
     </SectionCard>
   )

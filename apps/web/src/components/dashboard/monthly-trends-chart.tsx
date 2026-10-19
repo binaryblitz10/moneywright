@@ -1,28 +1,28 @@
-import { useMemo, useCallback } from 'react'
-import {
-  ComposedChart,
-  Bar,
-  Cell,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Activity } from 'lucide-react'
 import type { MonthlyTrendData } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { formatAxisAmount } from './utils'
-import { TrendingDown, TrendingUp, Activity } from 'lucide-react'
+import { formatCompact } from './utils'
+import { formatScaleTick, niceScale } from './chart-scale'
+import { describeMonth, formatPercent, formatThroughDate } from './trend-format'
+import { MonthTooltip } from './month-tooltip'
+import { TrendInsights } from './trend-insights'
 
-// Colours match the Tailwind emerald/rose/blue/violet 500 shades (also --chart-1/4/5)
+// Colours match the Tailwind emerald/rose/blue 500 shades (blue is also --chart-4)
 const INCOME_COLOR = 'rgb(16, 185, 129)'
 const EXPENSES_COLOR = 'rgb(244, 63, 94)'
 const INVESTED_COLOR = 'var(--chart-4)'
-const RATE_COLOR = 'var(--chart-5)'
 
-// Months the range doesn't fully cover are drawn lighter
-const PARTIAL_OPACITY = 0.45
+const AMOUNT_HEIGHT = 220
+const NET_HEIGHT = 140
+// Room above/below a plot for the value tags of clipped bars
+const TAG_ROOM = 24
+const TOOLTIP_WIDTH = 240
+// Beyond this many months the savings-rate row would not fit; the tooltip still shows it
+const MAX_MONTHS_FOR_RATE_ROW = 12
+const MAX_X_LABELS = 12
+
+type Series = 'income' | 'expenses' | 'invested' | 'average'
 
 interface MonthlyTrendsChartProps {
   data: MonthlyTrendData[]
@@ -30,139 +30,98 @@ interface MonthlyTrendsChartProps {
   isLoading?: boolean
   className?: string
   onMonthClick?: (month: MonthlyTrendData) => void
+  getCategoryLabel?: (code: string) => string
 }
 
-// Format full currency for tooltip
-function formatFullCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
+// Months the range doesn't fully cover are hatched instead of solid
+function fillFor(color: string, partial: boolean): CSSProperties {
+  if (!partial) return { background: color }
+  return {
+    background: `repeating-linear-gradient(135deg, ${color} 0 3px, color-mix(in srgb, ${color} 30%, transparent) 3px 6px)`,
+  }
 }
 
-function formatPercent(rate: number | null): string {
-  return rate === null ? '—' : `${Math.round(rate * 100)}%`
-}
+// A transparent diagonal gap near the top marks a bar that continues past the axis
+const BREAK_MASK =
+  'linear-gradient(172deg, #000 0, #000 20px, transparent 20px, transparent 24px, #000 24px)'
 
-// "Oct 26 (to 15 Oct)" for months cut short by the range, otherwise the plain label
-function describeMonth(m: MonthlyTrendData): string {
-  if (!m.isPartial || !m.throughDate) return m.monthLabel
-  const through = new Date(`${m.throughDate}T00:00:00`).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  })
-  return `${m.monthLabel} (to ${through})`
-}
-
-// Custom Tooltip Component
-function CustomTooltip({
-  active,
-  payload,
-  currency,
+// The bar's colour, hatched for partial months and with the break mark when clipped. It is its own
+// layer so the mask never clips the value tag.
+function BarFill({
+  color,
+  partial,
+  clipped,
 }: {
-  active?: boolean
-  payload?: Array<{ payload: MonthlyTrendData }>
-  currency: string
+  color: string
+  partial: boolean
+  clipped: boolean
 }) {
-  if (!active || !payload || !payload.length) return null
-
-  const month = payload[0]!.payload
-  const { income, expenses, invested, surplus, savingsRate } = month
-
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-elevated/95 backdrop-blur-xl p-4 shadow-2xl shadow-black/20">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-        {describeMonth(month)}
-      </p>
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-            <span className="text-sm text-muted-foreground">Income</span>
-          </div>
-          <span className="text-sm font-semibold text-emerald-400 tabular-nums">
-            {formatFullCurrency(income, currency)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
-            <span className="text-sm text-muted-foreground">Expenses</span>
-          </div>
-          <span className="text-sm font-semibold text-rose-400 tabular-nums">
-            {formatFullCurrency(expenses, currency)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" />
-            <span className="text-sm text-muted-foreground">Invested</span>
-          </div>
-          <span className="text-sm font-semibold text-blue-400 tabular-nums">
-            {formatFullCurrency(invested, currency)}
-          </span>
-        </div>
-        <div className="h-px bg-linear-to-r from-transparent via-border-subtle to-transparent my-1" />
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            {surplus >= 0 ? (
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-            )}
-            <span className="text-sm font-medium text-foreground">Surplus</span>
-          </div>
-          <span
-            className={cn(
-              'text-sm font-bold tabular-nums',
-              surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'
-            )}
-          >
-            {surplus >= 0 ? '+' : ''}
-            {formatFullCurrency(surplus, currency)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-violet-500 shadow-sm shadow-violet-500/50" />
-            <span className="text-sm text-muted-foreground">Savings rate</span>
-          </div>
-          <span className="text-sm font-semibold text-violet-400 tabular-nums">
-            {formatPercent(savingsRate)}
-          </span>
-        </div>
-      </div>
-    </div>
+    <div
+      className="absolute inset-0 rounded-[inherit]"
+      style={{
+        ...fillFor(color, partial),
+        ...(clipped ? { maskImage: BREAK_MASK, WebkitMaskImage: BREAK_MASK } : null),
+      }}
+    />
   )
 }
 
-// Custom Legend
-function CustomLegend({ hasPartial }: { hasPartial: boolean }) {
+// Shows the real value of a clipped bar, at the end that runs off the axis
+function ValueTag({
+  children,
+  color,
+  placement,
+}: {
+  children: ReactNode
+  color: string
+  placement: 'above' | 'below'
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-4">
-      <div className="flex items-center gap-2">
-        <div className="h-2 w-6 rounded-full bg-linear-to-r from-emerald-500/80 to-emerald-400" />
-        <span className="text-xs font-medium text-muted-foreground">Income</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="h-2 w-6 rounded-full bg-linear-to-r from-rose-500/80 to-rose-400" />
-        <span className="text-xs font-medium text-muted-foreground">Expenses</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="h-2 w-6 rounded-full bg-linear-to-r from-blue-500/80 to-blue-400" />
-        <span className="text-xs font-medium text-muted-foreground">Invested</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="h-0.5 w-6 rounded-full bg-violet-500" />
-        <span className="text-xs font-medium text-muted-foreground">Savings rate</span>
-      </div>
-      {hasPartial && (
-        <span className="text-xs text-muted-foreground">* Partial month (lighter bars)</span>
+    <span
+      className={cn(
+        'absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-1.5 py-px text-[10px] font-bold leading-tight text-foreground tabular-nums',
+        placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
       )}
-    </div>
+      style={{ background: `color-mix(in srgb, ${color} 22%, var(--background))` }}
+    >
+      {children}
+    </span>
   )
+}
+
+// Custom Legend: chips that switch series on and off
+function LegendChip({
+  active,
+  onToggle,
+  label,
+  swatch,
+}: {
+  active: boolean
+  onToggle: () => void
+  label: string
+  swatch: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onToggle}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-full border border-border-subtle px-3 py-1 text-xs font-medium transition-colors hover:bg-surface-hover',
+        active ? 'text-foreground' : 'text-muted-foreground'
+      )}
+    >
+      <span className={cn('inline-flex transition-opacity', !active && 'opacity-30')}>
+        {swatch}
+      </span>
+      {label}
+    </button>
+  )
+}
+
+function Swatch({ color }: { color: string }) {
+  return <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: color }} />
 }
 
 // Loading Skeleton
@@ -230,49 +189,144 @@ function EmptyState() {
   )
 }
 
+interface PlotProps {
+  height: number
+  /** Axis labels and gridlines, as a position from the bottom (0-100) */
+  lines: { position: number; label: string; zero?: boolean }[]
+  columns: number
+  /** Drawn over the month columns without catching the pointer */
+  overlay?: ReactNode
+  children: ReactNode
+}
+
+// A y-axis plus a plot area with gridlines; the children are the month columns
+function Plot({ height, lines, columns, overlay, children }: PlotProps) {
+  return (
+    <div
+      className="grid grid-cols-[40px_1fr] sm:grid-cols-[48px_1fr]"
+      style={{ paddingTop: TAG_ROOM, paddingBottom: TAG_ROOM }}
+    >
+      <div className="relative" style={{ height }} aria-hidden>
+        {lines.map((line) => (
+          <span
+            key={line.position}
+            className="absolute right-2 translate-y-1/2 text-[11px] font-medium text-muted-foreground tabular-nums whitespace-nowrap"
+            style={{ bottom: `${line.position}%` }}
+          >
+            {line.label}
+          </span>
+        ))}
+      </div>
+      <div className="relative" style={{ height }}>
+        {lines.map((line) => (
+          <div
+            key={line.position}
+            aria-hidden
+            className={cn(
+              'absolute inset-x-0 border-t pointer-events-none',
+              line.zero ? 'border-muted-foreground/40' : 'border-border-subtle/70 border-dashed'
+            )}
+            style={{ bottom: `${line.position}%` }}
+          />
+        ))}
+        <div
+          className="absolute inset-0 grid"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {children}
+        </div>
+        {overlay}
+      </div>
+    </div>
+  )
+}
+
+interface MonthColumnProps {
+  active: boolean
+  onActivate: (el: HTMLElement) => void
+  onSelect?: () => void
+  /** The first plot's columns are the keyboard-focusable ones */
+  focusable?: boolean
+  label?: string
+  children: ReactNode
+}
+
+function MonthColumn({
+  active,
+  onActivate,
+  onSelect,
+  focusable,
+  label,
+  children,
+}: MonthColumnProps) {
+  return (
+    <div
+      role={focusable && onSelect ? 'button' : undefined}
+      tabIndex={focusable && onSelect ? 0 : undefined}
+      aria-label={focusable ? label : undefined}
+      className={cn(
+        'relative rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active && 'bg-surface-hover/70',
+        onSelect && 'cursor-pointer'
+      )}
+      onMouseEnter={(e) => onActivate(e.currentTarget)}
+      onFocus={(e) => focusable && onActivate(e.currentTarget)}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function MonthlyTrendsChart({
   data,
   currency,
   isLoading,
   className,
   onMonthClick,
+  getCategoryLabel = (code) => code,
 }: MonthlyTrendsChartProps) {
-  // Calculate max value for Y-axis domain
-  const maxValue = useMemo(() => {
-    if (!data.length) return 100000
-    const max = Math.max(...data.flatMap((d) => [d.income, d.expenses, d.invested]))
-    // Round up to a nice number
-    const magnitude = Math.pow(10, Math.floor(Math.log10(max)))
-    return Math.ceil(max / magnitude) * magnitude
-  }, [data])
+  const chartRef = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState<Record<Series, boolean>>({
+    income: true,
+    expenses: true,
+    invested: true,
+    average: true,
+  })
+  const [hover, setHover] = useState<{ index: number; left: number } | null>(null)
 
-  // Savings rate in percent for the right axis; very negative months are clamped to keep the axis readable
-  const chartData = useMemo(
-    () =>
-      data.map((d) => ({
-        ...d,
-        axisLabel: d.isPartial ? `${d.monthLabel}*` : d.monthLabel,
-        savingsRatePct: d.savingsRate === null ? null : Math.max(d.savingsRate * 100, -100),
-      })),
+  const toggle = (series: Series) => setShown((s) => ({ ...s, [series]: !s[series] }))
+
+  const averageExpenses = useMemo(
+    () => (data.length ? data.reduce((sum, d) => sum + d.expenses, 0) / data.length : 0),
     [data]
   )
-  const hasPartial = data.some((d) => d.isPartial)
-  const rateMin = useMemo(() => {
-    const lowest = Math.min(0, ...chartData.map((d) => d.savingsRatePct ?? 0))
-    return Math.floor(lowest / 25) * 25
-  }, [chartData])
 
-  // Handle chart click
-  const handleChartClick = useCallback(
-    (state: { activeTooltipIndex?: number }) => {
-      if (state?.activeTooltipIndex !== undefined && onMonthClick) {
-        const clickedMonth = data[state.activeTooltipIndex]
-        if (clickedMonth) {
-          onMonthClick(clickedMonth)
-        }
-      }
-    },
-    [data, onMonthClick]
+  const amountScale = useMemo(
+    () =>
+      niceScale(
+        data.flatMap((d) => [
+          shown.income ? d.income : 0,
+          shown.expenses ? d.expenses : 0,
+          shown.invested ? d.invested : 0,
+        ]),
+        3
+      ),
+    [data, shown.income, shown.expenses, shown.invested]
+  )
+  const netScale = useMemo(
+    () =>
+      niceScale(
+        data.map((d) => Math.abs(d.surplus)),
+        2
+      ),
+    [data]
   )
 
   if (isLoading) {
@@ -294,124 +348,245 @@ export function MonthlyTrendsChart({
     )
   }
 
+  const columns = data.length
+  const labelEvery = Math.ceil(columns / MAX_X_LABELS)
+
+  const amountLines = amountScale.ticks.map((tick) => ({
+    position: (tick / amountScale.max) * 100,
+    label: formatScaleTick(tick, amountScale.max, currency),
+    zero: tick === 0,
+  }))
+  const netLines = [
+    ...netScale.ticks
+      .slice(1)
+      .reverse()
+      .map((tick) => ({
+        position: 50 + (tick / netScale.max) * 50,
+        label: `+${formatScaleTick(tick, netScale.max, currency)}`,
+      })),
+    { position: 50, label: formatScaleTick(0, netScale.max, currency), zero: true },
+    ...netScale.ticks.slice(1).map((tick) => ({
+      position: 50 - (tick / netScale.max) * 50,
+      label: `−${formatScaleTick(tick, netScale.max, currency)}`,
+    })),
+  ]
+
+  const activate = (index: number) => (el: HTMLElement) => {
+    const chart = chartRef.current
+    if (!chart) return
+    const chartBox = chart.getBoundingClientRect()
+    const box = el.getBoundingClientRect()
+    // Open towards the side with more room
+    const right = box.right - chartBox.left + 8
+    const left =
+      right + TOOLTIP_WIDTH <= chartBox.width ? right : box.left - chartBox.left - 8 - TOOLTIP_WIDTH
+    setHover({ index, left: Math.max(0, left) })
+  }
+
+  const hovered = hover ? data[hover.index] : undefined
+
+  const amountBar = (value: number, color: string, partial: boolean, series: Series) => {
+    if (!shown[series]) return null
+    const isClipped = value > amountScale.max
+    return (
+      <div
+        key={series}
+        className="relative flex-1 max-w-5 rounded-t-[5px]"
+        style={{ height: `${(Math.min(value, amountScale.max) / amountScale.max) * 100}%` }}
+      >
+        <BarFill color={color} partial={partial} clipped={isClipped} />
+        {isClipped && (
+          <ValueTag color={color} placement="above">
+            {formatCompact(value, currency)}
+          </ValueTag>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className={cn('w-full', className)}>
-      <CustomLegend hasPartial={hasPartial} />
-      <div className="[&_svg]:outline-none [&_svg:focus]:outline-none [&_g:focus]:outline-none [&_path:focus]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
-        <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 8, right: 0, left: -16, bottom: 0 }}
-            barGap={2}
-            onClick={handleChartClick as unknown as undefined}
-            style={{ cursor: onMonthClick ? 'pointer' : 'default', outline: 'none' }}
+      <TrendInsights data={data} currency={currency} />
+
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <LegendChip
+          active={shown.income}
+          onToggle={() => toggle('income')}
+          label="Income"
+          swatch={<Swatch color={INCOME_COLOR} />}
+        />
+        <LegendChip
+          active={shown.expenses}
+          onToggle={() => toggle('expenses')}
+          label="Expenses"
+          swatch={<Swatch color={EXPENSES_COLOR} />}
+        />
+        <LegendChip
+          active={shown.invested}
+          onToggle={() => toggle('invested')}
+          label="Invested"
+          swatch={<Swatch color={INVESTED_COLOR} />}
+        />
+        <LegendChip
+          active={shown.average}
+          onToggle={() => toggle('average')}
+          label={`Avg spend ${formatCompact(averageExpenses, currency)}/mo`}
+          swatch={<span className="w-3.5 border-t-2 border-dashed border-muted-foreground" />}
+        />
+      </div>
+
+      <div ref={chartRef} className="relative" onMouseLeave={() => setHover(null)}>
+        <p className="mt-3 pl-10 sm:pl-12 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Income vs expenses
+        </p>
+        <Plot
+          height={AMOUNT_HEIGHT}
+          lines={amountLines}
+          columns={columns}
+          overlay={
+            shown.average &&
+            averageExpenses > 0 &&
+            averageExpenses <= amountScale.max && (
+              <div
+                aria-hidden
+                className="absolute inset-x-0 border-t-[1.5px] border-dashed border-muted-foreground pointer-events-none"
+                style={{ bottom: `${(averageExpenses / amountScale.max) * 100}%` }}
+              />
+            )
+          }
+        >
+          {data.map((d, i) => (
+            <MonthColumn
+              key={d.month}
+              focusable
+              active={hover?.index === i}
+              onActivate={activate(i)}
+              onSelect={onMonthClick && (() => onMonthClick(d))}
+              label={`${describeMonth(d)}: income ${formatCompact(d.income, currency)}, expenses ${formatCompact(d.expenses, currency)}, savings rate ${formatPercent(d.savingsRate)}`}
+            >
+              <div className="absolute inset-0 flex items-end justify-center gap-[3px] px-1 sm:px-1.5">
+                {amountBar(d.income, INCOME_COLOR, d.isPartial, 'income')}
+                {amountBar(d.expenses, EXPENSES_COLOR, d.isPartial, 'expenses')}
+                {amountBar(d.invested, INVESTED_COLOR, d.isPartial, 'invested')}
+              </div>
+            </MonthColumn>
+          ))}
+        </Plot>
+
+        <p className="pl-10 sm:pl-12 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Net surplus
+        </p>
+        <Plot height={NET_HEIGHT} lines={netLines} columns={columns}>
+          {data.map((d, i) => {
+            const positive = d.surplus >= 0
+            const color = positive ? INCOME_COLOR : EXPENSES_COLOR
+            const isClipped = Math.abs(d.surplus) > netScale.max
+            return (
+              <MonthColumn
+                key={d.month}
+                active={hover?.index === i}
+                onActivate={activate(i)}
+                onSelect={onMonthClick && (() => onMonthClick(d))}
+              >
+                <div
+                  className={cn(
+                    'absolute left-1/2 w-3.5 sm:w-5 -translate-x-1/2',
+                    positive ? 'bottom-1/2 rounded-t-[5px]' : 'top-1/2 rounded-b-[5px]'
+                  )}
+                  style={{
+                    height: `${(Math.min(Math.abs(d.surplus), netScale.max) / netScale.max) * 50}%`,
+                  }}
+                >
+                  <BarFill color={color} partial={d.isPartial} clipped={isClipped} />
+                  {isClipped && (
+                    <ValueTag color={color} placement={positive ? 'above' : 'below'}>
+                      {positive ? '+' : '−'}
+                      {formatCompact(Math.abs(d.surplus), currency)}
+                    </ValueTag>
+                  )}
+                </div>
+              </MonthColumn>
+            )
+          })}
+        </Plot>
+
+        {/* Month labels */}
+        <div className="grid grid-cols-[40px_1fr] sm:grid-cols-[48px_1fr]">
+          <span />
+          <div
+            className="grid text-center"
+            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
           >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--border-subtle)"
-              strokeOpacity={0.5}
-              vertical={false}
-            />
+            {data.map((d, i) => (
+              <div
+                key={d.month}
+                className={cn(
+                  'text-[11px] sm:text-xs font-medium leading-tight',
+                  hover?.index === i ? 'text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {i % labelEvery === 0 && (
+                  <>
+                    {d.monthLabel}
+                    {d.isPartial && '*'}
+                    {d.isPartial && d.throughDate && (
+                      <span className="block text-[10px] font-normal opacity-80">
+                        to {formatThroughDate(d.throughDate)}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
-            <XAxis
-              dataKey="axisLabel"
-              axisLine={false}
-              tickLine={false}
-              tick={{
-                fill: 'var(--muted-foreground)',
-                fontSize: 11,
-                fontWeight: 500,
-              }}
-              dy={8}
-              interval="preserveStartEnd"
-              tickCount={6}
-            />
-
-            <YAxis
-              yAxisId="amount"
-              axisLine={false}
-              tickLine={false}
-              tick={{
-                fill: 'var(--muted-foreground)',
-                fontSize: 11,
-                fontWeight: 500,
-              }}
-              tickFormatter={(value) => formatAxisAmount(value, currency)}
-              domain={[0, maxValue]}
-              width={60}
-            />
-
-            <YAxis
-              yAxisId="rate"
-              orientation="right"
-              axisLine={false}
-              tickLine={false}
-              tick={{
-                fill: 'var(--muted-foreground)',
-                fontSize: 11,
-                fontWeight: 500,
-              }}
-              tickFormatter={(value) => `${value}%`}
-              domain={[rateMin, 100]}
-              width={44}
-            />
-
-            <Tooltip
-              content={<CustomTooltip currency={currency} />}
-              cursor={{ fill: 'var(--surface-hover)', fillOpacity: 0.4 }}
-            />
-
-            <Bar
-              yAxisId="amount"
-              dataKey="income"
-              fill={INCOME_COLOR}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={18}
-              animationDuration={800}
+        {/* Savings rate */}
+        {columns <= MAX_MONTHS_FOR_RATE_ROW && (
+          <div className="grid grid-cols-[40px_1fr] sm:grid-cols-[48px_1fr] items-center mt-3">
+            <span className="pr-2 text-right text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground">
+              Savings rate
+            </span>
+            <div
+              className="grid justify-items-center"
+              style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
             >
-              {chartData.map((d) => (
-                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
+              {data.map((d) => (
+                <span
+                  key={d.month}
+                  className={cn(
+                    'rounded-full px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-bold text-foreground tabular-nums',
+                    d.savingsRate === null
+                      ? 'text-muted-foreground'
+                      : d.savingsRate >= 0.2
+                        ? 'bg-emerald-500/15'
+                        : d.savingsRate >= 0
+                          ? 'bg-amber-500/15'
+                          : 'bg-rose-500/15'
+                  )}
+                >
+                  {formatPercent(d.savingsRate)}
+                </span>
               ))}
-            </Bar>
-            <Bar
-              yAxisId="amount"
-              dataKey="expenses"
-              fill={EXPENSES_COLOR}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={18}
-              animationDuration={800}
-            >
-              {chartData.map((d) => (
-                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
-              ))}
-            </Bar>
-            <Bar
-              yAxisId="amount"
-              dataKey="invested"
-              fill={INVESTED_COLOR}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={18}
-              animationDuration={800}
-            >
-              {chartData.map((d) => (
-                <Cell key={d.month} fillOpacity={d.isPartial ? PARTIAL_OPACITY : 1} />
-              ))}
-            </Bar>
+            </div>
+          </div>
+        )}
 
-            {/* Savings rate (null months leave a gap) */}
-            <Line
-              yAxisId="rate"
-              type="linear"
-              dataKey="savingsRatePct"
-              stroke={RATE_COLOR}
-              strokeWidth={2}
-              dot={{ r: 3, fill: RATE_COLOR, strokeWidth: 0 }}
-              activeDot={{ r: 4 }}
-              connectNulls={false}
-              animationDuration={800}
+        {hover && hovered && (
+          <div
+            className="pointer-events-none absolute top-8 z-20"
+            style={{ left: hover.left, width: TOOLTIP_WIDTH }}
+          >
+            <MonthTooltip
+              month={hovered}
+              previous={data[hover.index - 1]}
+              averageExpenses={averageExpenses}
+              currency={currency}
+              getCategoryLabel={getCategoryLabel}
+              className="w-full"
             />
-          </ComposedChart>
-        </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   )

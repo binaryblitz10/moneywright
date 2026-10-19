@@ -419,6 +419,7 @@ function DashboardPage() {
           trendsData={trendsData}
           isLoading={trendsLoading}
           onMonthClick={handleMonthClick}
+          getCategoryLabel={getCategoryLabel}
         />
       )}
 
