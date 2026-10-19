@@ -227,7 +227,7 @@ function StatementsPage() {
         {/* Upload Dialog */}
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
           <DialogContent
-            className="sm:max-w-2xl p-0 gap-0 h-150 max-h-[85vh] flex flex-col"
+            className="sm:max-w-2xl border-0 p-0 gap-0 overflow-hidden h-150 max-h-[85vh] flex flex-col"
             showCloseButton={false}
           >
             {activeProfileId && (
