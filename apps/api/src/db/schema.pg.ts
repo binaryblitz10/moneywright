@@ -634,6 +634,33 @@ export const userPreferences = pgTable(
   ]
 )
 
+/**
+ * Transaction rules table - user-defined rules that set the name and/or category of matching transactions
+ */
+export const transactionRules = pgTable(
+  'transaction_rules',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Matching: every term must match the original description
+    matchTerms: text('match_terms').notNull(), // JSON array of strings
+    transactionType: varchar('transaction_type', { length: 10 }), // credit or debit, null = both
+
+    // Values applied to matching transactions
+    name: text('name'),
+    category: varchar('category', { length: 50 }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('transaction_rules_user_id_idx').on(table.userId)]
+)
+
 // Type exports for use throughout the application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -655,6 +682,9 @@ export type NewStatement = typeof statements.$inferInsert
 
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
+
+export type TransactionRule = typeof transactionRules.$inferSelect
+export type NewTransactionRule = typeof transactionRules.$inferInsert
 
 export type InvestmentSource = typeof investmentSources.$inferSelect
 export type NewInvestmentSource = typeof investmentSources.$inferInsert

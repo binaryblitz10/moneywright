@@ -29,6 +29,7 @@ import profileRoutes from './routes/profiles'
 import accountRoutes from './routes/accounts'
 import statementRoutes from './routes/statements'
 import transactionRoutes from './routes/transactions'
+import transactionRuleRoutes from './routes/transaction-rules'
 import categoryRoutes from './routes/categories'
 import investmentRoutes from './routes/investments'
 import llmRoutes from './routes/llm'
@@ -139,6 +140,7 @@ app.route('/api/profiles', profileRoutes)
 app.route('/api/accounts', accountRoutes)
 app.route('/api/statements', statementRoutes)
 app.route('/api/transactions', transactionRoutes)
+app.route('/api/transaction-rules', transactionRuleRoutes)
 app.route('/api/categories', categoryRoutes)
 app.route('/api/investments', investmentRoutes)
 app.route('/api/llm', llmRoutes)

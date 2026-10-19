@@ -6,11 +6,12 @@
  * Supports streaming mode with mini-batches for real-time updates
  */
 
-import { eq, inArray, and, isNull } from 'drizzle-orm'
+import { eq, inArray, and, isNull, desc } from 'drizzle-orm'
 import { createLLMClientFromSettings, type LLMClientResult } from '../../llm'
 import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../constants'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
+import { parseMatchTerms, resolveRuleFields, type RuleForMatching } from '../transaction-rules'
 import { parseCSVLine, quoteCSVField, streamCsvLines } from './csv'
 import {
   NAME_FORMAT,
@@ -283,6 +284,98 @@ async function updateTransactionCategory(cat: CategorizedTransaction): Promise<b
 }
 
 /**
+ * Name and/or category forced by a rule on a transaction that still goes to the LLM
+ */
+interface RuleOverride {
+  name?: string
+  category?: string
+}
+
+/**
+ * Load the user's transaction rules
+ */
+async function fetchUserRules(userId: string): Promise<RuleForMatching[]> {
+  const rows = await db
+    .select()
+    .from(tables.transactionRules)
+    .where(eq(tables.transactionRules.userId, userId))
+    .orderBy(desc(tables.transactionRules.createdAt))
+
+  return rows.map((r) => ({
+    matchTerms: parseMatchTerms(r.matchTerms),
+    transactionType:
+      r.transactionType === 'credit' || r.transactionType === 'debit' ? r.transactionType : null,
+    name: r.name,
+    category: r.category,
+    updatedAt: r.updatedAt,
+  }))
+}
+
+/**
+ * Names the user already has on transactions flagged as subscriptions
+ */
+async function fetchSubscriptionNames(userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ name: tables.transactions.summary })
+    .from(tables.transactions)
+    .where(
+      and(eq(tables.transactions.userId, userId), eq(tables.transactions.isSubscription, true))
+    )
+    .groupBy(tables.transactions.summary)
+
+  return new Set(rows.map((r) => r.name).filter((n): n is string => !!n))
+}
+
+/**
+ * Apply the user's rules to uncategorized transactions.
+ * Transactions where rules set both name and category are saved directly (no LLM).
+ * Transactions where a rule sets only one of them get an override that is applied to the LLM result.
+ */
+async function applyRules(
+  userId: string,
+  transactions: TransactionForCategorization[],
+  validCategories: string[]
+): Promise<{ savedIds: Set<string>; overrides: Map<string, RuleOverride> }> {
+  const savedIds = new Set<string>()
+  const overrides = new Map<string, RuleOverride>()
+
+  const rules = await fetchUserRules(userId)
+  if (rules.length === 0) return { savedIds, overrides }
+
+  let subscriptionNames: Set<string> | undefined
+
+  for (const txn of transactions) {
+    const fields = resolveRuleFields(rules, { description: txn.description, type: txn.type })
+    const name = fields.name
+    const category =
+      fields.category && validCategories.includes(fields.category) ? fields.category : undefined
+    if (!name && !category) continue
+
+    if (!name || !category) {
+      overrides.set(txn.id, { name, category })
+      continue
+    }
+
+    subscriptionNames ??= await fetchSubscriptionNames(userId)
+    try {
+      const saved = await updateTransactionCategory({
+        id: txn.id,
+        category,
+        confidence: 1,
+        summary: name,
+        isSubscription: subscriptionNames.has(name),
+      })
+      if (saved) savedIds.add(txn.id)
+    } catch (err) {
+      logger.warn(`[Categorize] Failed to save rule match for transaction ${txn.id}:`, err)
+    }
+  }
+
+  logger.debug(`[Categorize] Rules: ${savedIds.size} fully matched, ${overrides.size} partially`)
+  return { savedIds, overrides }
+}
+
+/**
  * Process a single batch of transactions with streaming
  * Returns the number of successfully categorized transactions
  */
@@ -424,7 +517,8 @@ async function runCategorizationPass(
   accountType?: string,
   profileSummary?: string | null,
   userCategorizationHints?: string,
-  userId?: string
+  userId?: string,
+  ruleOverrides?: Map<string, RuleOverride>
 ): Promise<{ success: number; failed: number }> {
   const categories = getCategoriesForCountry(countryCode)
   const categoryList = formatCategoryList(categories)
@@ -472,7 +566,12 @@ async function runCategorizationPass(
       countryCode,
       llmClient,
       async (cat) => {
-        const updated = await updateTransactionCategory(cat)
+        const override = ruleOverrides?.get(cat.id)
+        const updated = await updateTransactionCategory({
+          ...cat,
+          category: override?.category ?? cat.category,
+          summary: override?.name ?? cat.summary,
+        })
         if (updated) {
           totalSuccess++
 
@@ -536,7 +635,6 @@ export async function categorizeTransactionsStreaming(
 ): Promise<{ categorizedCount: number; failedAtIndex?: number }> {
   if (transactionIds.length === 0) return { categorizedCount: 0 }
 
-  const llmClient = await createLLMClientFromSettings(modelOverride)
   const totalTransactions = transactionIds.length
 
   logger.debug(`[Categorize] Starting categorization for ${totalTransactions} transactions`)
@@ -553,6 +651,25 @@ export async function categorizeTransactionsStreaming(
   }
 
   logger.debug(`[Categorize] Found ${uncategorized.length} uncategorized transactions`)
+
+  // User rules: full matches are saved without the LLM, partial matches override the LLM result
+  let ruleOverrides: Map<string, RuleOverride> | undefined
+  if (userId) {
+    const validCategories = getCategoriesForCountry(countryCode).map((c) => c.code)
+    const applied = await applyRules(userId, uncategorized, validCategories)
+    ruleOverrides = applied.overrides
+    totalCategorized += applied.savedIds.size
+    if (applied.savedIds.size > 0) {
+      onProgress?.(totalCategorized, totalTransactions)
+      uncategorized = uncategorized.filter((t) => !applied.savedIds.has(t.id))
+    }
+  }
+
+  if (uncategorized.length === 0) {
+    return { categorizedCount: totalCategorized }
+  }
+
+  const llmClient = await createLLMClientFromSettings(modelOverride)
 
   // Keep retrying until all transactions are categorized or max retries reached
   while (uncategorized.length > 0 && retryCount < MAX_CATEGORIZATION_RETRIES) {
@@ -572,7 +689,8 @@ export async function categorizeTransactionsStreaming(
       accountType,
       profileSummary,
       userCategorizationHints,
-      userId
+      userId,
+      ruleOverrides
     )
 
     totalCategorized += success

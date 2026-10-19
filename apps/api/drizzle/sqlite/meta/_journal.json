@@ -71,6 +71,13 @@
       "when": 1792260545081,
       "tag": "0009_transaction_name_version",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792387325097,
+      "tag": "0010_transaction_rules",
+      "breakpoints": true
     }
   ]
 }

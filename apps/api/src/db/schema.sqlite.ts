@@ -661,6 +661,37 @@ export const loans = sqliteTable(
   ]
 )
 
+/**
+ * Transaction rules table - user-defined rules that set the name and/or category of matching transactions
+ */
+export const transactionRules = sqliteTable(
+  'transaction_rules',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Matching: every term must match the original description
+    matchTerms: text('match_terms').notNull(), // JSON array of strings
+    transactionType: text('transaction_type'), // credit or debit, null = both
+
+    // Values applied to matching transactions
+    name: text('name'),
+    category: text('category'),
+
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [index('transaction_rules_user_id_idx').on(table.userId)]
+)
+
 // Type exports for use throughout the application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -682,6 +713,9 @@ export type NewStatement = typeof statements.$inferInsert
 
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
+
+export type TransactionRule = typeof transactionRules.$inferSelect
+export type NewTransactionRule = typeof transactionRules.$inferInsert
 
 export type InvestmentSource = typeof investmentSources.$inferSelect
 export type NewInvestmentSource = typeof investmentSources.$inferInsert
