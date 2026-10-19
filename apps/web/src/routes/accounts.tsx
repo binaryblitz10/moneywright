@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
-import { Building2, CreditCard, Upload, Plus } from 'lucide-react'
+import { Building2, CreditCard, Upload } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { Account, Statement } from '@/lib/api'
@@ -86,8 +86,8 @@ function AccountsPage() {
             <div className="flex items-center gap-3">
               <Button asChild>
                 <Link to="/statements" search={{ upload: true }}>
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Add Account
+                  <Upload className="h-4 w-4 mr-1.5" />
+                  Upload Statement
                 </Link>
               </Button>
               <ProfileSelector
