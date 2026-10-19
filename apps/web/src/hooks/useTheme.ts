@@ -19,10 +19,11 @@ export function useTheme() {
     } else {
       root.classList.remove('dark')
     }
-    localStorage.setItem('theme', theme)
   }, [theme])
 
+  // Only an explicit choice is saved, so the theme keeps following the system until then
   const setTheme = (newTheme: Theme) => {
+    localStorage.setItem('theme', newTheme)
     setThemeState(newTheme)
   }
 
