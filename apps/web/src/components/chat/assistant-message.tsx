@@ -17,6 +17,7 @@ import { ReasoningCollapsible } from './message-content'
 import { TOOL_CONFIG } from './tool-config'
 import { groupSteps } from './utils'
 import type { Step, ToolCallStep, UIMessage } from './types'
+import { ChatColumn } from './chat-column'
 
 interface StreamState {
   steps: Array<{
@@ -105,12 +106,12 @@ export function AssistantMessage({
   // Show loading indicator
   if (groups.length === 0 && isLastMessage && streamState.isLoading) {
     return (
-      <div className="w-full lg:w-3xl lg:mx-auto">
+      <ChatColumn>
         <div className="shimmer-group text-sm">
           <BrainCircuit className="size-4" />
           <span>Working on it</span>
         </div>
-      </div>
+      </ChatColumn>
     )
   }
 
@@ -119,13 +120,13 @@ export function AssistantMessage({
       {groups.map((group, groupIdx) => {
         if (group.type === 'text') {
           return (
-            <div key={`text-group-${groupIdx}`} className="w-full lg:w-3xl lg:mx-auto">
+            <ChatColumn key={`text-group-${groupIdx}`}>
               <Message from="assistant">
                 <MessageContent>
                   <MessageContentWithDataTables content={group.content} />
                 </MessageContent>
               </Message>
-            </div>
+            </ChatColumn>
           )
         }
 
@@ -135,7 +136,7 @@ export function AssistantMessage({
         const isProcessing = isLastMessage && streamState.isLoading && isLastGroup && hasNoTextAfter
 
         return (
-          <div key={`cot-group-${groupIdx}`} className="w-full lg:w-3xl lg:mx-auto">
+          <ChatColumn key={`cot-group-${groupIdx}`}>
             <ChainOfThought defaultOpen={true}>
               <ChainOfThoughtHeader isLoading={isProcessing}>
                 {isProcessing ? 'Working on it' : 'Chain of thought'}
@@ -158,7 +159,7 @@ export function AssistantMessage({
                 ))}
               </ChainOfThoughtContent>
             </ChainOfThought>
-          </div>
+          </ChatColumn>
         )
       })}
     </>

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AccountSelector } from '@/components/ui/account-selector'
@@ -24,6 +25,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { TransactionFilters, Category, CategoryKind, Account, Statement } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 interface TransactionFiltersBarProps {
   filters: TransactionFilters
@@ -149,49 +151,30 @@ export function TransactionFiltersBar({
           {/* Quick Filter Chips */}
           <div className="flex shrink-0 items-center gap-2">
             {/* Transaction Type Selector */}
-            <div
-              className={cn(
-                'flex items-center p-1 rounded-xl',
-                'bg-surface-elevated',
-                'border border-border-subtle'
-              )}
-            >
-              <button
-                onClick={() => removeFilter('type')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  !filters.type
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                All
-              </button>
-              <button
-                onClick={() => onFiltersChange({ ...filters, type: 'credit' })}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  filters.type === 'credit'
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <ArrowDownLeft className="h-3.5 w-3.5" />
-                <span>Income</span>
-              </button>
-              <button
-                onClick={() => onFiltersChange({ ...filters, type: 'debit' })}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  filters.type === 'debit'
-                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <ArrowUpRight className="h-3.5 w-3.5" />
-                <span>Expense</span>
-              </button>
-            </div>
+            <SegmentedControl
+              aria-label="Transaction type"
+              value={filters.type ?? 'all'}
+              onChange={(type) => {
+                if (type === 'all') removeFilter('type')
+                else onFiltersChange({ ...filters, type })
+              }}
+              options={[
+                { value: 'all', label: 'All' },
+                {
+                  value: 'credit',
+                  label: 'Income',
+                  icon: <ArrowDownLeft className="h-3.5 w-3.5" />,
+                  activeClassName:
+                    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm',
+                },
+                {
+                  value: 'debit',
+                  label: 'Expense',
+                  icon: <ArrowUpRight className="h-3.5 w-3.5" />,
+                  activeClassName: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm',
+                },
+              ]}
+            />
 
             {/* Subscription Toggle */}
             <button
@@ -464,9 +447,7 @@ export function TransactionFiltersBar({
       {/* Active Filters Pills */}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 px-1">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Active:
-          </span>
+          <MetaLabel>Active:</MetaLabel>
           {search && (
             <FilterPill
               label={`"${search}"`}

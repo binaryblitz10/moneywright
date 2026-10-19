@@ -8,6 +8,7 @@ import { Message, MessageContent, MessageResponse } from '@/components/ai-elemen
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AssistantMessage } from './assistant-message'
 import type { UIMessage } from './types'
+import { ChatColumn } from './chat-column'
 
 interface StreamState {
   steps: Array<{
@@ -47,13 +48,13 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
           <div key={message.id} className="space-y-4 animate-fade-in">
             {/* User message */}
             {message.role === 'user' && message.content && (
-              <div className="w-full lg:w-3xl lg:mx-auto flex justify-end">
+              <ChatColumn className="flex justify-end">
                 <Message from="user">
                   <MessageContent>
                     <MessageResponse>{message.content}</MessageResponse>
                   </MessageContent>
                 </Message>
-              </div>
+              </ChatColumn>
             )}
 
             {/* Assistant message */}
@@ -71,12 +72,12 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
 
         {/* Error display */}
         {streamState.error && (
-          <div className="w-full lg:w-3xl lg:mx-auto">
+          <ChatColumn>
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{streamState.error}</AlertDescription>
             </Alert>
-          </div>
+          </ChatColumn>
         )}
 
         <div ref={ref} />

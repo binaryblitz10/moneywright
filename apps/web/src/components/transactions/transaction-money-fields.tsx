@@ -30,7 +30,6 @@ export function TransactionMoneyFields({
           type="date"
           value={values.date}
           onChange={(e) => onChange({ ...values, date: e.target.value })}
-          className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
       <div className="min-w-0 space-y-2">
@@ -42,7 +41,6 @@ export function TransactionMoneyFields({
           onChange={(e) => onChange({ ...values, amount: e.target.value })}
           placeholder="0.00"
           aria-invalid={values.amount !== '' && parseAmount(values.amount) === null}
-          className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
       <div className="min-w-0 space-y-2 sm:col-span-2">

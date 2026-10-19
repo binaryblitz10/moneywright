@@ -367,7 +367,7 @@ function InvestmentsPage() {
           </div>
         ) : sources && sources.length > 0 ? (
           <Tabs defaultValue="by-source" className="space-y-6">
-            <TabsList className="bg-muted/50">
+            <TabsList>
               <TabsTrigger value="by-source" className="gap-2">
                 <LayoutGrid className="h-4 w-4" />
                 <span className="hidden sm:inline">By Source</span>

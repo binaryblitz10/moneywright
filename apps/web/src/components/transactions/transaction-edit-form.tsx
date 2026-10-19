@@ -299,7 +299,6 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           placeholder={single ? 'Brief description' : 'Leave empty to keep existing summaries'}
-          className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
 

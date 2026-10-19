@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { Account, AccountType, Statement, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 interface BankAccountCardProps {
   account: Account
@@ -280,7 +281,7 @@ export function BankAccountCard({
 
       {/* Balance */}
       <div className="mt-4 pt-4 border-t border-border-subtle">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">Balance</p>
+        <MetaLabel as="p">Balance</MetaLabel>
         <div className="flex items-baseline justify-between mt-1">
           <p className="text-xl font-semibold text-positive tabular-nums">
             {account.latestBalance !== null ? formatCurrency(account.latestBalance) : '—'}

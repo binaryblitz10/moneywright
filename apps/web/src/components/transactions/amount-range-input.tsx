@@ -15,8 +15,6 @@ const MODE_LABELS: Record<AmountMode, string> = {
   between: 'Between',
 }
 
-const inputClass = 'h-10 rounded-md border border-input bg-background px-3 py-2'
-
 interface AmountRangeInputProps {
   id?: string
   value: AmountRangeValue
@@ -54,7 +52,6 @@ export function AmountRangeInput({ id, value, onChange }: AmountRangeInputProps)
             placeholder={mode === 'between' ? 'From' : 'Amount'}
             value={value.min}
             onChange={(e) => onChange({ ...value, min: e.target.value })}
-            className={inputClass}
           />
         )}
         {(mode === 'below' || mode === 'between') && (
@@ -64,7 +61,6 @@ export function AmountRangeInput({ id, value, onChange }: AmountRangeInputProps)
             placeholder={mode === 'between' ? 'To' : 'Amount'}
             value={value.max}
             onChange={(e) => onChange({ ...value, max: e.target.value })}
-            className={inputClass}
           />
         )}
       </div>

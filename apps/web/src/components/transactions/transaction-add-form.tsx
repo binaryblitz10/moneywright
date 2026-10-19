@@ -100,7 +100,6 @@ export function TransactionAddForm({
           onChange={(e) => setSummary(e.target.value)}
           placeholder="e.g. Auto fare"
           maxLength={200}
-          className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
 

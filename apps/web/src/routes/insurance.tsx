@@ -87,6 +87,7 @@ import {
 import { cn } from '@/lib/utils'
 import { PROVIDER_LOGOS, getLogoInvertStyle } from '@/lib/provider-logos'
 import { toast } from 'sonner'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 export const Route = createFileRoute('/insurance')({
   component: InsurancePage,
@@ -658,7 +659,7 @@ function PolicyCard({
 
       {/* Coverage - like Balance section in accounts */}
       <div className="mt-4 pt-4 border-t border-border-subtle">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">Coverage</p>
+        <MetaLabel as="p">Coverage</MetaLabel>
         <div className="flex items-baseline justify-between mt-1">
           <p className="text-xl font-semibold text-positive tabular-nums">
             {policy.sumInsured !== null
@@ -1543,12 +1544,12 @@ function PolicyDetailSheet({
 
             {/* Tabs for Details and Payments */}
             <Tabs defaultValue="details" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 h-11">
-                <TabsTrigger value="details" className="text-sm">
+              <TabsList className="w-full">
+                <TabsTrigger value="details">
                   <FileText className="h-4 w-4 mr-2" />
                   Details
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="text-sm">
+                <TabsTrigger value="payments">
                   <Receipt className="h-4 w-4 mr-2" />
                   Payments
                   {paymentCount > 0 && (

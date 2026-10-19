@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils'
 import type { Account, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
 import { useCreditCardPaymentHistory } from '@/hooks'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 interface CreditCardDisplayProps {
   account: Account
@@ -197,7 +198,7 @@ export function CreditCardDisplay({
 
       {/* Balance */}
       <div className="mt-4 pt-4 border-t border-border-subtle">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">Outstanding</p>
+        <MetaLabel as="p">Outstanding</MetaLabel>
         <div className="flex items-baseline justify-between mt-1">
           <p className="text-xl font-semibold text-negative tabular-nums">
             {account.latestBalance !== null ? formatCurrency(account.latestBalance) : '—'}

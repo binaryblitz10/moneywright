@@ -16,6 +16,7 @@ import { CardPaymentLinkPanel } from '@/components/transactions/card-payment-lin
 import { formatCurrency } from '@/components/dashboard/utils'
 import { useDismissCardPayments, useLinkToCard, useLinkTransactions } from '@/hooks'
 import type { DataHealthCardPayment, DataHealthCardPaymentKind } from '@/lib/api'
+import { MetaLabel } from '@/components/ui/meta-label'
 
 const KIND_LABELS: Record<DataHealthCardPaymentKind, { label: string; detail: string }> = {
   unlinked_debit: {
@@ -121,9 +122,7 @@ export function CardPaymentChecks({ items }: CardPaymentChecksProps) {
 
   return (
     <div className="space-y-1">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">
-        Card payments to check
-      </p>
+      <MetaLabel as="p">Card payments to check</MetaLabel>
       <div className="divide-y divide-border-subtle">
         {items.map((item) => (
           <CardPaymentRow key={item.id} item={item} onChoose={setChoosing} />

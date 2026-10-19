@@ -13,6 +13,7 @@ export type { ContentPart } from './utils'
 export { TOOL_CONFIG } from './tool-config'
 
 // Base components
+export { ChatColumn } from './chat-column'
 export { MessageContentWithDataTables, ReasoningCollapsible } from './message-content'
 export { ConversationHistory } from './conversation-history'
 export { ModelSelector, ThinkingLevelSelector } from './model-selector'

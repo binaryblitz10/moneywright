@@ -11,6 +11,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { ModelSelector, ThinkingLevelSelector } from './model-selector'
 import type { ThinkingLevel } from './types'
+import { ChatColumn } from './chat-column'
 
 interface ChatProvider {
   id: string
@@ -60,7 +61,7 @@ export function ChatInput({
     <div className="shrink-0">
       {/* Input container */}
       <div className="pt-2 pb-2 bg-background">
-        <div className="w-full lg:w-3xl lg:mx-auto">
+        <ChatColumn>
           <PromptInput onSubmit={onSubmit} className="rounded-xl border-border-subtle bg-card">
             <PromptInputTextarea
               placeholder="Ask about your finances..."
@@ -98,7 +99,7 @@ export function ChatInput({
             AI responses are for informational purposes only and should not be considered financial
             advice.
           </p>
-        </div>
+        </ChatColumn>
       </div>
     </div>
   )
