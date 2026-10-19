@@ -12,10 +12,20 @@ interface CategoryPickerProps {
   categories: Category[]
   value: string
   onChange: (code: string) => void
+  /** Adds a choice that clears the selection, passing an empty code to onChange */
+  noneLabel?: string
+  placeholder?: string
 }
 
 /** Searchable single-select category list, grouped by kind like the transactions filter */
-export function CategoryPicker({ id, categories, value, onChange }: CategoryPickerProps) {
+export function CategoryPicker({
+  id,
+  categories,
+  value,
+  onChange,
+  noneLabel,
+  placeholder = 'Select a category',
+}: CategoryPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<CategoryKind | null>(null)
@@ -50,7 +60,7 @@ export function CategoryPicker({ id, categories, value, onChange }: CategoryPick
           className="h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover"
         >
           <span className={cn('truncate', !value && 'text-muted-foreground')}>
-            {categories.find((cat) => cat.code === value)?.label ?? 'Select a category'}
+            {categories.find((cat) => cat.code === value)?.label ?? placeholder}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -88,6 +98,20 @@ export function CategoryPicker({ id, categories, value, onChange }: CategoryPick
           })}
         </div>
         <div className="max-h-60 space-y-1 overflow-y-auto">
+          {noneLabel && (
+            <Button
+              type="button"
+              variant={!value ? 'secondary' : 'ghost'}
+              size="sm"
+              className="w-full justify-start gap-2 px-2"
+              onClick={() => select('')}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                {!value && <Check className="h-4 w-4 text-primary" />}
+              </span>
+              <span className="truncate">{noneLabel}</span>
+            </Button>
+          )}
           {groups.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">No categories found</p>
           ) : (

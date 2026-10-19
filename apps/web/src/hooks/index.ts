@@ -55,6 +55,16 @@ export {
   useCategorizationStatus,
 } from './useTransactions'
 
+// Transaction rule hooks
+export {
+  transactionRuleKeys,
+  useTransactionRules,
+  useRulePreview,
+  useCreateTransactionRule,
+  useUpdateTransactionRule,
+  useDeleteTransactionRule,
+} from './useTransactionRules'
+
 // Statement hooks
 export {
   statementKeys,

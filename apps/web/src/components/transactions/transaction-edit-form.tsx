@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, EyeOff, Link2, Trash2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -24,8 +24,25 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CategoryPicker } from './category-picker'
-import { updateTransaction, type Transaction, type Category } from '@/lib/api'
-import { useLoans, useInsurancePolicies, useAccounts, useBulkDeleteTransactions } from '@/hooks'
+import { ApplyToMatching, type ApplyToMatchingState } from './apply-to-matching'
+import {
+  updateTransaction,
+  bulkUpdateTransactions,
+  createTransactionRule,
+  previewTransactionRule,
+  type Transaction,
+  type Category,
+} from '@/lib/api'
+import { suggestTerm } from '@/lib/suggest-term'
+import {
+  useLoans,
+  useInsurancePolicies,
+  useAccounts,
+  useBulkDeleteTransactions,
+  useRulePreview,
+} from '@/hooks'
+import { transactionKeys } from '@/hooks/useTransactions'
+import { transactionRuleKeys } from '@/hooks/useTransactionRules'
 
 // Categories that support entity linking
 const LINKABLE_CATEGORIES = {
@@ -36,27 +53,72 @@ const LINKABLE_CATEGORIES = {
 
 type LinkableCategory = keyof typeof LINKABLE_CATEGORIES
 
-interface TransactionEditFormProps {
-  transaction: Transaction
+/**
+ * Edit one transaction (`transaction`) or several at once (`transactionIds`).
+ * When editing several, untouched fields keep each transaction's own value.
+ */
+type TransactionEditFormProps = {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
-}
+} & ({ transaction: Transaction } | { transactionIds: string[] })
 
-export function TransactionEditForm({
-  transaction,
-  categories,
-  onClose,
-  onSuccess,
-}: TransactionEditFormProps) {
-  const [category, setCategory] = useState(transaction.category)
-  const [summary, setSummary] = useState(transaction.summary || '')
-  const [isHidden, setIsHidden] = useState(transaction.isHidden)
-  const [linkedEntityId, setLinkedEntityId] = useState<string | null>(transaction.linkedEntityId)
+export function TransactionEditForm(props: TransactionEditFormProps) {
+  const { categories, onClose, onSuccess } = props
+  const single = 'transaction' in props ? props.transaction : null
+  const transactionIds = single
+    ? [single.id]
+    : (props as { transactionIds: string[] }).transactionIds
+  const count = transactionIds.length
+
+  // Bulk: empty category / summary and a null hidden state mean "keep existing"
+  const [category, setCategory] = useState(single?.category ?? '')
+  const [summary, setSummary] = useState(single?.summary ?? '')
+  const [isHidden, setIsHidden] = useState<boolean | null>(single ? single.isHidden : null)
+  const [linkedEntityId, setLinkedEntityId] = useState<string | null>(
+    single?.linkedEntityId ?? null
+  )
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const queryClient = useQueryClient()
 
-  // Check if current category supports entity linking
-  const isLinkableCategory = category in LINKABLE_CATEGORIES
+  // Name and category values to apply: only the ones that were changed
+  const trimmedSummary = summary.trim()
+  const summaryChange = single
+    ? trimmedSummary !== (single.summary || '') && trimmedSummary
+      ? trimmedSummary
+      : undefined
+    : trimmedSummary || undefined
+  const categoryChange = single
+    ? category !== single.category
+      ? category
+      : undefined
+    : category || undefined
+  const hasNameOrCategoryChange = summaryChange !== undefined || categoryChange !== undefined
+  const hasChanges = single ? !!category : hasNameOrCategoryChange || isHidden !== null
+
+  // "Create Rule" is offered once the name or category is changed
+  const [applyState, setApplyState] = useState<ApplyToMatchingState>(() => {
+    const term = single ? suggestTerm(single.originalDescription, single.summary) : ''
+    return { terms: term ? [term] : [], updateExisting: true, saveRule: true }
+  })
+  const { data: preview, isFetching: isPreviewFetching } = useRulePreview(
+    applyState.terms,
+    null,
+    hasNameOrCategoryChange
+  )
+  // Matches outside the transactions being edited, which are updated anyway
+  const editedIds = new Set(transactionIds)
+  const hasTerms = applyState.terms.length > 0
+  const matchingCount = hasTerms
+    ? (preview?.transactionIds ?? []).filter((id) => !editedIds.has(id)).length
+    : 0
+  const matchingSamples = (hasTerms ? (preview?.samples ?? []) : [])
+    .filter((sample) => !editedIds.has(sample.id))
+    .slice(0, 3)
+    .map((sample) => sample.originalDescription)
+
+  // Entity linking is only offered when editing a single transaction
+  const isLinkableCategory = !!single && category in LINKABLE_CATEGORIES
   const entityType = isLinkableCategory ? LINKABLE_CATEGORIES[category as LinkableCategory] : null
 
   // Fetch entities based on category - use family view (no profileId filter)
@@ -132,21 +194,82 @@ export function TransactionEditForm({
     }
   }
 
+  // Update matching transactions and save the rule; failures are reported but don't undo the edit
+  const applyToMatching = async () => {
+    if (!hasNameOrCategoryChange || !hasTerms) return
+
+    if (applyState.updateExisting) {
+      try {
+        // Fetch matches for the current terms: the debounced preview may still be for older ones
+        const { transactionIds: matchIds } = await previewTransactionRule({
+          matchTerms: applyState.terms,
+        })
+        const otherIds = matchIds.filter((id) => !editedIds.has(id))
+        if (otherIds.length > 0) {
+          await bulkUpdateTransactions({
+            transactionIds: otherIds,
+            summary: summaryChange,
+            category: categoryChange,
+          })
+          toast.success(
+            `Updated ${otherIds.length} matching transaction${otherIds.length === 1 ? '' : 's'}`
+          )
+        }
+      } catch {
+        toast.error('Failed to update matching transactions')
+      }
+    }
+
+    if (applyState.saveRule) {
+      try {
+        await createTransactionRule({
+          matchTerms: applyState.terms,
+          name: trimmedSummary || null,
+          category: category || null,
+          transactionType: null,
+        })
+        queryClient.invalidateQueries({ queryKey: transactionRuleKeys.all })
+        toast.success('Rule saved')
+      } catch {
+        toast.error('Failed to save rule')
+      }
+    }
+  }
+
   const updateMutation = useMutation({
-    mutationFn: () =>
-      updateTransaction(transaction.id, {
-        category,
-        summary: summary || undefined,
-        isHidden,
-        linkedEntityId,
-        linkedEntityType: linkedEntityId && entityType ? entityType : null,
-      }),
+    mutationFn: async () => {
+      if (single) {
+        await updateTransaction(single.id, {
+          category,
+          summary: summary || undefined,
+          isHidden: isHidden ?? undefined,
+          linkedEntityId,
+          linkedEntityType: linkedEntityId && entityType ? entityType : null,
+        })
+      } else {
+        await bulkUpdateTransactions({
+          transactionIds,
+          category: categoryChange,
+          summary: summaryChange,
+          ...(isHidden !== null && { isHidden }),
+        })
+      }
+
+      await applyToMatching()
+    },
     onSuccess: () => {
-      toast.success('Transaction updated')
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      // Category changes can change or drop entity links
+      queryClient.invalidateQueries({ queryKey: ['loans'] })
+      queryClient.invalidateQueries({ queryKey: ['insurance'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success(
+        single ? 'Transaction updated' : `Updated ${count} transaction${count === 1 ? '' : 's'}`
+      )
       onSuccess()
     },
     onError: () => {
-      toast.error('Failed to update transaction')
+      toast.error(single ? 'Failed to update transaction' : 'Failed to update transactions')
     },
   })
 
@@ -154,7 +277,7 @@ export function TransactionEditForm({
 
   const handleDelete = () => {
     setConfirmDelete(false)
-    deleteMutation.mutate([transaction.id], { onSuccess })
+    deleteMutation.mutate(transactionIds, { onSuccess })
   }
 
   return (
@@ -165,7 +288,7 @@ export function TransactionEditForm({
           id="summary"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder="Brief description"
+          placeholder={single ? 'Brief description' : 'Leave empty to keep existing summaries'}
           className="h-10 rounded-md border border-input bg-background px-3 py-2"
         />
       </div>
@@ -177,7 +300,14 @@ export function TransactionEditForm({
           categories={categories}
           value={category}
           onChange={handleCategoryChange}
+          {...(!single && { noneLabel: 'Keep existing', placeholder: 'Keep existing' })}
         />
+        {!single && category && (
+          <p className="text-xs text-muted-foreground">
+            Loan, insurance and credit card links are removed from transactions whose category
+            changes.
+          </p>
+        )}
       </div>
 
       {/* Entity Linking Section - Only show for linkable categories */}
@@ -222,19 +352,31 @@ export function TransactionEditForm({
         </div>
       )}
 
+      {hasNameOrCategoryChange && (
+        <ApplyToMatching
+          state={applyState}
+          onChange={setApplyState}
+          count={matchingCount}
+          samples={matchingSamples}
+          isFetching={isPreviewFetching}
+        />
+      )}
+
       <div className="flex items-center justify-between rounded-lg border p-4 mt-4">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
             <EyeOff className="h-4 w-4 text-muted-foreground" />
             <Label htmlFor="hide-transaction" className="font-medium">
-              Hide Transaction
+              {single ? 'Hide Transaction' : 'Hide Transactions'}
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Hidden transactions are excluded from all reports, charts, and calculations.
+            {isHidden === null
+              ? 'Leave untouched to keep each transaction as it is.'
+              : 'Hidden transactions are excluded from all reports, charts, and calculations.'}
           </p>
         </div>
-        <Switch id="hide-transaction" checked={isHidden} onCheckedChange={setIsHidden} />
+        <Switch id="hide-transaction" checked={isHidden ?? false} onCheckedChange={setIsHidden} />
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-4">
@@ -256,7 +398,7 @@ export function TransactionEditForm({
           </Button>
           <Button
             onClick={() => updateMutation.mutate()}
-            disabled={!category || updateMutation.isPending || deleteMutation.isPending}
+            disabled={!hasChanges || updateMutation.isPending || deleteMutation.isPending}
           >
             {updateMutation.isPending ? (
               <>
@@ -273,9 +415,15 @@ export function TransactionEditForm({
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Permanently delete this transaction?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {single
+                ? 'Permanently delete this transaction?'
+                : `Permanently delete ${count} transaction${count === 1 ? '' : 's'}?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This can't be undone. To keep it but exclude it from totals, hide it instead.
+              {single
+                ? "This can't be undone. To keep it but exclude it from totals, hide it instead."
+                : "This can't be undone. To keep them but exclude them from totals, hide them instead."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

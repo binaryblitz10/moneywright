@@ -30,7 +30,6 @@ import {
   TransactionFiltersBar,
   TransactionTable,
   TransactionEditForm,
-  TransactionBulkEditForm,
   Pagination,
   PaginationSummary,
 } from '@/components/transactions'
@@ -326,7 +325,7 @@ function TransactionsPage() {
                 Only the fields you change are applied to every selected transaction.
               </DialogDescription>
             </DialogHeader>
-            <TransactionBulkEditForm
+            <TransactionEditForm
               transactionIds={[...selectedIds]}
               categories={categories}
               onClose={() => setBulkEditOpen(false)}

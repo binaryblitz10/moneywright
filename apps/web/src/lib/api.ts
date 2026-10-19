@@ -988,6 +988,76 @@ export async function bulkUpdateTransactions(data: {
 }
 
 /**
+ * A rule that sets the name and/or category of transactions whose description contains all terms
+ */
+export interface TransactionRule {
+  id: string
+  matchTerms: string[]
+  transactionType: 'credit' | 'debit' | null
+  name: string | null
+  category: string | null
+  matchCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TransactionRuleInput {
+  matchTerms: string[]
+  transactionType?: 'credit' | 'debit' | null
+  name?: string | null
+  category?: string | null
+}
+
+export interface TransactionRulePreview {
+  count: number
+  transactionIds: string[]
+  samples: {
+    id: string
+    date: string
+    type: 'credit' | 'debit'
+    originalDescription: string
+    summary: string | null
+    category: string
+  }[]
+}
+
+/**
+ * List the user's transaction rules
+ */
+export async function getTransactionRules(): Promise<TransactionRule[]> {
+  const response = await api.get('/transaction-rules')
+  return response.data.rules
+}
+
+export async function createTransactionRule(data: TransactionRuleInput): Promise<TransactionRule> {
+  const response = await api.post('/transaction-rules', data)
+  return response.data.rule
+}
+
+export async function updateTransactionRule(
+  id: string,
+  data: Partial<TransactionRuleInput>
+): Promise<TransactionRule> {
+  const response = await api.patch(`/transaction-rules/${id}`, data)
+  return response.data.rule
+}
+
+export async function deleteTransactionRule(id: string): Promise<void> {
+  await api.delete(`/transaction-rules/${id}`)
+}
+
+/**
+ * Find the transactions a set of terms would match
+ */
+export async function previewTransactionRule(data: {
+  matchTerms: string[]
+  transactionType?: 'credit' | 'debit' | null
+}): Promise<TransactionRulePreview> {
+  const response = await api.post('/transaction-rules/preview', data)
+  return response.data
+}
+
+/**
  * A set of transactions that look like the same transaction entered more than once.
  * The first transaction is the oldest-created one (the one to keep).
  */

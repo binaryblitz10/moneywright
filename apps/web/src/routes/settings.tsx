@@ -19,6 +19,7 @@ import {
   AboutSection,
   PinSection,
   CategorizationHintsSection,
+  TransactionRulesSection,
   DataHealthSection,
   DashboardWidgetsSection,
 } from '@/components/settings'
@@ -76,6 +77,9 @@ function SettingsPage() {
 
         {/* Default Categorization Hints */}
         <CategorizationHintsSection />
+
+        {/* Transaction Rules */}
+        <TransactionRulesSection />
 
         {/* Dashboard Widgets - which cards and sections the dashboard shows */}
         <DashboardWidgetsSection />

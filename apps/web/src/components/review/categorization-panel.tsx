@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { useBulkUpdateTransactions, useReviewCounts, useTransactions } from '@/hooks'
 import { Pagination } from '@/components/transactions/pagination'
 import { TransactionTable } from '@/components/transactions/transaction-table'
-import { TransactionBulkEditForm } from '@/components/transactions/transaction-bulk-edit-form'
+import { TransactionEditForm } from '@/components/transactions/transaction-edit-form'
 import type { SortBy, SortOrder } from '@/components/transactions/transaction-table'
 import type { ReviewPanelProps } from './types'
 
@@ -188,7 +188,7 @@ export function CategorizationPanel({
               Only the fields you change are applied to every selected transaction.
             </DialogDescription>
           </DialogHeader>
-          <TransactionBulkEditForm
+          <TransactionEditForm
             transactionIds={[...selectedIds]}
             categories={tableProps.categories}
             onClose={() => setBulkEditOpen(false)}
