@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { TableSkeleton } from '@/components/ui/skeleton'
-import type { Transaction, TransactionFilters } from '@/lib/api'
+import { getTransactionIds, type Transaction, type TransactionFilters } from '@/lib/api'
 import { getKindOf } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 import {
@@ -33,11 +34,13 @@ import {
   TransactionAddForm,
   Pagination,
   PaginationSummary,
+  PageSizeSelect,
+  BulkActionBar,
 } from '@/components/transactions'
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { ListChecks, Pencil, Plus, Receipt, Upload, X } from 'lucide-react'
+import { ListChecks, Plus, Receipt, Upload, X } from 'lucide-react'
 
 interface TransactionsSearchParams {
   category?: string
@@ -85,7 +88,8 @@ function TransactionsPage() {
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const limit = 25
+  const [limit, setLimit] = useState(25)
+  const [selectingAll, setSelectingAll] = useState(false)
 
   // Debounce search to avoid excessive API calls
   const debouncedSearch = useDebounce(search, 300)
@@ -190,6 +194,27 @@ function TransactionsPage() {
     setSelectedIds(new Set())
     setSearch(newSearch)
     setPage(1)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setPage(1)
+  }
+
+  // Select every transaction matching the filters, not just the ones on this page
+  const handleSelectAllMatching = async () => {
+    setSelectingAll(true)
+    try {
+      const { ids, truncated } = await getTransactionIds(activeFilters)
+      setSelectedIds(new Set(ids))
+      if (truncated) {
+        toast.info(`Selected the first ${ids.length.toLocaleString()} matching transactions`)
+      }
+    } catch {
+      toast.error('Failed to select all matching transactions')
+    } finally {
+      setSelectingAll(false)
+    }
   }
 
   const handleSortChange = (newSortBy: SortBy, newSortOrder: SortOrder) => {
@@ -365,19 +390,18 @@ function TransactionsPage() {
 
         {/* Selection action bar */}
         {selectedIds.size > 0 && (
-          <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-4 py-2 shadow-sm">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => setBulkEditOpen(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit selected
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-                <X className="mr-2 h-4 w-4" />
-                Clear
-              </Button>
-            </div>
-          </div>
+          <BulkActionBar
+            selectedIds={selectedIds}
+            totalMatching={total}
+            filtered={!!hasActiveFilters}
+            pageFullySelected={transactions.every((t) => selectedIds.has(t.id))}
+            categories={categories}
+            showingHidden={!!filters.onlyHidden}
+            selectingAll={selectingAll}
+            onSelectAllMatching={handleSelectAllMatching}
+            onEdit={() => setBulkEditOpen(true)}
+            onClear={() => setSelectedIds(new Set())}
+          />
         )}
 
         {/* Selection toggle and result count */}
@@ -397,6 +421,9 @@ function TransactionsPage() {
               {selectionMode ? 'Cancel' : 'Select'}
             </Button>
             <PaginationSummary page={page} total={total} limit={limit} />
+            <div className="ml-auto">
+              <PageSizeSelect limit={limit} onLimitChange={handleLimitChange} />
+            </div>
           </div>
         )}
 

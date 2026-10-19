@@ -948,6 +948,18 @@ export async function getTransactions(
 }
 
 /**
+ * Get the IDs of every transaction matching the filters, for "select all matching"
+ */
+export async function getTransactionIds(
+  filters?: TransactionFilters
+): Promise<{ ids: string[]; truncated: boolean }> {
+  const params = buildFilterParams(filters)
+  const queryString = params.toString() ? `?${params.toString()}` : ''
+  const response = await api.get(`/transactions/ids${queryString}`)
+  return response.data
+}
+
+/**
  * Get transaction by ID
  */
 export async function getTransaction(transactionId: string): Promise<Transaction> {

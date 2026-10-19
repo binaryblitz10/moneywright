@@ -1,5 +1,14 @@
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+export const PAGE_SIZES = [25, 50, 100] as const
 
 interface PaginationProps {
   page: number
@@ -64,6 +73,33 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationControl
           <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** "Rows per page" choice */
+export function PageSizeSelect({
+  limit,
+  onLimitChange,
+}: {
+  limit: number
+  onLimitChange: (limit: number) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <span id="page-size-label">Rows per page</span>
+      <Select value={String(limit)} onValueChange={(value) => onLimitChange(Number(value))}>
+        <SelectTrigger aria-labelledby="page-size-label" className="h-8 w-20">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PAGE_SIZES.map((size) => (
+            <SelectItem key={size} value={String(size)}>
+              {size}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
