@@ -111,12 +111,13 @@ export function StatCard({
   const card = (
     <Card
       className={cn(
-        'relative overflow-hidden hover:border-border-hover transition-all duration-200 animate-fade-in',
+        // py-0: the vertical padding lives in CardContent so the card isn't padded twice
+        'relative overflow-hidden py-0 hover:border-border-hover transition-all duration-200 animate-fade-in',
         transactionsLink && 'h-full cursor-pointer',
         className
       )}
     >
-      <CardContent className="pt-5 pb-5">
+      <CardContent className="py-4">
         {/* Header: label left, icon top-right, so the value below gets the full width */}
         <div className="flex items-center justify-between gap-3 mb-1">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
