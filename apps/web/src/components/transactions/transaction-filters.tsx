@@ -292,6 +292,7 @@ export function TransactionFiltersBar({
                   mode="multi"
                   showAllOption
                   allOptionLabel="All accounts"
+                  contentClassName="w-96"
                   triggerClassName={cn(
                     'w-full h-10 rounded-lg',
                     'bg-surface-elevated border-border-subtle',
