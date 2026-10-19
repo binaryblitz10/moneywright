@@ -421,7 +421,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
 
       <div className="flex items-center justify-between gap-2 pt-4">
         <Button
-          variant="destructive"
+          variant="ghost"
+          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           onClick={() => setConfirmDelete(true)}
           disabled={deleteMutation.isPending || updateMutation.isPending}
         >
