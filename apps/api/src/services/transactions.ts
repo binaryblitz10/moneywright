@@ -26,6 +26,7 @@ import { getSubscriptionOverrides } from './subscription-overrides'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
 import { duplicateKey } from '../lib/duplicate-key'
+import { parseAmountSearch, parseSearchTerms, type SearchTerm } from '../lib/amount-search'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
 import { CARD_PAYMENT_CATEGORY, idsToClear } from '../lib/card-payment-matching'
 
@@ -38,38 +39,44 @@ import { CARD_PAYMENT_CATEGORY, idsToClear } from '../lib/card-payment-matching'
  * Transaction response type
  */
 /**
- * Parse a search term as an exact amount (e.g. "1,112.52" or "₹33247.9")
- * Returns null when the term isn't a plain number
+ * Search condition for one term: description/summary text match, plus an amount match when the
+ * term is a number (see parseAmountSearch). A quoted number is only ever an exact amount.
  */
-function parseAmountSearch(search: string): number | null {
-  const cleaned = search.replace(/[₹$€£,\s]/g, '')
-  return /^\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : null
-}
+function buildTermCondition(term: SearchTerm) {
+  const amountSearch = parseAmountSearch(term)
+  const amount = tables.transactions.amount
+  if (amountSearch?.kind === 'exact') {
+    return sql`ABS(${amount} - ${amountSearch.value}) < 0.005`
+  }
 
-/**
- * Search condition: description/summary text match, plus an exact amount match
- * when the term is a number (tolerance covers float storage on SQLite)
- */
-function buildTermCondition(term: string) {
-  const searchTerm = `%${term}%`
-  const amount = parseAmountSearch(term)
+  const searchTerm = `%${term.text}%`
   const textMatch = [
     like(tables.transactions.originalDescription, searchTerm),
     like(tables.transactions.summary, searchTerm),
   ]
-  if (amount !== null) {
-    textMatch.push(sql`ABS(${tables.transactions.amount} - ${amount}) < 0.005`)
+  if (amountSearch?.kind === 'partial') {
+    // Match against the amount written with two decimals, as it is shown
+    const amountText =
+      dbType === 'postgres' ? sql`CAST(${amount} AS text)` : sql`printf('%.2f', ${amount})`
+    textMatch.push(sql`${amountText} LIKE ${`%${amountSearch.text}%`}`)
+  } else if (amountSearch?.kind === 'range') {
+    textMatch.push(sql`${amount} >= ${amountSearch.min} AND ${amount} < ${amountSearch.max}`)
+  }
+  if (amountSearch && amountSearch.rounded !== null) {
+    textMatch.push(sql`ROUND(${amount}) = ${amountSearch.rounded}`)
   }
   return or(...textMatch)!
 }
 
 /**
  * Whitespace-separated terms are searched independently; a transaction must
- * match every term (in any order, in either description or summary)
+ * match every term (in any order, in either description or summary). Text in
+ * double quotes is one term and must match exactly.
  */
 function buildSearchCondition(search: string) {
-  const terms = search.split(/\s+/).filter(Boolean)
-  if (terms.length <= 1) return buildTermCondition(search.trim())
+  const terms = parseSearchTerms(search)
+  if (terms.length === 0) return buildTermCondition({ text: search.trim(), quoted: false })
+  if (terms.length === 1) return buildTermCondition(terms[0]!)
   return and(...terms.map(buildTermCondition))!
 }
 
