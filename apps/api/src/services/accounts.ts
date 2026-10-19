@@ -119,9 +119,9 @@ async function getLatestAccountBalance(
     .orderBy(desc(tables.statements.periodEnd))
     .limit(1)
 
-  const statementBalance = latestStatement?.closingBalance
-    ? Number(latestStatement.closingBalance)
-    : null
+  // A closing balance of 0 is a real balance (paid-off card, emptied account)
+  const statementBalance =
+    latestStatement?.closingBalance != null ? Number(latestStatement.closingBalance) : null
   const statementDate = latestStatement?.periodEnd ?? null
 
   let payments: LinkedCardPayment[] = []
