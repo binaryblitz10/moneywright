@@ -1,14 +1,15 @@
 /**
- * Settings page - Manage AI providers, profiles, and account
+ * Settings page - Sections for general, rules, AI providers and appearance
  */
 
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { z } from 'zod'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks'
 import { getLLMSettings, getLLMProviders, getProfiles, getUserSessions } from '@/lib/api'
 import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
-import { Loader2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import {
   AIProvidersSection,
@@ -23,14 +24,27 @@ import {
   DataHealthSection,
   DashboardWidgetsSection,
   BackupsSection,
+  SettingsNav,
+  SETTINGS_SECTIONS,
 } from '@/components/settings'
 
+const searchSchema = z.object({
+  section: z.enum(SETTINGS_SECTIONS).catch('general'),
+})
+
 export const Route = createFileRoute('/settings')({
+  validateSearch: searchSchema,
   component: SettingsPage,
 })
 
+function SectionSkeleton() {
+  return <Skeleton className="h-48 w-full rounded-xl" />
+}
+
 function SettingsPage() {
   const { user, logout, authEnabled } = useAuth()
+  const { section } = Route.useSearch()
+  const navigate = useNavigate({ from: '/settings' })
 
   // LLM Settings queries
   const { data: llmSettings, isLoading: llmLoading } = useQuery({
@@ -56,58 +70,62 @@ function SettingsPage() {
     enabled: authEnabled,
   })
 
-  const isLoading = llmLoading || profilesLoading
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </AppLayout>
-    )
-  }
-
   return (
     <AppLayout>
-      <PageHeader title="Settings" description="Manage your AI providers, profiles, and account" />
+      <PageHeader
+        title="Settings"
+        description="Manage your profiles, security, rules, AI providers and dashboard"
+      />
 
-      <div className="max-w-4xl space-y-6">
-        {/* AI Providers Section */}
-        <AIProvidersSection settings={llmSettings} providers={providers} />
+      <div className="flex max-w-5xl flex-col overflow-hidden rounded-xl border border-border-subtle bg-card shadow-sm md:flex-row">
+        <SettingsNav
+          active={section}
+          onChange={(next) => navigate({ search: { section: next }, replace: true })}
+        />
 
-        {/* Default Categorization Hints */}
-        <CategorizationHintsSection />
+        <div className="min-w-0 flex-1 [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none [&>[data-slot=card]+[data-slot=card]]:border-t [&>[data-slot=card]+[data-slot=card]]:border-border-subtle">
+          {section === 'general' && (
+            <>
+              {profilesLoading ? <SectionSkeleton /> : <ProfilesSection profiles={profiles} />}
 
-        {/* Transaction Rules */}
-        <TransactionRulesSection />
+              {/* PIN Section - only show when auth is disabled (local mode) */}
+              {!authEnabled && <PinSection />}
 
-        {/* Dashboard Widgets - which cards and sections the dashboard shows */}
-        <DashboardWidgetsSection />
+              {/* Account Section - only show when auth is enabled */}
+              {authEnabled && <AccountSection user={user} />}
 
-        {/* Data Health - checks across all profiles */}
-        <DataHealthSection profileId={undefined} />
+              {/* Sessions - only show when auth is enabled */}
+              {authEnabled && <SessionsSection sessions={sessions} isLoading={sessionsLoading} />}
 
-        {/* Backups - hidden when the database does not support them */}
-        <BackupsSection />
+              {/* Data Health - checks across all profiles */}
+              <DataHealthSection profileId={undefined} />
 
-        {/* Profiles Section */}
-        <ProfilesSection profiles={profiles} />
+              {/* Backups - hidden when the database does not support them */}
+              <BackupsSection />
 
-        {/* PIN Section - only show when auth is disabled (local mode) */}
-        {!authEnabled && <PinSection />}
+              <AboutSection />
 
-        {/* Account Section - only show when auth is enabled */}
-        {authEnabled && <AccountSection user={user} />}
+              {/* Danger Zone - only show when auth is enabled */}
+              {authEnabled && <DangerZoneSection onLogout={logout} />}
+            </>
+          )}
 
-        {/* Sessions - only show when auth is enabled */}
-        {authEnabled && <SessionsSection sessions={sessions} isLoading={sessionsLoading} />}
+          {section === 'rules' && (
+            <>
+              <TransactionRulesSection />
+              <CategorizationHintsSection />
+            </>
+          )}
 
-        {/* Danger Zone - only show when auth is enabled */}
-        {authEnabled && <DangerZoneSection onLogout={logout} />}
+          {section === 'ai' &&
+            (llmLoading ? (
+              <SectionSkeleton />
+            ) : (
+              <AIProvidersSection settings={llmSettings} providers={providers} />
+            ))}
 
-        {/* About Section */}
-        <AboutSection />
+          {section === 'appearance' && <DashboardWidgetsSection />}
+        </div>
       </div>
     </AppLayout>
   )

@@ -19,6 +19,8 @@ export { DataHealthSection } from './data-health-section'
 export { DashboardWidgetsSection } from './dashboard-widgets-section'
 export { BackupsSection } from './backups-section'
 
+export { SettingsNav, SETTINGS_SECTIONS, type SettingsSection } from './settings-nav'
+
 // Individual components
 export { ProviderCard } from './provider-card'
 export { ProfileCard } from './profile-card'
