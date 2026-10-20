@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import { Fragment, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -39,6 +39,8 @@ interface TransactionTableProps {
   /** IDs of selected transactions (enables the selection column) */
   selectedIds?: Set<string>
   onSelectionChange?: (selectedIds: Set<string>) => void
+  /** Renders a full-width heading row above a transaction; return null for no heading */
+  renderGroupHeader?: (transaction: Transaction, index: number) => ReactNode
 }
 
 // Sort indicator component
@@ -124,6 +126,7 @@ export function TransactionTable({
   showProfileBadge,
   selectedIds,
   onSelectionChange,
+  renderGroupHeader,
 }: TransactionTableProps) {
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
@@ -198,33 +201,26 @@ export function TransactionTable({
               </TableHead>
             )}
             <TableHead className={cn('w-27.5', !selectable && 'w-32 pl-5')}>
-              <button
-                onClick={() => handleSort('date')}
-                className={cn(
-                  'flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider transition-colors',
-                  'hover:text-foreground',
-                  sortBy === 'date' ? 'text-foreground' : 'text-muted-foreground'
-                )}
-              >
-                Date
-                <SortIndicator column="date" sortBy={sortBy} sortOrder={sortOrder} />
-              </button>
+              <SortableHeading
+                label="Date"
+                column="date"
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={onSortChange && handleSort}
+              />
             </TableHead>
             <TableHead className="w-auto text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Description
             </TableHead>
             <TableHead className="w-35">
-              <button
-                onClick={() => handleSort('amount')}
-                className={cn(
-                  'flex items-center gap-1.5 ml-auto text-xs font-medium uppercase tracking-wider transition-colors',
-                  'hover:text-foreground',
-                  sortBy === 'amount' ? 'text-foreground' : 'text-muted-foreground'
-                )}
-              >
-                Amount
-                <SortIndicator column="amount" sortBy={sortBy} sortOrder={sortOrder} />
-              </button>
+              <SortableHeading
+                label="Amount"
+                column="amount"
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={onSortChange && handleSort}
+                className="ml-auto"
+              />
             </TableHead>
             <TableHead className="w-11"></TableHead>
           </TableRow>
@@ -239,143 +235,189 @@ export function TransactionTable({
               ? `/institutions/${countryCode}/${institutionId}.svg`
               : null
 
+            const groupHeader = renderGroupHeader?.(txn, index)
+
             return (
-              <TableRow
-                key={txn.id}
-                className={cn(
-                  'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
-                  'hover:bg-surface-hover',
-                  rowClickSelects && 'cursor-pointer',
-                  selectable && selectedIds.has(txn.id) && 'bg-primary/5'
+              <Fragment key={txn.id}>
+                {groupHeader && (
+                  <TableRow className="border-b border-border-subtle bg-surface-elevated/60 hover:bg-surface-elevated/60">
+                    <TableCell colSpan={selectable ? 5 : 4} className="py-2 pl-5">
+                      {groupHeader}
+                    </TableCell>
+                  </TableRow>
                 )}
-                onClick={rowClickSelects ? (e) => handleRowClick(e, index) : undefined}
-                // Stop shift-click from highlighting text while range selecting
-                onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
-              >
-                {selectable && (
-                  <TableCell
-                    className="py-3 pl-5 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRowClick(e, index)
-                    }}
-                  >
-                    <Checkbox
-                      className={CHECKBOX_CLASS}
-                      aria-label="Select transaction"
-                      checked={selectedIds.has(txn.id)}
-                    />
-                  </TableCell>
-                )}
-                <TableCell
+                <TableRow
                   className={cn(
-                    'text-sm text-muted-foreground whitespace-nowrap py-3',
-                    !selectable && 'pl-5'
+                    'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
+                    'hover:bg-surface-hover',
+                    rowClickSelects && 'cursor-pointer',
+                    selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                   )}
+                  onClick={rowClickSelects ? (e) => handleRowClick(e, index) : undefined}
+                  // Stop shift-click from highlighting text while range selecting
+                  onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
                 >
-                  {new Date(txn.date).toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: '2-digit',
-                  })}
-                </TableCell>
-                <TableCell className="overflow-hidden py-3">
-                  <div className="flex items-center gap-3">
-                    {/* Letter badge: first letter of the name, tinted with the category colour */}
-                    <div
-                      className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border',
-                        'text-sm font-semibold transition-transform duration-200 group-hover:scale-105',
-                        getCategoryColor(txn.category)
-                      )}
-                      aria-hidden="true"
+                  {selectable && (
+                    <TableCell
+                      className="py-3 pl-5 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRowClick(e, index)
+                      }}
                     >
-                      {getNameInitial(txn.summary || txn.originalDescription)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      {/* Title row with category badge inline */}
-                      <div className="flex items-center gap-2">
-                        <p className="truncate font-medium text-foreground text-sm">
-                          {toTitleCase(txn.summary || txn.originalDescription)}
-                        </p>
-                        {/* Category badge - inline */}
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0',
-                            'transition-transform duration-200 group-hover:scale-105',
-                            getCategoryColor(txn.category)
-                          )}
-                        >
-                          {getCategoryLabel(txn.category)}
-                        </span>
-                        {/* Subscription indicator */}
-                        {txn.isSubscription && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-violet-100 border border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110">
-                                <RefreshCw className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">
-                              Recurring subscription
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                      {/* Meta row */}
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <AccountLogo
-                          logoPath={logoPath}
-                          institutionId={institutionId || 'other'}
-                          last4={last4}
-                          profileName={
-                            showProfileBadge && profiles
-                              ? getProfileName(txn.profileId, profiles)
-                              : null
-                          }
-                        />
-                        {txn.summary && txn.summary !== txn.originalDescription && (
-                          <>
-                            <span className="text-muted-foreground">·</span>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {txn.originalDescription}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right whitespace-nowrap py-3">
-                  <span
+                      <Checkbox
+                        className={CHECKBOX_CLASS}
+                        aria-label="Select transaction"
+                        checked={selectedIds.has(txn.id)}
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell
                     className={cn(
-                      'font-semibold tabular-nums text-sm transition-colors duration-200',
-                      txn.type === 'credit' ? 'text-positive' : 'text-foreground'
+                      'text-sm text-muted-foreground whitespace-nowrap py-3',
+                      !selectable && 'pl-5'
                     )}
                   >
-                    {txn.type === 'credit' ? '+' : '-'}
-                    {formatAmount(txn.amount, txn.currency)}
-                  </span>
-                </TableCell>
-                <TableCell className="py-3">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEditTransaction(txn)
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+                    {new Date(txn.date).toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: '2-digit',
+                    })}
+                  </TableCell>
+                  <TableCell className="overflow-hidden py-3">
+                    <div className="flex items-center gap-3">
+                      {/* Letter badge: first letter of the name, tinted with the category colour */}
+                      <div
+                        className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border',
+                          'text-sm font-semibold transition-transform duration-200 group-hover:scale-105',
+                          getCategoryColor(txn.category)
+                        )}
+                        aria-hidden="true"
+                      >
+                        {getNameInitial(txn.summary || txn.originalDescription)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {/* Title row with category badge inline */}
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-medium text-foreground text-sm">
+                            {toTitleCase(txn.summary || txn.originalDescription)}
+                          </p>
+                          {/* Category badge - inline */}
+                          <span
+                            className={cn(
+                              'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0',
+                              'transition-transform duration-200 group-hover:scale-105',
+                              getCategoryColor(txn.category)
+                            )}
+                          >
+                            {getCategoryLabel(txn.category)}
+                          </span>
+                          {/* Subscription indicator */}
+                          {txn.isSubscription && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-violet-100 border border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110">
+                                  <RefreshCw className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Recurring subscription
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {/* Meta row */}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <AccountLogo
+                            logoPath={logoPath}
+                            institutionId={institutionId || 'other'}
+                            last4={last4}
+                            profileName={
+                              showProfileBadge && profiles
+                                ? getProfileName(txn.profileId, profiles)
+                                : null
+                            }
+                          />
+                          {txn.summary && txn.summary !== txn.originalDescription && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {txn.originalDescription}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap py-3">
+                    <span
+                      className={cn(
+                        'font-semibold tabular-nums text-sm transition-colors duration-200',
+                        txn.type === 'credit' ? 'text-positive' : 'text-foreground'
+                      )}
+                    >
+                      {txn.type === 'credit' ? '+' : '-'}
+                      {formatAmount(txn.amount, txn.currency)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEditTransaction(txn)
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              </Fragment>
             )
           })}
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+// Column heading that only becomes a sort button when sorting is supported
+function SortableHeading({
+  label,
+  column,
+  sortBy,
+  sortOrder,
+  onSort,
+  className,
+}: {
+  label: string
+  column: SortBy
+  sortBy: SortBy
+  sortOrder: SortOrder
+  onSort?: (column: SortBy) => void
+  className?: string
+}) {
+  const base = 'flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider'
+  if (!onSort) {
+    return <div className={cn(base, 'w-fit text-muted-foreground', className)}>{label}</div>
+  }
+  return (
+    <button
+      onClick={() => onSort(column)}
+      className={cn(
+        base,
+        'transition-colors hover:text-foreground',
+        sortBy === column ? 'text-foreground' : 'text-muted-foreground',
+        className
+      )}
+    >
+      {label}
+      <SortIndicator column={column} sortBy={sortBy} sortOrder={sortOrder} />
+    </button>
   )
 }
 
