@@ -185,8 +185,7 @@ export function TransactionTable({
   }
 
   return (
-    // Fade in once on mount; rows swap in place on updates so they don't flash
-    <div className="rounded-xl overflow-hidden border border-border-subtle bg-card animate-fade-in">
+    <div className="rounded-xl overflow-hidden border border-border-subtle bg-card">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
