@@ -117,7 +117,7 @@ export function MonthDetailModal({
 
   return (
     <Dialog open={!!month} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-2xl p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <DialogHeader>
