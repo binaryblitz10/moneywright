@@ -84,6 +84,7 @@ export function BulkActionBar({
             categories={categories}
             value=""
             placeholder="Categorize"
+            triggerClassName="h-8 px-3"
             contentClassName="w-96"
             onChange={(category) => {
               if (!category) return
@@ -91,6 +92,10 @@ export function BulkActionBar({
             }}
           />
         </div>
+        <Button size="sm" variant="outline" disabled={busy} onClick={onEdit}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -104,10 +109,6 @@ export function BulkActionBar({
         >
           {showingHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
           {showingHidden ? 'Unhide' : 'Hide'}
-        </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={onEdit}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
         </Button>
         <Button
           size="sm"
