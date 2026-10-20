@@ -12,6 +12,7 @@ import {
   getPinStatus,
 } from '@/lib/api'
 import { Toaster } from '@/components/ui/sonner'
+import { isMacDesktop } from '@/lib/desktop'
 
 /**
  * Check if the session hint cookie exists
@@ -321,6 +322,9 @@ function RootComponent() {
 
   return (
     <AuthContext.Provider value={authValue}>
+      {isMacDesktop && (
+        <div data-tauri-drag-region className="fixed inset-x-0 top-0 z-50 h-7 select-none" />
+      )}
       <Outlet />
       <Toaster position="bottom-right" richColors closeButton />
     </AuthContext.Provider>

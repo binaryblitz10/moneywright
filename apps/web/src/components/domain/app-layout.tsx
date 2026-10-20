@@ -2,6 +2,8 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from './app-sidebar'
 import { BackButton } from './back-button'
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+import { isMacDesktop } from '@/lib/desktop'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -19,7 +21,12 @@ export function AppLayout({ children, title, description, hideHeader }: AppLayou
       <AppSidebar />
       <SidebarInset className="min-h-0 bg-background">
         {showHeader && (
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border-subtle bg-background/95 backdrop-blur-sm px-4">
+          <header
+            className={cn(
+              'sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border-subtle bg-background/95 backdrop-blur-sm px-4',
+              isMacDesktop && 'h-[4.25rem] pt-3'
+            )}
+          >
             <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
             <Separator orientation="vertical" className="mr-2 h-4 bg-border-subtle" />
             <div>

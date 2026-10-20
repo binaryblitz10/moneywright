@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useAuth, useProfileSelection, useReviewCounts, useUpdateChecker } from '@/hooks'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
+import { isMacDesktop } from '@/lib/desktop'
 import { markSidebarNavigation } from '@/lib/back-navigation'
 import {
   Sidebar,
@@ -183,7 +184,7 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-(--border-subtle)">
       {/* Logo Header */}
-      <SidebarHeader className="px-4 py-5">
+      <SidebarHeader className={cn('px-4 py-5', isMacDesktop && 'pt-9')}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
