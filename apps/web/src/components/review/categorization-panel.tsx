@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FLOATING_BAR_CLASS } from '@/components/transactions/floating-bar'
 import { Check, CheckCheck, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,44 +66,28 @@ export function CategorizationPanel({
   ]
 
   return (
-    <div className="space-y-4">
-      {isLowConfidence ? (
-        <p className="text-sm text-muted-foreground">
-          Transactions that were categorized with low confidence. Select the ones whose category is
-          right and click Mark as correct, or change the category to fix it. Either moves them out
-          of this list.
-        </p>
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground">
-            <strong className="font-medium text-foreground">Pending</strong> transactions never
-            finished categorization. <strong className="font-medium text-foreground">Other</strong>{' '}
-            transactions were categorized, but only into the fallback "Other" category. Set a
-            category to move them out of this list. To re-run categorization, recategorize from the
-            statement.
-          </p>
-
-          <div className="flex items-center gap-2">
-            {statuses.map((s) => (
-              <Button
-                key={s.value}
-                size="sm"
-                variant={status === s.value ? 'secondary' : 'outline'}
-                className="h-8"
-                onClick={() => changeStatus(s.value)}
-              >
-                {s.label}
-                {s.count !== undefined && (
-                  <span className="ml-2 text-xs text-muted-foreground">{s.count}</span>
-                )}
-              </Button>
-            ))}
-          </div>
-        </>
+    <div className={cn('space-y-4', selectedIds.size > 0 && 'pb-24')}>
+      {!isLowConfidence && (
+        <div className="flex items-center gap-2">
+          {statuses.map((s) => (
+            <Button
+              key={s.value}
+              size="sm"
+              variant={status === s.value ? 'secondary' : 'outline'}
+              className="h-8"
+              onClick={() => changeStatus(s.value)}
+            >
+              {s.label}
+              {s.count !== undefined && (
+                <span className="ml-2 text-xs text-muted-foreground">{s.count}</span>
+              )}
+            </Button>
+          ))}
+        </div>
       )}
 
       {selectedIds.size > 0 && (
-        <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-4 py-2 shadow-sm">
+        <div className={FLOATING_BAR_CLASS}>
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
             {isLowConfidence && (
