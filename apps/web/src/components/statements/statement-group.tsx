@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Building2, ChevronRight, CreditCard, TrendingUp } from 'lucide-react'
+import { OverdueBadge } from '@/components/ui/overdue-badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 export type StatementGroupKind = 'bank' | 'credit_card' | 'investment'
@@ -11,6 +12,8 @@ interface StatementGroupProps {
   logoPath: string | null
   kind: StatementGroupKind
   count: number
+  /** Date of the account's latest statement, set when the account is overdue */
+  overdueSince?: string | null
   children: ReactNode
 }
 
@@ -26,6 +29,7 @@ export function StatementGroup({
   logoPath,
   kind,
   count,
+  overdueSince,
   children,
 }: StatementGroupProps) {
   const [logoError, setLogoError] = useState(false)
@@ -47,7 +51,10 @@ export function StatementGroup({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+            {overdueSince && <OverdueBadge lastStatementDate={overdueSince} />}
+          </div>
           <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <span className="text-xs text-muted-foreground">

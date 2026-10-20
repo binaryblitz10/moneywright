@@ -30,6 +30,7 @@ import { RecategorizeModal } from '@/components/transactions/recategorize-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FileText, Upload as UploadIcon } from 'lucide-react'
 import type { Statement } from '@/lib/api'
+import { isStatementOverdue } from '@/lib/statement-overdue'
 
 // Search params validation
 type StatementsSearchParams = {
@@ -176,6 +177,7 @@ function StatementsPage() {
       string,
       {
         sortKey: number
+        overdueSince: string | null
         title: string
         subtitle: string
         kind: StatementGroupKind
@@ -206,6 +208,8 @@ function StatementsPage() {
           ? (investmentSources?.findIndex((s) => s.id === statement.sourceId) ?? -1)
           : (accounts?.findIndex((a) => a.id === statement.accountId) ?? -1)
         group = {
+          overdueSince:
+            !isInvestment && isStatementOverdue(account) ? account!.latestStatementDate : null,
           sortKey: GROUP_KIND_ORDER[kind] * 1000 + (listIndex >= 0 ? listIndex : 999),
           title: isInvestment
             ? source?.sourceName || source?.institution || 'Investment Account'
@@ -331,6 +335,7 @@ function StatementsPage() {
                 logoPath={group.logoPath}
                 kind={group.kind}
                 count={group.statements.length}
+                overdueSince={group.overdueSince}
               >
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {group.statements.map((statement) => (

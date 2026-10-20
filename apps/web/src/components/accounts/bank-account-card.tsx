@@ -32,6 +32,8 @@ import {
 import { cn } from '@/lib/utils'
 import type { Account, AccountType, Statement, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
+import { OverdueBadge } from '@/components/ui/overdue-badge'
+import { isStatementOverdue } from '@/lib/statement-overdue'
 import { MetaLabel } from '@/components/ui/meta-label'
 
 interface BankAccountCardProps {
@@ -216,6 +218,9 @@ export function BankAccountCard({
               <h3 className="font-semibold text-foreground truncate text-sm">
                 {institutionName || account.institution || 'Bank Account'}
               </h3>
+              {isStatementOverdue(account) && (
+                <OverdueBadge lastStatementDate={account.latestStatementDate} />
+              )}
               {showProfileBadge && profiles && (
                 <ProfileBadge profileId={account.profileId} profiles={profiles} />
               )}

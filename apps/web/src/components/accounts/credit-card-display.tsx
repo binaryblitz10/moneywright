@@ -39,6 +39,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { Account, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
+import { OverdueBadge } from '@/components/ui/overdue-badge'
+import { isStatementOverdue } from '@/lib/statement-overdue'
 import { useCreditCardPaymentHistory } from '@/hooks'
 import { MetaLabel } from '@/components/ui/meta-label'
 
@@ -124,6 +126,9 @@ export function CreditCardDisplay({
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-foreground">{displayCardName}</p>
+              {isStatementOverdue(account) && (
+                <OverdueBadge lastStatementDate={account.latestStatementDate} />
+              )}
               {showProfileBadge && profiles && (
                 <ProfileBadge profileId={account.profileId} profiles={profiles} />
               )}
