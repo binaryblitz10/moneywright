@@ -21,7 +21,9 @@ import {
   StatementCard,
   StatementEditDialog,
   FilterBar,
+  StatementGroup,
   UploadForm,
+  type StatementGroupKind,
   type SortOption,
 } from '@/components/statements'
 import { RecategorizeModal } from '@/components/transactions/recategorize-modal'
@@ -51,6 +53,11 @@ export const Route = createFileRoute('/statements')({
 })
 
 const SORT_STORAGE_KEY = 'statements_sort_order'
+const GROUP_KIND_ORDER: Record<StatementGroupKind, number> = {
+  credit_card: 0,
+  bank: 1,
+  investment: 2,
+}
 
 function StatementsPage() {
   const queryClient = useQueryClient()
@@ -150,6 +157,69 @@ function StatementsPage() {
           return 0
       }
     })
+  })()
+
+  // For investment statements use the source type logo, otherwise the institution logo
+  const getLogoPath = (statement: Statement): string | null => {
+    const account = statement.accountId ? accountMap.get(statement.accountId) : undefined
+    const source = statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
+    if (statement.documentType === 'investment_statement') {
+      return (source?.sourceType && sourceTypeMap.get(source.sourceType)?.logo) || null
+    }
+    return (account?.institution && institutionMap.get(account.institution)?.logo) || null
+  }
+
+  // Group by account or investment source, ordered like the Accounts page: credit cards,
+  // then bank accounts, then investments, each in the order the accounts are listed.
+  const statementGroups = (() => {
+    const groups = new Map<
+      string,
+      {
+        sortKey: number
+        title: string
+        subtitle: string
+        kind: StatementGroupKind
+        logoPath: string | null
+        statements: Statement[]
+      }
+    >()
+    for (const statement of filteredAndSortedStatements ?? []) {
+      const account = statement.accountId ? accountMap.get(statement.accountId) : undefined
+      const source = statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
+      const isInvestment = statement.documentType === 'investment_statement'
+      const key = isInvestment
+        ? `source:${statement.sourceId ?? 'none'}`
+        : `account:${statement.accountId ?? 'none'}`
+      let group = groups.get(key)
+      if (!group) {
+        const kind: StatementGroupKind = isInvestment
+          ? 'investment'
+          : account?.type === 'credit_card'
+            ? 'credit_card'
+            : 'bank'
+        const last4 = isInvestment
+          ? source?.accountIdentifier?.slice(-4)
+          : account?.accountNumber?.slice(-4)
+        const kindLabel =
+          kind === 'investment' ? 'Investment' : kind === 'credit_card' ? 'Credit Card' : 'Bank'
+        const listIndex = isInvestment
+          ? (investmentSources?.findIndex((s) => s.id === statement.sourceId) ?? -1)
+          : (accounts?.findIndex((a) => a.id === statement.accountId) ?? -1)
+        group = {
+          sortKey: GROUP_KIND_ORDER[kind] * 1000 + (listIndex >= 0 ? listIndex : 999),
+          title: isInvestment
+            ? source?.sourceName || source?.institution || 'Investment Account'
+            : account?.accountName || account?.institution || 'Unknown Account',
+          subtitle: [last4 && `••${last4}`, kindLabel].filter(Boolean).join(' · '),
+          kind,
+          logoPath: getLogoPath(statement),
+          statements: [],
+        }
+        groups.set(key, group)
+      }
+      group.statements.push(statement)
+    }
+    return [...groups.entries()].sort(([, a], [, b]) => a.sortKey - b.sortKey)
   })()
 
   const formatFileSize = (bytes: number | null) => {
@@ -252,40 +322,38 @@ function StatementsPage() {
             ))}
           </div>
         ) : filteredAndSortedStatements && filteredAndSortedStatements.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredAndSortedStatements.map((statement) => {
-              const account = statement.accountId ? accountMap.get(statement.accountId) : undefined
-              const source = statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
-              const isInvestment = statement.documentType === 'investment_statement'
-
-              // For investment statements, use the sourceType logo from constants
-              // For bank/credit card statements, use the institution logo from constants
-              let logoPath: string | null = null
-              if (isInvestment && source?.sourceType) {
-                const sourceType = sourceTypeMap.get(source.sourceType)
-                logoPath = sourceType?.logo || null
-              } else if (!isInvestment && account?.institution) {
-                const institution = institutionMap.get(account.institution)
-                logoPath = institution?.logo || null
-              }
-
-              return (
-                <StatementCard
-                  key={statement.id}
-                  statement={statement}
-                  account={account}
-                  source={source}
-                  logoPath={logoPath}
-                  formatFileSize={formatFileSize}
-                  formatPeriod={formatPeriod}
-                  onDelete={() => deleteMutation.mutate(statement.id)}
-                  onEdit={() => setEditStatement(statement)}
-                  onRecategorize={() => setRecategorizeStatement(statement)}
-                  profiles={profiles}
-                  showProfileBadge={showFamilyView}
-                />
-              )
-            })}
+          <div className="space-y-8">
+            {statementGroups.map(([key, group]) => (
+              <StatementGroup
+                key={key}
+                title={group.title}
+                subtitle={group.subtitle}
+                logoPath={group.logoPath}
+                kind={group.kind}
+                count={group.statements.length}
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.statements.map((statement) => (
+                    <StatementCard
+                      key={statement.id}
+                      statement={statement}
+                      account={
+                        statement.accountId ? accountMap.get(statement.accountId) : undefined
+                      }
+                      source={statement.sourceId ? sourceMap.get(statement.sourceId) : undefined}
+                      logoPath={group.logoPath}
+                      formatFileSize={formatFileSize}
+                      formatPeriod={formatPeriod}
+                      onDelete={() => deleteMutation.mutate(statement.id)}
+                      onEdit={() => setEditStatement(statement)}
+                      onRecategorize={() => setRecategorizeStatement(statement)}
+                      profiles={profiles}
+                      showProfileBadge={showFamilyView}
+                    />
+                  ))}
+                </div>
+              </StatementGroup>
+            ))}
           </div>
         ) : (
           <EmptyState
