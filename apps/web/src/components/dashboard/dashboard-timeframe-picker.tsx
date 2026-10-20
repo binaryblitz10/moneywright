@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { getFinancialYearRange } from './utils'
 import {
   CHART_TIMEFRAME_OPTIONS,
@@ -24,14 +25,15 @@ interface DashboardTimeframePickerProps {
   userCountry: string | null | undefined
 }
 
-const OPTION_CLASS = 'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left'
+const OPTION_CLASS =
+  'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left outline-none data-active:ring-2 data-active:ring-primary/40'
 
 function optionClass(active: boolean): string {
   return cn(
     OPTION_CLASS,
     active
       ? 'bg-primary text-primary-foreground'
-      : 'bg-surface-elevated hover:bg-surface-hover text-foreground'
+      : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
   )
 }
 
@@ -41,6 +43,7 @@ export function DashboardTimeframePicker({
   userCountry,
 }: DashboardTimeframePickerProps) {
   const { timeframe, customDateRange } = selection
+  const navigation = useOptionNavigation()
   const label = useMemo(() => {
     if (timeframe === 'custom' && customDateRange) {
       const format = (date: string) =>
@@ -69,7 +72,7 @@ export function DashboardTimeframePicker({
           <ChevronDown className="ml-1 h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-3">
+      <PopoverContent align="end" className="w-72 p-3" {...navigation}>
         <div className="space-y-3">
           {/* Standard time ranges */}
           <div className="grid grid-cols-2 gap-1.5">
@@ -77,6 +80,8 @@ export function DashboardTimeframePicker({
               (option) => (
                 <button
                   key={option.key}
+                  data-option
+                  data-selected={timeframe === option.key || undefined}
                   onClick={() => selectPreset(option.key)}
                   className={optionClass(timeframe === option.key)}
                 >
@@ -95,12 +100,16 @@ export function DashboardTimeframePicker({
             </Label>
             <div className="grid grid-cols-2 gap-1.5">
               <button
+                data-option
+                data-selected={timeframe === 'current_fy' || undefined}
                 onClick={() => selectPreset('current_fy')}
                 className={optionClass(timeframe === 'current_fy')}
               >
                 {getFinancialYearRange(userCountry, 0).label}
               </button>
               <button
+                data-option
+                data-selected={timeframe === 'last_fy' || undefined}
                 onClick={() => selectPreset('last_fy')}
                 className={optionClass(timeframe === 'last_fy')}
               >

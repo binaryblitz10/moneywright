@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import type { ReportBounds } from '@/lib/api'
 import { getFinancialYearRange } from '@/components/dashboard/utils'
 import {
@@ -41,10 +42,10 @@ interface PeriodPickerProps {
 
 function optionClass(active: boolean): string {
   return cn(
-    'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
+    'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left outline-none data-active:ring-2 data-active:ring-primary/40',
     active
       ? 'bg-primary text-primary-foreground'
-      : 'bg-surface-elevated hover:bg-surface-hover text-foreground'
+      : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
   )
 }
 
@@ -55,6 +56,7 @@ export function PeriodPicker({
   selectedPreset,
   onChange,
 }: PeriodPickerProps) {
+  const navigation = useOptionNavigation()
   const matching = matchPresets(range, bounds, userCountry)
   // The picked time frame when it still covers the range, else the first one that does
   const active = matching.find((key) => key === selectedPreset) ?? matching[0] ?? null
@@ -89,12 +91,14 @@ export function PeriodPicker({
           <ChevronDown className="ml-1 h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3">
+      <PopoverContent align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3" {...navigation}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-1.5">
             {options.map(({ key, label, range: optionRange }) => (
               <button
                 key={key}
+                data-option
+                data-selected={active === key || undefined}
                 onClick={() => onChange(optionRange, key)}
                 className={optionClass(active === key)}
               >

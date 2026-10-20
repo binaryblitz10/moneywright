@@ -3,6 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AccountSelector } from '@/components/ui/account-selector'
 import { X, ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react'
 import type { Account } from '@/lib/api'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 
 export type SortOption = 'period_desc' | 'period_asc' | 'upload_desc' | 'upload_asc'
 
@@ -34,6 +35,8 @@ export function FilterBar({
   onAccountFilterChange,
   onSortChange,
 }: FilterBarProps) {
+  const navigation = useOptionNavigation()
+
   return (
     <div className="flex items-center gap-3 flex-wrap">
       {/* Account Filter */}
@@ -68,14 +71,16 @@ export function FilterBar({
             {sortOptions.find((o) => o.value === sortOrder)?.label || 'Sort'}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-60 p-1.5" align="start">
+        <PopoverContent className="w-60 p-1.5" align="start" {...navigation}>
           <div className="space-y-1">
             {sortOptions.map((option) => (
               <Button
                 key={option.value}
                 variant={sortOrder === option.value ? 'secondary' : 'ghost'}
                 size="sm"
-                className="w-full justify-start gap-2 px-2"
+                data-option
+                data-selected={sortOrder === option.value || undefined}
+                className="w-full justify-start gap-2 px-2 data-active:bg-accent"
                 onClick={() => onSortChange(option.value)}
               >
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">

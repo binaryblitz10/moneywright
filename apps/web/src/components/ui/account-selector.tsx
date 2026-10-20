@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CreditCard, Building2, Check, ChevronDown, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
 import type { Account } from '@/lib/api'
 
@@ -65,6 +66,7 @@ export function AccountSelector({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const { rawInstitutions, institutions } = useConstants()
+  const navigation = useOptionNavigation(search)
 
   // Build institution logo map
   const institutionLogos = useMemo(() => {
@@ -229,7 +231,7 @@ export function AccountSelector({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className={cn('w-72 p-0', contentClassName)} align={align}>
+        <PopoverContent className={cn('w-72 p-0', contentClassName)} align={align} {...navigation}>
           {/* Search */}
           {showSearch && (
             <div className="border-b border-border-subtle p-2">
@@ -237,6 +239,7 @@ export function AccountSelector({
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search accounts..."
+                  data-option-search
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-8 pl-8 text-sm"
@@ -392,10 +395,12 @@ function AccountItem({
   return (
     <button
       type="button"
+      data-option
+      data-selected={isSelected || undefined}
       onClick={onClick}
       className={cn(
         'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors',
-        'hover:bg-surface-hover',
+        'outline-none data-active:bg-surface-hover',
         isSelected && 'bg-primary/5'
       )}
     >

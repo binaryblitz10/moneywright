@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Check, ChevronDown, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
 import {
   getAccountShortLabel,
@@ -45,6 +46,7 @@ export function StatementSelector({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const { institutions } = useConstants()
+  const navigation = useOptionNavigation(search)
 
   const accountLabels = useMemo(() => {
     const map = new Map<string, string>()
@@ -110,12 +112,13 @@ export function StatementSelector({
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className={cn('w-96 p-0', contentClassName)} align="start">
+      <PopoverContent className={cn('w-96 p-0', contentClassName)} align="start" {...navigation}>
         <div className="border-b border-border-subtle p-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by month, account or file..."
+              data-option-search
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-8 text-sm"
@@ -184,10 +187,12 @@ function StatementRow({
   return (
     <button
       type="button"
+      data-option
+      data-selected={isSelected || undefined}
       onClick={onClick}
       className={cn(
         'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors',
-        'hover:bg-surface-hover',
+        'outline-none data-active:bg-surface-hover',
         isSelected && 'bg-primary/5'
       )}
     >

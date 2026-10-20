@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframeKey } from '@/components/dashboard/types'
 import { getFinancialYearRange, getTimeframeDateRange } from '@/components/dashboard/utils'
 
@@ -96,6 +97,7 @@ export function DateRangePicker({
   variant = 'ghost',
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
+  const navigation = useOptionNavigation()
   const [customRange, setCustomRange] = useState<{ startDate?: string; endDate?: string } | null>(
     null
   )
@@ -142,7 +144,7 @@ export function DateRangePicker({
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-3" align={align}>
+      <PopoverContent className="w-72 p-3" align={align} {...navigation}>
         <div className="space-y-3">
           {/* Standard time presets */}
           <div className="grid grid-cols-2 gap-1.5">
@@ -154,6 +156,8 @@ export function DateRangePicker({
               return (
                 <button
                   key={preset.key}
+                  data-option
+                  data-selected={isSelected || undefined}
                   onClick={() => {
                     onDateChange(range.startDate, range.endDate)
                     setCustomRange(null)
@@ -161,9 +165,10 @@ export function DateRangePicker({
                   }}
                   className={cn(
                     'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
+                    'outline-none data-active:ring-2 data-active:ring-primary/40',
                     isSelected
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-surface-elevated hover:bg-surface-hover text-foreground'
+                      : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
                   )}
                 >
                   {preset.label}
@@ -189,6 +194,8 @@ export function DateRangePicker({
                     return (
                       <button
                         key={key}
+                        data-option
+                        data-selected={isSelected || undefined}
                         onClick={() => {
                           onDateChange(fy.startDate, fy.endDate)
                           setCustomRange(null)
@@ -196,9 +203,10 @@ export function DateRangePicker({
                         }}
                         className={cn(
                           'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
+                          'outline-none data-active:ring-2 data-active:ring-primary/40',
                           isSelected
                             ? 'bg-primary text-primary-foreground'
-                            : 'bg-surface-elevated hover:bg-surface-hover text-foreground'
+                            : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
                         )}
                       >
                         {fy.label}
