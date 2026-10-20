@@ -292,7 +292,7 @@ function TransactionsPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className={cn('space-y-6', selectedIds.size > 0 && 'pb-24')}>
         {/* Page Header */}
         <PageHeader
           title="Transactions"
