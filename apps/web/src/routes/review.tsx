@@ -95,7 +95,7 @@ function ReviewPage() {
       <div className="space-y-6">
         <PageHeader
           title="Review"
-          description="Clean up duplicate and uncategorized transactions"
+          description="Resolve duplicate, uncategorized and low-confidence transactions"
           actions={
             <ProfileSelector
               selectedProfileId={selectorProfileId}
