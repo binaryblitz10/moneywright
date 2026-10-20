@@ -53,6 +53,8 @@ export function CategoryPicker(props: CategoryPickerProps) {
   // Option highlighted for the keyboard; null falls back to the default below
   const [activeCode, setActiveCode] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  // Option last highlighted by the pointer, which must not scroll the list under the cursor
+  const hoveredCodeRef = useRef<string | null>(null)
 
   const matching = categories.filter((cat) =>
     cat.label.toLowerCase().includes(search.toLowerCase())
@@ -75,7 +77,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
         : (options.find((code) => selected.includes(code)) ?? options[0])
 
   useEffect(() => {
-    if (!open || active === undefined) return
+    if (!open || active === undefined || active === hoveredCodeRef.current) return
     listRef.current
       ?.querySelector(`[data-code="${CSS.escape(active)}"]`)
       ?.scrollIntoView({ block: 'nearest' })
@@ -98,6 +100,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (next) {
+      hoveredCodeRef.current = null
       setSearch('')
       setKindFilter(null)
       setActiveCode(null)
@@ -254,7 +257,10 @@ export function CategoryPicker(props: CategoryPickerProps) {
                       disabled={disabled}
                       data-code={cat.code}
                       className="w-full justify-start gap-2 px-2"
-                      onMouseMove={() => setActiveCode(cat.code)}
+                      onMouseMove={() => {
+                        hoveredCodeRef.current = cat.code
+                        setActiveCode(cat.code)
+                      }}
                       onClick={() => select(cat.code)}
                     >
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
