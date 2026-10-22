@@ -1,0 +1,51 @@
+---
+title: Bank SMS Alerts
+description: Add card transactions automatically from the text messages your bank sends
+icon: MessageSquare
+---
+
+Moneywright can read the bank alert texts on your Mac and add each card transaction as it arrives. This works in the macOS desktop app only, and everything is read on your Mac.
+
+## Setup
+
+1. On your iPhone, turn on **Settings → Messages → Text Message Forwarding** for your Mac, so SMS shows up in the Messages app.
+2. On your Mac, open **System Settings → Privacy & Security → Full Disk Access** (the **Open settings** button in Moneywright takes you there) and turn on Moneywright. Quit and reopen the app, then press **Check again**.
+3. In Moneywright, open **Settings → General → Bank SMS Alerts** and turn on **Read bank messages**.
+
+Only alerts that arrive after you turn it on are imported. iMessage conversations are never read.
+
+## How messages are matched
+
+Moneywright looks for the amount, currency, merchant and the last 4 digits of the card in each alert, using fixed rules on your Mac. The last 4 digits are matched to one of your accounts. If two accounts end in the same digits, the bank named in the message is used to tell them apart.
+
+Your transaction rules name and categorize the new transaction. If you turn on **Use AI to read and categorize**, new transactions are then categorized by your AI provider the same way statement transactions are. Without AI, anything no rule matches is added as **Other**.
+
+When you later upload the statement that contains the same purchase, the statement's line replaces the SMS one, so nothing is counted twice.
+
+## The Bank SMS page
+
+Once reading is on, a **Bank SMS** page appears in the sidebar under Statements. Messages are read when Moneywright opens and whenever you press **Sync**. To import older messages, go to **Settings → General → Bank SMS Alerts**, pick a date and press **Sync from date**. Messages that were already read are skipped, so syncing the same range twice is safe.
+
+The table lists every message with its merchant, account, amount and status. Use the filters to show only messages that need review, imported ones or dismissed ones. **Clear synced messages** removes all transactions that were imported from messages and empties the list; transactions from statements or added by hand are not touched.
+
+## Matching with your statements
+
+A bank alert arrives first, the statement weeks later. When the same purchase shows up in both, Moneywright keeps the statement line and drops the SMS one, so nothing is counted twice. This works whichever you import first.
+
+Two transactions are matched when they have the same account, date, direction and amount, and the merchant names overlap (an alert says `RAZORPAY SWI`, the statement says `RAZORPAY*Swiggy Bangalore`). Matching is one to one, so several identical purchases pair up correctly.
+
+- A matched transaction gets a green checkmark in your transactions, and its message shows as **Verified** on the Bank SMS page.
+- A transaction that came from an alert and has not been seen on a statement yet is marked **From SMS**.
+- If the date and amount match but the merchant names do not, the pair appears under **Review → Possible matches**. Choose **Same purchase** to verify it, or **Different** to keep both.
+- A category or name you set by hand on the SMS transaction is kept when the statement line replaces it.
+- A charge in another currency (for example USD on an INR card) is not added automatically, because the statement lists it converted. It waits for review, where you can enter the amount charged in your account's currency.
+
+The transaction date is read from the message text when it has one, so a delayed alert still lands on the right day.
+
+## Messages Moneywright can't read
+
+If a message looks like a transaction but the rules can't read all of it, or no account matches, it is marked **Needs review**. Press **Review**, check the details, pick the account and add it, or dismiss it.
+
+## Using AI for these messages
+
+Turn on **Use AI to read and categorize** to let your AI provider read messages the rules can't and categorize each imported transaction. Only messages that look like a transaction are sent, and OTPs are never sent. With it off, no message text leaves your Mac, unreadable messages go to the review list, and categories come only from your rules.
