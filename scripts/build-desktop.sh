@@ -28,6 +28,7 @@ DEBUG=false
 NOTARIZE=true  # Notarize by default for macOS
 SKIP_NOTARIZE=false
 FULL_CLEAN=false
+APP_ONLY=false
 while [[ $# -gt 0 ]]; do
   case $1 in
     --target)
@@ -46,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       FULL_CLEAN=true
       shift
       ;;
+    --app-only)
+      APP_ONLY=true
+      shift
+      ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
       echo ""
@@ -56,6 +61,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --debug               Build in debug mode (faster, larger binary)"
       echo "  --skip-notarize       Skip notarization for macOS builds"
       echo "  --clean               Full clean build (removes Rust target directory)"
+      echo "  --app-only            Build only the app bundle: no installer (DMG) or update package"
       echo ""
       exit 1
       ;;
@@ -150,6 +156,21 @@ if [[ "$RUST_TARGET" == *"apple-darwin"* ]]; then
   if [ "$SKIP_NOTARIZE" = true ]; then
     NOTARIZE=false
     echo -e "  Notarization: ${YELLOW}Skipped${NC} (--skip-notarize flag)"
+    # Without a signing identity the app is left with a bare linker signature (no bound Info.plist),
+    # so macOS cannot attach permissions such as Full Disk Access (needed to read Messages) to it.
+    # A certificate from the keychain keeps those permissions across rebuilds, because the
+    # signature then identifies the app by its certificate; an ad-hoc ("-") signature identifies it
+    # by the exact binary, so every rebuild would need the permissions granted again.
+    if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+      LOCAL_IDENTITY=$(security find-identity -v -p codesigning | grep -E '"(Developer ID Application|Apple Development|Mac Developer)' | head -1 | sed -E 's/.*"(.*)".*/\1/')
+      if [ -n "$LOCAL_IDENTITY" ]; then
+        export APPLE_SIGNING_IDENTITY="$LOCAL_IDENTITY"
+        echo -e "  Signing identity: ${CYAN}$APPLE_SIGNING_IDENTITY${NC} (from keychain)"
+      else
+        export APPLE_SIGNING_IDENTITY="-"
+        echo -e "  Signing identity: ${YELLOW}ad-hoc${NC} (no certificate in keychain; grant permissions again after each build)"
+      fi
+    fi
   elif [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
     echo -e "${RED}Error: Notarization requires APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID environment variables${NC}"
     echo ""
@@ -172,13 +193,19 @@ else
   NOTARIZE=false
 fi
 
-# Build with Tauri
+# Build with Tauri. --app-only skips the DMG (its Finder styling step can hang) and the update package
+TAURI_ARGS=()
+if [ "$APP_ONLY" = true ]; then
+  TAURI_ARGS+=(--bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}')
+  echo -e "  Bundles: ${YELLOW}App only${NC} (no DMG, no update package)"
+fi
+
 if [ "$DEBUG" = true ]; then
   echo -e "  Mode: ${YELLOW}Debug${NC}"
-  bun run tauri build --debug --target "$RUST_TARGET"
+  bun run tauri build --debug --target "$RUST_TARGET" ${TAURI_ARGS[@]+"${TAURI_ARGS[@]}"}
 else
   echo -e "  Mode: ${GREEN}Release${NC}"
-  bun run tauri build --target "$RUST_TARGET"
+  bun run tauri build --target "$RUST_TARGET" ${TAURI_ARGS[@]+"${TAURI_ARGS[@]}"}
 fi
 
 # Notarize macOS build if requested

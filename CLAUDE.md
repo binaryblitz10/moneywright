@@ -96,14 +96,16 @@ bun run build:desktop:linux             # Linux DEB
 
 ### Creating a Mac Build
 
-When asked to "create a mac build", skip notarization and open the output folder once it finishes:
+When asked to "create a mac build", build only the app bundle: skip notarization and do not create a DMG. Once the build has finished cleanly, open the folder that contains the app, and only the folder: never launch the app itself.
 
 ```bash
-bun run build:desktop:macos -- --skip-notarize
-open apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+bun run build:desktop:macos -- --skip-notarize --app-only
+open apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
 ```
 
-The build takes several minutes, so run it in the background and check that it exits cleanly before opening the folder.
+The app is written to `apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Moneywright.app`. The build takes several minutes, so run it in the background and read the build log for the real result before opening the folder: a wrapper's exit status can hide a failing build command.
+
+The build is signed with a code-signing certificate from the keychain (an Apple Development certificate is enough), which keeps macOS permissions such as Full Disk Access across rebuilds. Without one it falls back to an ad-hoc signature and the permission must be granted again after every build.
 
 ---
 
