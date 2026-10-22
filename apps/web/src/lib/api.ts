@@ -834,6 +834,10 @@ export interface Transaction {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
+  /** Created from a bank SMS alert and not yet matched to a statement line */
+  smsSource: boolean
+  /** An SMS alert and a statement line were matched to this transaction */
+  smsVerified: boolean
   createdAt: string
   updatedAt: string
 }
@@ -1141,6 +1145,7 @@ export interface ReviewCounts {
   pending: number
   other: number
   lowConfidence: number
+  possibleMatches: number
 }
 
 /**
@@ -1149,6 +1154,31 @@ export interface ReviewCounts {
 export async function getReviewCounts(profileId?: string): Promise<ReviewCounts> {
   const response = await api.get('/transactions/review-counts', { params: { profileId } })
   return response.data
+}
+
+/**
+ * An SMS transaction that agrees with statement lines on date and amount but not on the merchant
+ */
+export interface PossibleMatch {
+  sms: Transaction
+  candidates: Transaction[]
+}
+
+export async function getPossibleMatches(profileId?: string): Promise<PossibleMatch[]> {
+  const response = await api.get('/transactions/possible-matches', { params: { profileId } })
+  return response.data.matches
+}
+
+/** Say whether an SMS transaction and a statement line are the same purchase */
+export async function resolvePossibleMatch(
+  smsTransactionId: string,
+  transactionId: string,
+  same: boolean
+): Promise<void> {
+  await api.post(`/transactions/possible-matches/${same ? 'confirm' : 'dismiss'}`, {
+    smsTransactionId,
+    transactionId,
+  })
 }
 
 /**
@@ -3356,4 +3386,110 @@ export function getBackupDownloadUrl(name: string): string {
 export async function exportBackup(name: string): Promise<string> {
   const response = await api.post(`/backups/${encodeURIComponent(name)}/export`)
   return response.data.path
+}
+
+// ============================================
+// SMS Import API (bank alerts from the Messages app)
+// ============================================
+
+export type MessagesAccess = 'ok' | 'permission_denied' | 'not_found'
+
+export interface SmsImportStatus {
+  /** Reading Messages only works in the macOS desktop / local app */
+  supported: boolean
+  enabled: boolean
+  aiParsing: boolean
+  /** Whether an AI provider is set up, needed for AI parsing */
+  aiAvailable: boolean
+  access: MessagesAccess | null
+  lastSyncAt: string | null
+  pendingCount: number
+}
+
+export interface PendingSms {
+  /** The date stated in the message, when it has one */
+  date: string | null
+  id: string
+  sender: string
+  receivedAt: string
+  body: string
+  amount: number | null
+  currency: string | null
+  type: 'credit' | 'debit' | null
+  merchant: string | null
+  last4: string | null
+  accountId: string | null
+}
+
+export interface SmsImportInput {
+  accountId: string
+  date: string
+  amount: number
+  currency: string
+  type: 'credit' | 'debit'
+  merchant: string
+}
+
+export async function getSmsImportStatus(): Promise<SmsImportStatus> {
+  const response = await api.get('/sms-import/status')
+  return response.data
+}
+
+export async function updateSmsImportSettings(patch: {
+  enabled?: boolean
+  aiParsing?: boolean
+}): Promise<SmsImportStatus> {
+  const response = await api.put('/sms-import/settings', patch)
+  return response.data
+}
+
+/** Read messages now: new ones after the last read message, or all since a date (YYYY-MM-DD) */
+export async function syncSmsImport(
+  since?: string
+): Promise<{ imported: number; needsReview: number; verified: number }> {
+  const response = await api.post('/sms-import/sync', since ? { since } : {})
+  return response.data
+}
+
+/** Remove all synced messages and the transactions created from them */
+export async function clearSmsImport(): Promise<{ transactions: number; messages: number }> {
+  const response = await api.delete('/sms-import/messages')
+  return response.data
+}
+
+export async function getPendingSms(): Promise<PendingSms[]> {
+  const response = await api.get('/sms-import/pending')
+  return response.data.messages
+}
+
+export async function importPendingSms(id: string, data: SmsImportInput): Promise<void> {
+  await api.post(`/sms-import/pending/${encodeURIComponent(id)}/import`, data)
+}
+
+export async function dismissPendingSms(id: string): Promise<void> {
+  await api.post(`/sms-import/pending/${encodeURIComponent(id)}/dismiss`)
+}
+
+export interface SyncedSms {
+  id: string
+  sender: string
+  receivedAt: string
+  status: 'imported' | 'needs_review' | 'dismissed' | 'verified'
+  amount: number | null
+  currency: string | null
+  type: 'credit' | 'debit' | null
+  merchant: string | null
+  last4: string | null
+  accountId: string | null
+  transactionId: string | null
+}
+
+export async function getSyncedSms(): Promise<SyncedSms[]> {
+  const response = await api.get('/sms-import/messages')
+  return response.data.messages
+}
+
+/** Open System Settings at Full Disk Access (the app's web view cannot open that link itself) */
+export async function openSmsPermissionSettings(): Promise<void> {
+  await api.post('/sms-import/open-settings')
 }

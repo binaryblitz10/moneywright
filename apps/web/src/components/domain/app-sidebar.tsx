@@ -1,5 +1,11 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { useAuth, useProfileSelection, useReviewCounts, useUpdateChecker } from '@/hooks'
+import {
+  useAuth,
+  useProfileSelection,
+  useReviewCounts,
+  useSmsImportStatus,
+  useUpdateChecker,
+} from '@/hooks'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 import { isMacDesktop } from '@/lib/desktop'
@@ -46,9 +52,16 @@ import {
   ClipboardCheck,
   Download,
   X,
+  MessageSquareText,
 } from 'lucide-react'
 
 // Main navigation items
+const bankSmsNavItem = {
+  title: 'Bank SMS',
+  icon: MessageSquareText,
+  href: '/bank-sms',
+}
+
 const mainNavItems = [
   {
     title: 'Dashboard',
@@ -137,8 +150,19 @@ export function AppSidebar() {
   const { activeProfileId } = useProfileSelection()
   const { data: reviewCounts } = useReviewCounts(activeProfileId)
   const reviewTotal = reviewCounts
-    ? reviewCounts.duplicateGroups + reviewCounts.pending + reviewCounts.other
+    ? reviewCounts.duplicateGroups +
+      reviewCounts.pending +
+      reviewCounts.other +
+      reviewCounts.possibleMatches
     : 0
+
+  // Bank SMS only appears once reading bank messages is switched on
+  const { data: smsStatus } = useSmsImportStatus()
+  const navItems = smsStatus?.enabled
+    ? mainNavItems.flatMap((item) =>
+        item.href === '/statements' ? [item, bankSmsNavItem] : [item]
+      )
+    : mainNavItems
 
   const renderNavItem = (item: (typeof mainNavItems)[0] & { disabled?: boolean }) => {
     const isActive = location.pathname === item.href
@@ -200,7 +224,7 @@ export function AppSidebar() {
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">{mainNavItems.map(renderNavItem)}</SidebarMenu>
+            <SidebarMenu className="gap-0.5">{navItems.map(renderNavItem)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 

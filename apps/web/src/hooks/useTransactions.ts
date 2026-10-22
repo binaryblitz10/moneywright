@@ -18,6 +18,8 @@ import {
   getDuplicateGroups,
   setDuplicatesDismissed,
   getReviewCounts,
+  getPossibleMatches,
+  resolvePossibleMatch,
   linkTransactions,
   unlinkTransaction,
   getLinkCandidates,
@@ -43,6 +45,8 @@ export const transactionKeys = {
   categories: () => [...transactionKeys.all, 'categories'] as const,
   duplicates: (filters?: TransactionFilters & { dismissed?: boolean }) =>
     [...transactionKeys.all, 'duplicates', filters] as const,
+  possibleMatches: (profileId?: string) =>
+    [...transactionKeys.all, 'possibleMatches', profileId] as const,
   reviewCounts: (profileId?: string) =>
     [...transactionKeys.all, 'reviewCounts', profileId] as const,
   linkCandidates: (transactionId: string) =>
@@ -266,6 +270,42 @@ export function useDismissDuplicates() {
     onError: () => {
       toast.error('Failed to update duplicates')
     },
+  })
+}
+
+/**
+ * SMS transactions that might be the same purchase as a statement line
+ */
+export function usePossibleMatches(profileId?: string, enabled = true) {
+  return useQuery({
+    queryKey: transactionKeys.possibleMatches(profileId),
+    queryFn: () => getPossibleMatches(profileId),
+    enabled,
+  })
+}
+
+/**
+ * Confirm or reject a possible match between an SMS transaction and a statement line
+ */
+export function useResolvePossibleMatch() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      smsTransactionId,
+      transactionId,
+      same,
+    }: {
+      smsTransactionId: string
+      transactionId: string
+      same: boolean
+    }) => resolvePossibleMatch(smsTransactionId, transactionId, same),
+    onSuccess: (_, { same }) => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['sms-import'] })
+      toast.success(same ? 'Verified against the statement' : 'Marked as different purchases')
+    },
+    onError: () => toast.error('Could not update the match'),
   })
 }
 

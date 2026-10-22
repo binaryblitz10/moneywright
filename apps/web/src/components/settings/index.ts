@@ -18,6 +18,7 @@ export { TransactionRulesSection } from './transaction-rules-section'
 export { DataHealthSection } from './data-health-section'
 export { DashboardWidgetsSection } from './dashboard-widgets-section'
 export { BackupsSection } from './backups-section'
+export { SmsImportSection } from './sms-import-section'
 
 export { SettingsNav, SETTINGS_SECTIONS, type SettingsSection } from './settings-nav'
 

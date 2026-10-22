@@ -24,6 +24,7 @@ import {
   DataHealthSection,
   DashboardWidgetsSection,
   BackupsSection,
+  SmsImportSection,
   SettingsNav,
   SETTINGS_SECTIONS,
 } from '@/components/settings'
@@ -99,6 +100,9 @@ function SettingsPage() {
 
               {/* Data Health - checks across all profiles */}
               <DataHealthSection profileId={undefined} />
+
+              {/* Bank SMS alerts - macOS desktop only */}
+              <SmsImportSection />
 
               {/* Backups - hidden when the database does not support them */}
               <BackupsSection />

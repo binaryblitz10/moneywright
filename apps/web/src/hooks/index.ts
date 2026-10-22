@@ -54,6 +54,8 @@ export {
   useDismissDuplicates,
   useDuplicateGroups,
   useReviewCounts,
+  usePossibleMatches,
+  useResolvePossibleMatch,
   useLinkTransactions,
   useUnlinkTransaction,
   useCategorizationStatus,
@@ -77,6 +79,20 @@ export {
   useRestoreBackup,
   useExportBackup,
 } from './useBackups'
+
+// SMS import hooks
+export {
+  smsImportKeys,
+  useSmsImportStatus,
+  usePendingSms,
+  useSyncedSms,
+  useOpenSmsPermissionSettings,
+  useUpdateSmsImportSettings,
+  useSyncSmsImport,
+  useClearSmsImport,
+  useImportPendingSms,
+  useDismissPendingSms,
+} from './useSmsImport'
 
 // Statement hooks
 export {

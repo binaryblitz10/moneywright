@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Pencil, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Check, Pencil, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
@@ -312,6 +312,29 @@ export function TransactionTable({
                           >
                             {getCategoryLabel(txn.category)}
                           </span>
+                          {/* Matched with a statement line: just a checkmark */}
+                          {txn.smsVerified && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  role="img"
+                                  aria-label="Verified against your statement"
+                                  className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110"
+                                >
+                                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                Verified against your statement
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {/* Imported from an SMS alert, not yet seen on a statement */}
+                          {txn.smsSource && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
+                              From SMS
+                            </span>
+                          )}
                           {/* Subscription indicator */}
                           {txn.isSubscription && (
                             <Tooltip>

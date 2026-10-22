@@ -15,9 +15,9 @@ import {
   useReviewCounts,
 } from '@/hooks'
 import { TransactionFiltersBar, EditTransactionDialog } from '@/components/transactions'
-import { CategorizationPanel, DuplicatesPanel } from '@/components/review'
+import { CategorizationPanel, DuplicatesPanel, PossibleMatchesPanel } from '@/components/review'
 
-type ReviewTab = 'duplicates' | 'categorization' | 'low_confidence'
+type ReviewTab = 'duplicates' | 'categorization' | 'low_confidence' | 'possible_matches'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
@@ -27,7 +27,11 @@ export const Route = createFileRoute('/review')({
   component: ReviewPage,
   validateSearch: (search: Record<string, unknown>): ReviewSearchParams => ({
     tab:
-      search.tab === 'categorization' || search.tab === 'low_confidence' ? search.tab : undefined,
+      search.tab === 'categorization' ||
+      search.tab === 'low_confidence' ||
+      search.tab === 'possible_matches'
+        ? search.tab
+        : undefined,
   }),
 })
 
@@ -111,7 +115,12 @@ function ReviewPage() {
           onValueChange={(value) =>
             navigate({
               search: {
-                tab: value === 'categorization' || value === 'low_confidence' ? value : undefined,
+                tab:
+                  value === 'categorization' ||
+                  value === 'low_confidence' ||
+                  value === 'possible_matches'
+                    ? value
+                    : undefined,
               },
             })
           }
@@ -135,27 +144,37 @@ function ReviewPage() {
                 <span className="text-xs text-muted-foreground">{counts.lowConfidence}</span>
               )}
             </TabsTrigger>
+            {(counts?.possibleMatches ?? 0) > 0 && (
+              <TabsTrigger value="possible_matches">
+                Possible matches
+                <span className="text-xs text-muted-foreground">{counts?.possibleMatches}</span>
+              </TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
 
-        <TransactionFiltersBar
-          filters={filters}
-          search={search}
-          categories={categories}
-          accounts={accounts || []}
-          statements={statements || []}
-          country={user?.country}
-          onFiltersChange={setFilters}
-          onSearchChange={setSearch}
-          onClearFilters={() => {
-            setFilters({})
-            setSearch('')
-          }}
-          getCategoryLabel={getCategoryLabel}
-        />
+        {activeTab !== 'possible_matches' && (
+          <TransactionFiltersBar
+            filters={filters}
+            search={search}
+            categories={categories}
+            accounts={accounts || []}
+            statements={statements || []}
+            country={user?.country}
+            onFiltersChange={setFilters}
+            onSearchChange={setSearch}
+            onClearFilters={() => {
+              setFilters({})
+              setSearch('')
+            }}
+            getCategoryLabel={getCategoryLabel}
+          />
+        )}
 
         {activeTab === 'duplicates' ? (
           <DuplicatesPanel {...panelProps} />
+        ) : activeTab === 'possible_matches' ? (
+          <PossibleMatchesPanel {...panelProps} />
         ) : (
           <CategorizationPanel
             key={activeTab}
