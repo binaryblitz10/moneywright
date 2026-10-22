@@ -9,12 +9,16 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
+  DISMISSED_SMS_MATCHES: 'review.dismissed_sms_matches',
   DISMISSED_CARD_PAYMENTS: 'data_health.dismissed_card_payments',
   MANUALLY_UNLINKED: 'card_payments.manually_unlinked',
   OLLAMA_CUSTOM_MODELS: 'llm.ollama_custom_models',
   STATEMENT_CATEGORISATION_PROVIDER: 'statement.categorisation.provider',
   STATEMENT_CATEGORISATION_MODEL: 'statement.categorisation.model',
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
+  SMS_IMPORT_ENABLED: 'sms_import.enabled',
+  SMS_IMPORT_AI_PARSING: 'sms_import.ai_parsing',
+  SMS_IMPORT_CURSOR: 'sms_import.cursor',
 } as const
 
 /**
@@ -221,6 +225,27 @@ export async function setDuplicatesDismissed(
     else current.delete(signature)
   }
   await setPreference(userId, PREFERENCE_KEYS.DISMISSED_DUPLICATES, JSON.stringify([...current]))
+}
+
+/**
+ * Helper: Get the "SMS transaction|statement transaction" pairs the user said are different purchases
+ */
+export async function getDismissedSmsMatches(userId: string): Promise<string[]> {
+  const value = await getPreference(userId, PREFERENCE_KEYS.DISMISSED_SMS_MATCHES, null)
+  return value ? parseCategoryList(value) : []
+}
+
+/**
+ * Helper: Remember that an SMS transaction and a statement transaction are different purchases
+ */
+export async function dismissSmsMatch(
+  userId: string,
+  smsTransactionId: string,
+  transactionId: string
+): Promise<void> {
+  const current = new Set(await getDismissedSmsMatches(userId))
+  current.add(`${smsTransactionId}|${transactionId}`)
+  await setPreference(userId, PREFERENCE_KEYS.DISMISSED_SMS_MATCHES, JSON.stringify([...current]))
 }
 
 /**

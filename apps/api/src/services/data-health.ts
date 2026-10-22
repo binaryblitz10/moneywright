@@ -3,7 +3,7 @@ import { db, tables } from '../db'
 import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import { getAccountsByUserId } from './accounts'
 import { getCashFlow } from './cashflow'
-import { LOW_CONFIDENCE_BELOW, toTransactionResponse } from './transactions'
+import { isLowConfidenceCategory, toTransactionResponse } from './transactions'
 import { getDismissedCardPayments } from './preferences'
 import { loadCardInfos, loadInstitutionTerms } from './card-payments'
 import {
@@ -740,7 +740,7 @@ export async function getDataHealth(
           profileId ? eq(tables.transactions.profileId, profileId) : undefined,
           eq(tables.transactions.isHidden, false),
           eq(tables.transactions.isManuallyCategorized, false),
-          sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`
+          isLowConfidenceCategory()
         )
       ),
   ])

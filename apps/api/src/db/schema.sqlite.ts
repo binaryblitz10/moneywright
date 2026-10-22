@@ -282,6 +282,7 @@ export const transactions = sqliteTable(
     // Manual editing and visibility
     isManuallyCategorized: integer('is_manually_categorized', { mode: 'boolean' }).default(false), // true if user manually edited summary or category
     isHidden: integer('is_hidden', { mode: 'boolean' }).default(false), // true if user hides this transaction from queries
+    smsVerified: integer('sms_verified', { mode: 'boolean' }).notNull().default(false), // true once a bank SMS alert and a statement line were matched to this transaction
 
     createdAt: text('created_at')
       .notNull()
@@ -523,6 +524,50 @@ export const userPreferences = sqliteTable(
     index('user_preferences_user_id_idx').on(table.userId),
     index('user_preferences_profile_id_idx').on(table.profileId),
     unique('user_preferences_user_profile_key_unique').on(table.userId, table.profileId, table.key),
+  ]
+)
+
+/**
+ * SMS messages table - bank alerts read from the Messages app.
+ * 'imported' rows only remember the message guid so it is never read twice; 'needs_review' rows
+ * keep the encrypted text and whatever could be parsed so the user can finish the import by hand.
+ */
+export const smsMessages = sqliteTable(
+  'sms_messages',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    guid: text('guid').notNull(), // Messages database guid
+    sender: text('sender').notNull(),
+    receivedAt: text('received_at').notNull(), // ISO timestamp
+    status: text('status').notNull(), // 'imported' | 'needs_review' | 'dismissed'
+    body: text('body'), // Encrypted; only kept while the message needs review
+    accountId: text('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    transactionId: text('transaction_id').references(() => transactions.id, {
+      onDelete: 'set null',
+    }),
+    // Partial parse results, shown prefilled in the review form
+    amount: text('amount'),
+    currency: text('currency'),
+    type: text('type'), // 'credit' | 'debit'
+    merchant: text('merchant'),
+    last4: text('last4'),
+    transactionDate: text('transaction_date'), // YYYY-MM-DD stated in the message, when it has one
+
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index('sms_messages_user_status_idx').on(table.userId, table.status),
+    unique('sms_messages_user_guid_unique').on(table.userId, table.guid),
   ]
 )
 
@@ -771,6 +816,9 @@ export type NewLoan = typeof loans.$inferInsert
 
 export type UserPreferences = typeof userPreferences.$inferSelect
 export type NewUserPreferences = typeof userPreferences.$inferInsert
+
+export type SmsMessage = typeof smsMessages.$inferSelect
+export type NewSmsMessage = typeof smsMessages.$inferInsert
 
 /**
  * Chat Conversations table - one conversation per profile

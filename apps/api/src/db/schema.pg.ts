@@ -273,6 +273,7 @@ export const transactions = pgTable(
     // Manual editing and visibility
     isManuallyCategorized: boolean('is_manually_categorized').default(false), // true if user manually edited summary or category
     isHidden: boolean('is_hidden').default(false), // true if user hides this transaction from queries
+    smsVerified: boolean('sms_verified').notNull().default(false), // true once a bank SMS alert and a statement line were matched to this transaction
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -635,6 +636,48 @@ export const userPreferences = pgTable(
 )
 
 /**
+ * SMS messages table - bank alerts read from the Messages app.
+ * 'imported' rows only remember the message guid so it is never read twice; 'needs_review' rows
+ * keep the encrypted text and whatever could be parsed so the user can finish the import by hand.
+ */
+export const smsMessages = pgTable(
+  'sms_messages',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    guid: varchar('guid', { length: 100 }).notNull(), // Messages database guid
+    sender: text('sender').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    status: varchar('status', { length: 20 }).notNull(), // 'imported' | 'needs_review' | 'dismissed'
+    body: text('body'), // Encrypted; only kept while the message needs review
+    accountId: varchar('account_id', { length: 21 }).references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    transactionId: varchar('transaction_id', { length: 21 }).references(() => transactions.id, {
+      onDelete: 'set null',
+    }),
+    // Partial parse results, shown prefilled in the review form
+    amount: text('amount'),
+    currency: varchar('currency', { length: 3 }),
+    type: varchar('type', { length: 10 }), // 'credit' | 'debit'
+    merchant: text('merchant'),
+    last4: varchar('last4', { length: 4 }),
+    transactionDate: varchar('transaction_date', { length: 10 }), // YYYY-MM-DD stated in the message, when it has one
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('sms_messages_user_status_idx').on(table.userId, table.status),
+    unique('sms_messages_user_guid_unique').on(table.userId, table.guid),
+  ]
+)
+
+/**
  * Transaction rules table - user-defined rules that set the name and/or category of matching transactions
  */
 export const transactionRules = pgTable(
@@ -736,6 +779,9 @@ export type NewLoan = typeof loans.$inferInsert
 
 export type UserPreferences = typeof userPreferences.$inferSelect
 export type NewUserPreferences = typeof userPreferences.$inferInsert
+
+export type SmsMessage = typeof smsMessages.$inferSelect
+export type NewSmsMessage = typeof smsMessages.$inferInsert
 
 /**
  * Chat Conversations table - one conversation per profile

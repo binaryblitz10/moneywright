@@ -4,10 +4,11 @@
  */
 
 import { createHash } from 'crypto'
-import { and, eq, gte, lte, ne } from 'drizzle-orm'
+import { and, eq, gte, lte, ne, notLike } from 'drizzle-orm'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
 import { duplicateKey, selectRowsToInsert } from '../duplicate-key'
+import { reconcileSmsTransactions } from '../../services/sms-matching'
 import type { RawPdfTransaction, InsertResult } from './types'
 
 /**
@@ -64,7 +65,9 @@ async function countExistingByKey(
         eq(tables.transactions.accountId, accountId),
         ne(tables.transactions.statementId, statementId),
         gte(tables.transactions.date, minDate),
-        lte(tables.transactions.date, maxDate)
+        lte(tables.transactions.date, maxDate),
+        // Transactions from bank SMS alerts are matched with the statement afterwards
+        notLike(tables.transactions.hash, 'sms:%')
       )
     )
 
@@ -182,6 +185,13 @@ export async function insertRawTransactions(
   logger.debug(
     `[InsertTransactions] Inserted ${insertedIds.length} transactions, skipped ${skippedCount} duplicates`
   )
+
+  // Match the new lines with transactions already imported from bank SMS alerts
+  try {
+    await reconcileSmsTransactions(userId, [accountId])
+  } catch (error) {
+    logger.error('[InsertTransactions] Matching with SMS transactions failed:', error)
+  }
 
   return {
     insertedCount: insertedIds.length,

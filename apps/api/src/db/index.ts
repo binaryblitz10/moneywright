@@ -173,6 +173,8 @@ export type {
   NewInvestmentSnapshot,
   UserPreferences,
   NewUserPreferences,
+  SmsMessage,
+  NewSmsMessage,
   ChatConversation,
   NewChatConversation,
   ChatMessage,
@@ -205,6 +207,7 @@ const tablesImpl = isPostgres
       investmentTransactions: pgSchema.investmentTransactions,
       investmentSnapshots: pgSchema.investmentSnapshots,
       userPreferences: pgSchema.userPreferences,
+      smsMessages: pgSchema.smsMessages,
       chatConversations: pgSchema.chatConversations,
       chatMessages: pgSchema.chatMessages,
       chatQueryCache: pgSchema.chatQueryCache,
@@ -227,6 +230,7 @@ const tablesImpl = isPostgres
       investmentTransactions: sqliteSchema.investmentTransactions,
       investmentSnapshots: sqliteSchema.investmentSnapshots,
       userPreferences: sqliteSchema.userPreferences,
+      smsMessages: sqliteSchema.smsMessages,
       chatConversations: sqliteSchema.chatConversations,
       chatMessages: sqliteSchema.chatMessages,
       chatQueryCache: sqliteSchema.chatQueryCache,
@@ -250,6 +254,7 @@ export const tables = tablesImpl as {
   investmentTransactions: typeof pgSchema.investmentTransactions
   investmentSnapshots: typeof pgSchema.investmentSnapshots
   userPreferences: typeof pgSchema.userPreferences
+  smsMessages: typeof pgSchema.smsMessages
   chatConversations: typeof pgSchema.chatConversations
   chatMessages: typeof pgSchema.chatMessages
   chatQueryCache: typeof pgSchema.chatQueryCache

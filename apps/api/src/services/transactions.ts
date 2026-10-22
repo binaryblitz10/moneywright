@@ -13,6 +13,7 @@ import {
   notInArray,
   isNull,
   isNotNull,
+  type SQL,
 } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Account, Transaction } from '../db'
@@ -26,6 +27,7 @@ import { getSubscriptionOverrides } from './subscription-overrides'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
 import { duplicateKey } from '../lib/duplicate-key'
+import { countPossibleMatches } from './sms-matching'
 import { parseAmountSearch, parseSearchTerms, type SearchTerm } from '../lib/amount-search'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
 import { CARD_PAYMENT_CATEGORY, idsToClear } from '../lib/card-payment-matching'
@@ -99,6 +101,10 @@ export interface TransactionResponse {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
+  /** Created from a bank SMS alert and not yet matched to a statement line */
+  smsSource: boolean
+  /** An SMS alert and a statement line were matched to this transaction */
+  smsVerified: boolean
   createdAt: string | Date
   updatedAt: string | Date
 }
@@ -125,7 +131,8 @@ export interface TransactionFilters {
   // Review queues (never manually categorized):
   // 'pending' = categorization never completed (no summary),
   // 'other' = categorized but only into the fallback 'other' category,
-  // 'low_confidence' = categorized with low model confidence,
+  // 'low_confidence' = categorized into a real category with low model confidence
+  //   (rows still in 'other' or without a summary are in the categorization queue instead),
   // 'all' = pending or other
   reviewStatus?: ReviewStatus
 }
@@ -133,7 +140,20 @@ export interface TransactionFilters {
 export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all'
 
 /** Low-confidence review queue: categorizations the model was unsure of */
-export const LOW_CONFIDENCE_BELOW = 0.7
+const LOW_CONFIDENCE_BELOW = 0.7
+
+/**
+ * Rows for the low-confidence queue: categorized, into a category other than the 'other' fallback,
+ * with low model confidence. Rows that still need categorization are never in this queue, so the
+ * two review queues do not overlap.
+ */
+export function isLowConfidenceCategory(): SQL {
+  return and(
+    isNotNull(tables.transactions.summary),
+    ne(tables.transactions.category, 'other'),
+    sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`
+  )!
+}
 
 /**
  * Pagination options
@@ -172,6 +192,8 @@ export function toTransactionResponse(txn: Transaction): TransactionResponse {
     linkedEntityType: txn.linkedEntityType,
     isManuallyCategorized: txn.isManuallyCategorized ?? false,
     isHidden: txn.isHidden ?? false,
+    smsSource: txn.hash.startsWith('sms:'),
+    smsVerified: txn.smsVerified ?? false,
     createdAt: txn.createdAt,
     updatedAt: txn.updatedAt,
   }
@@ -265,7 +287,6 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
       isNotNull(tables.transactions.summary),
       eq(tables.transactions.category, 'other')
     )!
-    const isLowConfidence = sql`${tables.transactions.categoryConfidence} < ${LOW_CONFIDENCE_BELOW}`
     conditions.push(eq(tables.transactions.isManuallyCategorized, false))
     conditions.push(
       filters.reviewStatus === 'pending'
@@ -273,7 +294,7 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
         : filters.reviewStatus === 'other'
           ? isOther
           : filters.reviewStatus === 'low_confidence'
-            ? isLowConfidence
+            ? isLowConfidenceCategory()
             : or(isPending, isOther)!
     )
   }
@@ -642,6 +663,68 @@ export async function createManualTransaction(
 }
 
 /**
+ * Add a transaction read from a bank alert message. The message guid makes the row idempotent:
+ * the same message can never be imported twice. With a null summary the row is left for the
+ * categorizer; otherwise the caller supplies the name and category (from a transaction rule, or
+ * 'other').
+ */
+export async function createSmsTransaction(
+  userId: string,
+  data: {
+    accountId: string
+    guid: string
+    date: string
+    amount: number
+    currency: string
+    type: 'credit' | 'debit'
+    merchant: string
+    /** null leaves the row for the categorizer, like a statement import */
+    summary: string | null
+    category: string
+    ruleMatched: boolean
+  }
+): Promise<TransactionResponse> {
+  const account = await getAccountByIdRaw(data.accountId, userId)
+  if (!account) {
+    throw new Error('Account not found')
+  }
+
+  const statementId = await getOrCreateManualStatement(account)
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+
+  const [created] = await db
+    .insert(tables.transactions)
+    .values({
+      accountId: account.id,
+      statementId,
+      profileId: account.profileId,
+      userId,
+      date: data.date,
+      type: data.type,
+      amount: data.amount.toString(),
+      currency: data.currency,
+      originalDescription: data.merchant,
+      summary: data.summary,
+      nameVersion: NAME_VERSION,
+      category: data.category,
+      categoryConfidence: data.ruleMatched
+        ? ('1.00' as unknown as Transaction['categoryConfidence'])
+        : null,
+      hash: `sms:${data.guid}`,
+      createdAt: now as Date,
+      updatedAt: now as Date,
+    })
+    .returning()
+
+  if (!created) {
+    throw new Error('Failed to create transaction')
+  }
+
+  logger.debug(`[Transaction] Added SMS transaction ${created.id} to account ${account.id}`)
+  return toTransactionResponse(created)
+}
+
+/**
  * Update category, summary and/or hidden state on many transactions at once.
  * `confirmCategory` marks the current category as correct without changing it.
  * Only transactions owned by the user are touched; returns the number updated.
@@ -719,6 +802,7 @@ export interface ReviewCounts {
   pending: number
   other: number
   lowConfidence: number
+  possibleMatches: number
 }
 
 /**
@@ -735,14 +819,21 @@ export async function getReviewCounts(userId: string, profileId?: string): Promi
     return Number(row?.count || 0)
   }
 
-  const [pending, other, lowConfidence, duplicateGroups] = await Promise.all([
+  const [pending, other, lowConfidence, duplicateGroups, possibleMatches] = await Promise.all([
     countFor('pending'),
     countFor('other'),
     countFor('low_confidence'),
     findDuplicateGroups(userId, { profileId }),
+    countPossibleMatches(userId, profileId),
   ])
 
-  return { duplicateGroups: duplicateGroups.length, pending, other, lowConfidence }
+  return {
+    duplicateGroups: duplicateGroups.length,
+    pending,
+    other,
+    lowConfidence,
+    possibleMatches,
+  }
 }
 
 /**

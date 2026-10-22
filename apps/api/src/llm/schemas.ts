@@ -914,6 +914,34 @@ export const loanDocumentSchema = z.object({
 export type TransactionParsed = z.infer<typeof transactionSchema>
 export type BankStatementSummary = z.infer<typeof bankStatementSummarySchema>
 export type StatementSummary = z.infer<typeof statementSummarySchema>
+// ============================================================================
+// SMS Transaction Alerts
+// ============================================================================
+
+/**
+ * Fields read from a single bank / card alert message
+ */
+export const smsTransactionSchema = z.object({
+  is_transaction: z
+    .boolean()
+    .describe(
+      'True only when the message reports a card or bank transaction that already happened'
+    ),
+  amount: z
+    .number()
+    .nullable()
+    .describe('Transaction amount, positive, without thousands separators'),
+  currency: z.string().nullable().describe('ISO 4217 currency code, e.g. INR, USD'),
+  type: z
+    .enum(['credit', 'debit'])
+    .nullable()
+    .describe('debit when money was spent or withdrawn, credit for refunds or money received'),
+  last4: z.string().nullable().describe('Last 4 digits of the card or account, digits only'),
+  merchant: z.string().nullable().describe('Merchant or payee name exactly as written'),
+})
+
+export type SmsTransactionParsed = z.infer<typeof smsTransactionSchema>
+
 export type CreditCardSummary = z.infer<typeof creditCardSummarySchema>
 export type PageParseResult = z.infer<typeof pageParseResultSchema>
 export type AccountInfo = z.infer<typeof accountInfoSchema>

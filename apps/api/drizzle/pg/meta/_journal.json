@@ -64,6 +64,20 @@
       "when": 1792420634962,
       "tag": "0008_subscription_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792694091031,
+      "tag": "0009_blushing_ultimatum",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792698162361,
+      "tag": "0010_fantastic_vampiro",
+      "breakpoints": true
     }
   ]
 }

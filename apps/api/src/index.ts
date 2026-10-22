@@ -30,6 +30,7 @@ import accountRoutes from './routes/accounts'
 import statementRoutes from './routes/statements'
 import transactionRoutes from './routes/transactions'
 import transactionRuleRoutes from './routes/transaction-rules'
+import smsImportRoutes from './routes/sms-import'
 import categoryRoutes from './routes/categories'
 import investmentRoutes from './routes/investments'
 import llmRoutes from './routes/llm'
@@ -47,6 +48,8 @@ import { securityHeaders } from './middleware/security-headers'
 import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
 import { recoverInterruptedProcessing } from './services/statements'
+import { syncSmsOnStartup } from './services/sms-import'
+import { DEFAULT_USER_ID } from './lib/constants'
 import { repairCardPaymentLinks } from './services/card-payments'
 
 // Get the directory where the binary/script is located
@@ -87,6 +90,9 @@ try {
 } catch (error) {
   logger.error('[Startup] Card payment link repair failed:', error)
 }
+
+// Read new bank alert messages once at startup (macOS local mode, only when the user switched it on)
+syncSmsOnStartup(DEFAULT_USER_ID)
 
 // Handle CLI arguments
 const args = process.argv.slice(2)
@@ -163,6 +169,7 @@ app.route('/api/accounts', accountRoutes)
 app.route('/api/statements', statementRoutes)
 app.route('/api/transactions', transactionRoutes)
 app.route('/api/transaction-rules', transactionRuleRoutes)
+app.route('/api/sms-import', smsImportRoutes)
 app.route('/api/categories', categoryRoutes)
 app.route('/api/investments', investmentRoutes)
 app.route('/api/llm', llmRoutes)
