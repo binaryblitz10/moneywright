@@ -15,6 +15,8 @@ interface MonthCell {
   /** Short month name shown under the indicator, e.g. "Oct" */
   shortLabel: string
   count: number
+  /** Covered only up to this date: the statement ends mid-month. Never set for the start month */
+  partialThrough: Date | null
   /** Before the first statement: nothing is expected yet */
   beforeStart: boolean
   isCurrent: boolean
@@ -24,24 +26,42 @@ function monthKey(date: Date): string {
   return `${date.getUTCFullYear()}-${date.getUTCMonth()}`
 }
 
-/** Every month the statement's period touches, even for a single day. */
-function coveredMonthKeys(statement: Statement): string[] {
+interface MonthCoverage {
+  count: number
+  full: boolean
+  partialThrough: Date | null
+}
+
+/**
+ * Every month the statement's period touches, even for a single day. Only the month the
+ * period ends in can be partial; the start month always counts as fully covered.
+ */
+function addCoverage(coverage: Map<string, MonthCoverage>, statement: Statement): void {
   const start = new Date(statement.periodStart || statement.periodEnd || statement.createdAt)
   const end = new Date(statement.periodEnd || statement.periodStart || statement.createdAt)
-  const keys: string[] = []
+  const endKey = monthKey(end)
+  const endsMidMonth = end.getUTCDate() < daysInMonth(end)
   const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
   while (cursor <= end) {
-    keys.push(monthKey(cursor))
+    const key = monthKey(cursor)
+    const partial = key === endKey && endsMidMonth
+    const entry = coverage.get(key) ?? { count: 0, full: false, partialThrough: null }
+    entry.count += 1
+    if (!partial) entry.full = true
+    else if (!entry.partialThrough || end > entry.partialThrough) entry.partialThrough = end
+    coverage.set(key, entry)
     cursor.setUTCMonth(cursor.getUTCMonth() + 1)
   }
-  return keys
+}
+
+function daysInMonth(date: Date): number {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
 }
 
 export function CoverageTimeline({ statements, onMissingClick }: CoverageTimelineProps) {
-  const counts = new Map<string, number>()
+  const coverage = new Map<string, MonthCoverage>()
   for (const statement of statements) {
-    if (statement.status === 'failed') continue
-    for (const key of coveredMonthKeys(statement)) counts.set(key, (counts.get(key) ?? 0) + 1)
+    if (statement.status !== 'failed') addCoverage(coverage, statement)
   }
 
   const now = new Date()
@@ -53,7 +73,11 @@ export function CoverageTimeline({ statements, onMissingClick }: CoverageTimelin
       key: monthKey(date),
       label: date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
       shortLabel: date.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }),
-      count: counts.get(monthKey(date)) ?? 0,
+      count: coverage.get(monthKey(date))?.count ?? 0,
+      partialThrough: (() => {
+        const entry = coverage.get(monthKey(date))
+        return entry && !entry.full ? entry.partialThrough : null
+      })(),
       beforeStart: false,
       isCurrent: monthKey(date) === currentKey,
     })
@@ -72,14 +96,24 @@ export function CoverageTimeline({ statements, onMissingClick }: CoverageTimelin
       <div className="flex flex-1 items-start gap-1">
         {cells.map((cell) => {
           const isMissing = cell.count === 0 && !cell.beforeStart && !cell.isCurrent
+          const partial = cell.partialThrough
+            ? ` · through ${cell.partialThrough.toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                timeZone: 'UTC',
+              })}`
+            : ''
           const title = cell.count
-            ? `${cell.label}: ${cell.count} statement${cell.count === 1 ? '' : 's'}`
+            ? `${cell.label}: ${cell.count} statement${cell.count === 1 ? '' : 's'}${partial}`
             : isMissing
               ? `${cell.label}: no statement. Click to upload`
               : cell.label
           const className = cn(
             'h-2.5 w-full rounded-sm transition-colors',
-            cell.count > 0 && 'bg-positive/70 hover:bg-positive',
+            cell.count > 0 &&
+              (cell.partialThrough
+                ? 'bg-positive/30 hover:bg-positive/50'
+                : 'bg-positive/70 hover:bg-positive'),
             isMissing &&
               'border border-dashed border-warning/60 bg-warning/10 hover:bg-warning/25 cursor-pointer',
             !cell.count && !isMissing && 'bg-muted'

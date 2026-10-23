@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Upload } from 'lucide-react'
-import { CardSkeleton } from '@/components/ui/skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   useAuth,
   useStatements,
@@ -58,6 +58,12 @@ const GROUP_KIND_ORDER: Record<StatementGroupKind, number> = {
   credit_card: 0,
   bank: 1,
   investment: 2,
+}
+
+const GROUP_KIND_LABELS: Record<StatementGroupKind, string> = {
+  credit_card: 'Credit Cards',
+  bank: 'Bank Accounts',
+  investment: 'Investments',
 }
 
 function StatementsPage() {
@@ -182,6 +188,8 @@ function StatementsPage() {
         subtitle: string
         kind: StatementGroupKind
         logoPath: string | null
+        balance: number | null
+        currency: string
         statements: Statement[]
       }
     >()
@@ -202,8 +210,6 @@ function StatementsPage() {
         const last4 = isInvestment
           ? source?.accountIdentifier?.slice(-4)
           : account?.accountNumber?.slice(-4)
-        const kindLabel =
-          kind === 'investment' ? 'Investment' : kind === 'credit_card' ? 'Credit Card' : 'Bank'
         const listIndex = isInvestment
           ? (investmentSources?.findIndex((s) => s.id === statement.sourceId) ?? -1)
           : (accounts?.findIndex((a) => a.id === statement.accountId) ?? -1)
@@ -214,9 +220,14 @@ function StatementsPage() {
           title: isInvestment
             ? source?.sourceName || source?.institution || 'Investment Account'
             : account?.accountName || account?.institution || 'Unknown Account',
-          subtitle: [last4 && `••${last4}`, kindLabel].filter(Boolean).join(' · '),
+          subtitle: last4 ? `••${last4}` : '',
           kind,
           logoPath: getLogoPath(statement),
+          balance:
+            kind === 'credit_card'
+              ? (account?.statementBalance ?? account?.latestBalance ?? null)
+              : (account?.latestBalance ?? null),
+          currency: account?.currency ?? 'INR',
           statements: [],
         }
         groups.set(key, group)
@@ -320,45 +331,68 @@ function StatementsPage() {
 
         {/* Statements Grid */}
         {statementsLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <CardSkeleton key={i} />
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-2xl" />
             ))}
           </div>
         ) : filteredAndSortedStatements && filteredAndSortedStatements.length > 0 ? (
           <div className="space-y-8">
-            {statementGroups.map(([key, group]) => (
-              <StatementGroup
-                key={key}
-                title={group.title}
-                subtitle={group.subtitle}
-                logoPath={group.logoPath}
-                kind={group.kind}
-                count={group.statements.length}
-                overdueSince={group.overdueSince}
-              >
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {group.statements.map((statement) => (
-                    <StatementCard
-                      key={statement.id}
-                      statement={statement}
-                      account={
-                        statement.accountId ? accountMap.get(statement.accountId) : undefined
-                      }
-                      source={statement.sourceId ? sourceMap.get(statement.sourceId) : undefined}
-                      logoPath={group.logoPath}
-                      formatFileSize={formatFileSize}
-                      formatPeriod={formatPeriod}
-                      onDelete={() => deleteMutation.mutate(statement.id)}
-                      onEdit={() => setEditStatement(statement)}
-                      onRecategorize={() => setRecategorizeStatement(statement)}
-                      profiles={profiles}
-                      showProfileBadge={showFamilyView}
-                    />
-                  ))}
-                </div>
-              </StatementGroup>
-            ))}
+            {(Object.keys(GROUP_KIND_LABELS) as StatementGroupKind[]).map((kind) => {
+              const kindGroups = statementGroups.filter(([, group]) => group.kind === kind)
+              if (kindGroups.length === 0) return null
+              return (
+                <section key={kind} className="space-y-3">
+                  <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {GROUP_KIND_LABELS[kind]}
+                    <span className="ml-2 font-normal normal-case tracking-normal">
+                      {kindGroups.length}
+                    </span>
+                  </h2>
+                  <div className="space-y-4">
+                    {kindGroups.map(([key, group]) => (
+                      <StatementGroup
+                        key={key}
+                        title={group.title}
+                        subtitle={group.subtitle}
+                        logoPath={group.logoPath}
+                        kind={group.kind}
+                        statements={group.statements}
+                        balance={group.balance}
+                        currency={group.currency}
+                        overdueSince={group.overdueSince}
+                        onMissingClick={() => setShowUploadDialog(true)}
+                      >
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {group.statements.map((statement) => (
+                            <StatementCard
+                              key={statement.id}
+                              statement={statement}
+                              account={
+                                statement.accountId
+                                  ? accountMap.get(statement.accountId)
+                                  : undefined
+                              }
+                              source={
+                                statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
+                              }
+                              logoPath={group.logoPath}
+                              formatFileSize={formatFileSize}
+                              formatPeriod={formatPeriod}
+                              onDelete={() => deleteMutation.mutate(statement.id)}
+                              onEdit={() => setEditStatement(statement)}
+                              onRecategorize={() => setRecategorizeStatement(statement)}
+                              profiles={profiles}
+                              showProfileBadge={showFamilyView}
+                            />
+                          ))}
+                        </div>
+                      </StatementGroup>
+                    ))}
+                  </div>
+                </section>
+              )
+            })}
           </div>
         ) : (
           <EmptyState
