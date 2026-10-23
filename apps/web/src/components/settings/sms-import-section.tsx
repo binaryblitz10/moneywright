@@ -4,11 +4,19 @@
  */
 
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { Loader2, RefreshCw, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -77,6 +85,7 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
   const openSettingsMutation = useOpenSmsPermissionSettings()
   const syncMutation = useSyncSmsImport()
   const { refetch, isFetching } = useSmsImportStatus()
+  const [syncOpen, setSyncOpen] = useState(false)
   const [since, setSince] = useState(toDateInput(daysAgo(DEFAULT_DAYS_BACK)))
 
   const needsPermission = status.enabled && status.access !== 'ok'
@@ -120,43 +129,60 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
       />
 
       {status.enabled && !needsPermission && (
-        <div className="space-y-3 rounded-xl border border-border-subtle bg-muted/30 p-4">
+        <div className="flex items-start justify-between gap-6">
           <div className="space-y-1">
-            <Label htmlFor="sms-sync-since" className="text-sm font-medium">
-              Sync past messages
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Reads every bank message received since this date. Messages already imported are
-              skipped.
+            <p className="text-sm font-medium">Sync past messages</p>
+            <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+              Import older bank messages from a date you choose.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              id="sms-sync-since"
-              type="date"
-              className="w-44 bg-background"
-              max={toDateInput(new Date())}
-              value={since}
-              onChange={(e) => setSince(e.target.value)}
-            />
-            <Button
-              disabled={!since || syncMutation.isPending}
-              onClick={() => syncMutation.mutate(since)}
-            >
-              {syncMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
+          <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
                 <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Sync from date
-            </Button>
-            <Button asChild variant="ghost">
-              <Link to="/bank-messages">
-                View messages
-                {status.pendingCount > 0 && ` (${status.pendingCount} to review)`}
-              </Link>
-            </Button>
-          </div>
+                Sync past messages
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Sync past messages</DialogTitle>
+                <DialogDescription>
+                  Reads every bank message received since this date. Messages already imported are
+                  skipped.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="sms-sync-since" className="text-sm font-medium">
+                  Since
+                </Label>
+                <Input
+                  id="sms-sync-since"
+                  type="date"
+                  max={toDateInput(new Date())}
+                  value={since}
+                  onChange={(e) => setSince(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSyncOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!since || syncMutation.isPending}
+                  onClick={() =>
+                    syncMutation.mutate(since, { onSuccess: () => setSyncOpen(false) })
+                  }
+                >
+                  {syncMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Sync from date
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
