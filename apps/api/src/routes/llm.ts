@@ -12,7 +12,6 @@ import {
   addOllamaCustomModel,
   removeOllamaCustomModel,
 } from '../services/preferences'
-import { getOpenRouterModels } from '../services/openrouter-models'
 
 const llmRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -103,10 +102,9 @@ llmRoutes.get('/providers', async (c) => {
 
   // Get custom Ollama models for this user
   const ollamaCustomModels = await getOllamaCustomModels(userId)
-  const openrouterModels = await getOpenRouterModels()
 
   const providers = AI_PROVIDERS.map((providerConfig) => {
-    // Ollama uses custom models from preferences, OpenRouter uses the live catalog
+    // Ollama uses custom models from preferences
     const models =
       providerConfig.id === 'ollama'
         ? ollamaCustomModels.map((m) => ({
@@ -115,9 +113,7 @@ llmRoutes.get('/providers', async (c) => {
             supportsParsing: true,
             supportsThinking: m.supportsThinking,
           }))
-        : providerConfig.id === 'openrouter'
-          ? openrouterModels
-          : providerConfig.models
+        : providerConfig.models
 
     return {
       code: providerConfig.id,
@@ -250,7 +246,7 @@ llmRoutes.post('/test', async (c) => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    logger.error(`[LLM] Test failed:`, error)
+    logger.error(`[LLM] Test failed (${provider}/${model}):`, error)
 
     return c.json(
       {

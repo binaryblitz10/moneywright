@@ -6,7 +6,6 @@ import { SUPPORTED_COUNTRIES } from '../lib/constants'
 import { AI_PROVIDERS } from '../lib/ai'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { getOllamaCustomModels } from '../services/preferences'
-import { getOpenRouterModels } from '../services/openrouter-models'
 
 const setupRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -46,7 +45,6 @@ setupRoutes.get('/', auth(), async (c) => {
 
   // Get custom Ollama models for this user
   const ollamaCustomModels = await getOllamaCustomModels(userId)
-  const openrouterModels = await getOpenRouterModels()
 
   const configuredProviders: Record<string, boolean> = {
     openai: !!llmSettings.openaiApiKey,
@@ -58,7 +56,7 @@ setupRoutes.get('/', auth(), async (c) => {
   }
 
   const providers = AI_PROVIDERS.map((providerConfig) => {
-    // Ollama uses custom models from preferences, OpenRouter uses the live catalog
+    // Ollama uses custom models from preferences
     const models =
       providerConfig.id === 'ollama'
         ? ollamaCustomModels.map((m) => ({
@@ -67,9 +65,7 @@ setupRoutes.get('/', auth(), async (c) => {
             supportsParsing: true,
             supportsThinking: m.supportsThinking,
           }))
-        : providerConfig.id === 'openrouter'
-          ? openrouterModels
-          : providerConfig.models
+        : providerConfig.models
 
     return {
       id: providerConfig.id,
@@ -146,7 +142,6 @@ setupRoutes.patch('/', auth(), async (c) => {
 
     // Get custom Ollama models for this user
     const ollamaCustomModels = await getOllamaCustomModels(userId)
-    const openrouterModels = await getOpenRouterModels()
 
     const configuredProviders: Record<string, boolean> = {
       openai: !!llmSettings.openaiApiKey,
@@ -158,7 +153,7 @@ setupRoutes.patch('/', auth(), async (c) => {
     }
 
     const providers = AI_PROVIDERS.map((providerConfig) => {
-      // Ollama uses custom models from preferences, OpenRouter uses the live catalog
+      // Ollama uses custom models from preferences
       const models =
         providerConfig.id === 'ollama'
           ? ollamaCustomModels.map((m) => ({
@@ -167,9 +162,7 @@ setupRoutes.patch('/', auth(), async (c) => {
               supportsParsing: true,
               supportsThinking: m.supportsThinking,
             }))
-          : providerConfig.id === 'openrouter'
-            ? openrouterModels
-            : providerConfig.models
+          : providerConfig.models
 
       return {
         id: providerConfig.id,

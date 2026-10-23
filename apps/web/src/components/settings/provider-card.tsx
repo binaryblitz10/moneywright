@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import { isAxiosError } from 'axios'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,8 @@ import {
   type LLMProviders,
 } from './types'
 import { OllamaModelsModal } from './ollama-models-modal'
+
+const OPENROUTER_TEST_MODEL = 'openai/gpt-6-luna'
 
 interface ProviderCardProps {
   code: string
@@ -71,7 +74,10 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
     },
     onError: (error) => {
       setIsTesting(false)
-      toast.error(`Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const serverMessage = isAxiosError(error) ? error.response?.data?.message : undefined
+      toast.error(
+        `Test failed: ${serverMessage ?? (error instanceof Error ? error.message : 'Unknown error')}`
+      )
     },
   })
 
@@ -126,7 +132,11 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
     const provider = providers?.find((p) => p.code === code)
     if (!provider || provider.models.length === 0) return
 
-    const model = provider.models[0]
+    // OpenRouter lists Claude first; test with the default model, which passes ZDR guardrails
+    const model =
+      code === 'openrouter'
+        ? (provider.models.find((m) => m.id === OPENROUTER_TEST_MODEL) ?? provider.models[0])
+        : provider.models[0]
     if (!model) return
     setIsTesting(true)
     testMutation.mutate({ provider: code, model: model.id })
