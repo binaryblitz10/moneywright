@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { MessageSquareText } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
@@ -23,6 +24,12 @@ const OUTCOME_BADGES: Partial<Record<SyncedSms['status'], string>> = {
   needs_review: 'Needs review',
   dismissed: 'Dismissed',
 }
+
+/** How long a freshly imported transaction is marked New */
+const NEW_FOR_MS = 24 * 60 * 60 * 1000
+
+const BADGE_CLASS =
+  'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0'
 
 function toDateString(iso: string): string {
   const d = new Date(iso)
@@ -83,6 +90,10 @@ export function MessagesTable({
   const [reviewing, setReviewing] = useState<PendingSms | null>(null)
   const [editing, setEditing] = useState<Transaction | null>(null)
 
+  // Only transactions a message created are marked New (not statement lines it verified)
+  const importedIds = new Set(
+    messages.flatMap((m) => (m.status === 'imported' && m.transactionId ? [m.transactionId] : []))
+  )
   const pendingById = new Map(pending.map((m) => [m.id, m]))
   const count = (status: SyncedSms['status']): number =>
     messages.filter((m) => m.status === status).length
@@ -142,10 +153,19 @@ export function MessagesTable({
           }}
           isEditable={(txn) => !statusById.has(txn.id) || pendingById.has(txn.id)}
           renderBadge={(txn) => {
-            const label = OUTCOME_BADGES[statusById.get(txn.id) ?? 'imported']
-            return label ? (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
-                {label}
+            const status = statusById.get(txn.id)
+            if (status) {
+              const label = OUTCOME_BADGES[status]
+              return label ? (
+                <span className={cn(BADGE_CLASS, 'border-border-subtle text-muted-foreground')}>
+                  {label}
+                </span>
+              ) : null
+            }
+            const isNew = Date.now() - new Date(txn.createdAt).getTime() < NEW_FOR_MS
+            return isNew && importedIds.has(txn.id) ? (
+              <span className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}>
+                New
               </span>
             ) : null
           }}
