@@ -25,7 +25,7 @@ export function ClearMessagesButton({ disabled }: { disabled: boolean }) {
     <>
       <Button
         variant="outline"
-        className="text-destructive hover:text-destructive"
+        className="px-5 has-[>svg]:px-5 text-destructive hover:text-destructive"
         disabled={disabled || clearMutation.isPending}
         onClick={() => setOpen(true)}
       >
