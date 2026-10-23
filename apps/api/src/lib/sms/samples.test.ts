@@ -124,6 +124,12 @@ describe('payments and notices', () => {
     })
   })
 
+  test('a biller receipt without a card or account is ignored', () => {
+    const JIO =
+      'Payment of Rs. 765.82 has been received on 26-Sep-26\nJio Number : 9810979180\nPayment Mode : Credit Card\nTransaction ID : HD016268BAMAAAEM2WPI'
+    expect(looksLikeTransaction(JIO)).toBe(false)
+  })
+
   test('statement notices are ignored', () => {
     expect(looksLikeTransaction(STATEMENT)).toBe(false)
   })

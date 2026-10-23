@@ -47,6 +47,8 @@ const CREDIT_WORDS = /\b(credited|refund|refunded|reversal|reversed|received|cas
 /** Statement and due-date notices mention money but are not transactions */
 const REMINDER_WORDS =
   /\b(?:is|are) due\b|\bdue (?:by|on|date)\b|\bminimum (?:amount )?due\b|\bstatement\b.*\b(?:generated|ready|available)\b/i
+/** "Payment of Rs. 765.82 has been received": a biller thanking you, or a card bill payment */
+const PAYMENT_RECEIVED = /\bpayment\b.*\breceived\b/i
 const OTP_WORDS = /\b(otp|one[- ]?time (?:password|pin)|verification code)\b/i
 
 function toCurrency(token: string): string {
@@ -119,16 +121,19 @@ function findMerchant(text: string): string | null {
     if (merchant && merchant.length >= 2 && !/^\d+$/.test(merchant)) return merchant
   }
   // Card bill payments have no merchant
-  if (/\bpayment\b.*\breceived\b/i.test(text)) return 'Payment received'
+  if (PAYMENT_RECEIVED.test(text)) return 'Payment received'
   return null
 }
 
 /**
  * Whether a message reads like a card / bank transaction alert: it has an amount and says money
  * moved, and it is not an OTP. Only such messages are ever stored or sent for AI parsing.
+ * A "payment received" notice that names no card or account is a biller's receipt for a payment
+ * made elsewhere (a bill paid by card), not a transaction on one of the user's accounts.
  */
 export function looksLikeTransaction(text: string): boolean {
   if (OTP_WORDS.test(text) || REMINDER_WORDS.test(text)) return false
+  if (PAYMENT_RECEIVED.test(text) && !findLast4(text)) return false
   if (!findAmount(text)) return false
   return DEBIT_WORDS.test(text) || CREDIT_WORDS.test(text)
 }
