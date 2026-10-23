@@ -1262,7 +1262,7 @@ Returns life insurance, health insurance, and vehicle insurance details.
           queryId,
           profileId,
           dataType: 'insurance_policies',
-          filters,
+          filters: filters as unknown as Record<string, unknown>,
           data: policies,
           schema: {
             fields: [
@@ -1481,7 +1481,7 @@ Returns personal loans, home loans, vehicle loans, education loans, business loa
           queryId,
           profileId,
           dataType: 'loans',
-          filters,
+          filters: filters as unknown as Record<string, unknown>,
           data: loans,
           schema: {
             fields: [

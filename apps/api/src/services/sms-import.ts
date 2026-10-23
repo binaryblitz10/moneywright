@@ -600,21 +600,6 @@ export async function listPendingSms(userId: string): Promise<PendingSms[]> {
     )
     .orderBy(desc(tables.smsMessages.receivedAt))
 
-  const transactionIds = rows.flatMap((row) => (row.transactionId ? [row.transactionId] : []))
-  const transactions =
-    transactionIds.length === 0
-      ? []
-      : await db
-          .select()
-          .from(tables.transactions)
-          .where(
-            and(
-              eq(tables.transactions.userId, userId),
-              inArray(tables.transactions.id, transactionIds)
-            )
-          )
-  const transactionById = new Map(transactions.map((txn) => [txn.id, toTransactionResponse(txn)]))
-
   return rows.map((row) => ({
     id: row.id,
     sender: row.sender,

@@ -337,6 +337,7 @@ investmentRoutes.post('/holdings', async (c) => {
   try {
     const holding = await createHolding({
       ...result.data,
+      units: result.data.units ?? null,
       userId,
       gainLoss,
       gainLossPercent,

@@ -606,6 +606,9 @@ function simulateLoanPayments(
   let totalInterestPaid = 0
   let totalPrincipalPaid = 0
 
+  // payments is non-empty (checked above); '' falls through to the invalid-date handling
+  const firstPaymentDate = sortedPayments[0]?.date ?? ''
+
   // Determine when interest starts accruing (disbursement date)
   // This is when the bank gives you the money, so interest starts from here
   let interestStartDate: Date
@@ -618,14 +621,14 @@ function simulateLoanPayments(
     interestStartDate.setMonth(interestStartDate.getMonth() - 1)
   } else {
     // Fallback: assume 1 month before first payment
-    const firstPayment = new Date(sortedPayments[0].date)
+    const firstPayment = new Date(firstPaymentDate)
     interestStartDate = new Date(firstPayment)
     interestStartDate.setMonth(interestStartDate.getMonth() - 1)
   }
 
   // Validate interest start date
   if (isNaN(interestStartDate.getTime())) {
-    const firstPayment = new Date(sortedPayments[0].date)
+    const firstPayment = new Date(firstPaymentDate)
     if (isNaN(firstPayment.getTime())) {
       // Can't calculate without valid dates - fallback to simple calculation
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)

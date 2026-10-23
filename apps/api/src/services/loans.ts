@@ -746,6 +746,9 @@ function simulateLoanPayments(
   const monthlyRate = annualInterestRate / 12 / 100
   let outstanding = principal
 
+  // payments is non-empty (checked above); '' falls through to the invalid-date handling
+  const firstPaymentDate = sortedPayments[0]?.date ?? ''
+
   // Determine interest start date
   let interestStartDate: Date
   if (firstEmiDate) {
@@ -755,7 +758,7 @@ function simulateLoanPayments(
   } else if (disbursementDate) {
     interestStartDate = new Date(disbursementDate)
   } else {
-    interestStartDate = new Date(sortedPayments[0].date)
+    interestStartDate = new Date(firstPaymentDate)
   }
 
   let lastDate = interestStartDate

@@ -4,7 +4,7 @@
  */
 
 import { Hono, type Context } from 'hono'
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
+import { setCookie } from 'hono/cookie'
 import { auth, COOKIE_NAMES, type AuthVariables } from '../middleware/auth'
 import { authSecurityHeaders } from '../middleware/security-headers'
 import { isAuthEnabled, isLocalhost } from '../lib/startup'
@@ -16,7 +16,6 @@ import {
   recoverWithBackupCode,
   changePin,
   regenerateBackupCode,
-  checkLockout,
 } from '../services/pin'
 import { ensureDefaultUser } from '../services/user'
 import { createSession } from '../services/auth'

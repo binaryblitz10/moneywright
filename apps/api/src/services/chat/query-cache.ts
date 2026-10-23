@@ -25,6 +25,8 @@ export type CacheDataType =
   | 'accounts'
   | 'subscriptions'
   | 'monthly_trends'
+  | 'insurance_policies'
+  | 'loans'
   | 'stats'
 
 /** Schema definition for LLM reference */
