@@ -1,6 +1,6 @@
 /**
- * Bank SMS alerts: turn on reading card transaction messages from the Mac's Messages app,
- * and import older messages from a chosen date. The synced messages are listed on the Bank SMS page.
+ * Bank Messages alerts: turn on reading card transaction messages from the Mac's Messages app,
+ * and import older messages from a chosen date. The synced messages are listed on the Bank Messages page.
  */
 
 import { useState } from 'react'
@@ -93,7 +93,7 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
 
   return (
     <SectionCard
-      title="Bank SMS Alerts"
+      title="Bank Messages"
       description="Import transactions from bank text messages."
       contentClassName="space-y-6"
     >
@@ -151,7 +151,7 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
               Sync from date
             </Button>
             <Button asChild variant="ghost">
-              <Link to="/bank-sms">
+              <Link to="/bank-messages">
                 View messages
                 {status.pendingCount > 0 && ` (${status.pendingCount} to review)`}
               </Link>

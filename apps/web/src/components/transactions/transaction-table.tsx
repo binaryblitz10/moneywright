@@ -45,6 +45,8 @@ interface TransactionTableProps {
   renderBadge?: (transaction: Transaction) => ReactNode
   /** Whether the edit button is offered for a row (default: always) */
   isEditable?: (transaction: Transaction) => boolean
+  /** Whether a row can be selected (default: always) */
+  isSelectable?: (transaction: Transaction) => boolean
 }
 
 // Sort indicator component
@@ -133,6 +135,7 @@ export function TransactionTable({
   renderGroupHeader,
   renderBadge,
   isEditable,
+  isSelectable,
 }: TransactionTableProps) {
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
@@ -154,8 +157,9 @@ export function TransactionTable({
   }
 
   const selectable = !!selectedIds && !!onSelectionChange
-  const selectedOnPage = selectable ? transactions.filter((t) => selectedIds.has(t.id)).length : 0
-  const allOnPageSelected = transactions.length > 0 && selectedOnPage === transactions.length
+  const selectableRows = isSelectable ? transactions.filter(isSelectable) : transactions
+  const selectedOnPage = selectable ? selectableRows.filter((t) => selectedIds.has(t.id)).length : 0
+  const allOnPageSelected = selectableRows.length > 0 && selectedOnPage === selectableRows.length
   // Clicking anywhere on a row only selects once a selection has been started via a checkbox
   const rowClickSelects = selectable && selectedIds.size > 0
 
@@ -165,6 +169,7 @@ export function TransactionTable({
   const handleRowClick = (e: MouseEvent, index: number) => {
     if (!selectedIds || !onSelectionChange) return
     const id = transactions[index]!.id
+    if (isSelectable && !isSelectable(transactions[index]!)) return
     const checked = !selectedIds.has(id)
     const anchorIndex = e.shiftKey
       ? transactions.findIndex((t) => t.id === anchorIdRef.current)
@@ -172,7 +177,7 @@ export function TransactionTable({
     const [from, to] =
       anchorIndex >= 0 ? [anchorIndex, index].sort((a, b) => a - b) : [index, index]
     const next = new Set(selectedIds)
-    for (const txn of transactions.slice(from, to! + 1)) {
+    for (const txn of transactions.slice(from, to! + 1).filter(isSelectable ?? (() => true))) {
       if (checked) next.add(txn.id)
       else next.delete(txn.id)
     }
@@ -183,7 +188,7 @@ export function TransactionTable({
   const togglePage = (checked: boolean) => {
     if (!selectedIds || !onSelectionChange) return
     const next = new Set(selectedIds)
-    for (const txn of transactions) {
+    for (const txn of selectableRows) {
       if (checked) next.add(txn.id)
       else next.delete(txn.id)
     }
@@ -262,21 +267,24 @@ export function TransactionTable({
                   // Stop shift-click from highlighting text while range selecting
                   onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
                 >
-                  {selectable && (
-                    <TableCell
-                      className="py-3 pl-5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRowClick(e, index)
-                      }}
-                    >
-                      <Checkbox
-                        className={CHECKBOX_CLASS}
-                        aria-label="Select transaction"
-                        checked={selectedIds.has(txn.id)}
-                      />
-                    </TableCell>
-                  )}
+                  {selectable &&
+                    (!isSelectable || isSelectable(txn) ? (
+                      <TableCell
+                        className="py-3 pl-5 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRowClick(e, index)
+                        }}
+                      >
+                        <Checkbox
+                          className={CHECKBOX_CLASS}
+                          aria-label="Select transaction"
+                          checked={selectedIds.has(txn.id)}
+                        />
+                      </TableCell>
+                    ) : (
+                      <TableCell className="py-3 pl-5" />
+                    ))}
                   <TableCell
                     className={cn(
                       'text-sm text-muted-foreground whitespace-nowrap py-3',

@@ -834,7 +834,7 @@ export interface Transaction {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
-  /** Created from a bank SMS alert and not yet matched to a statement line */
+  /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
   smsVerified: boolean

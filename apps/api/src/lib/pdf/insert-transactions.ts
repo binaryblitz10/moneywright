@@ -66,7 +66,7 @@ async function countExistingByKey(
         ne(tables.transactions.statementId, statementId),
         gte(tables.transactions.date, minDate),
         lte(tables.transactions.date, maxDate),
-        // Transactions from bank SMS alerts are matched with the statement afterwards
+        // Transactions from bank message alerts are matched with the statement afterwards
         notLike(tables.transactions.hash, 'sms:%')
       )
     )
@@ -186,7 +186,7 @@ export async function insertRawTransactions(
     `[InsertTransactions] Inserted ${insertedIds.length} transactions, skipped ${skippedCount} duplicates`
   )
 
-  // Match the new lines with transactions already imported from bank SMS alerts
+  // Match the new lines with transactions already imported from bank message alerts
   try {
     await reconcileSmsTransactions(userId, [accountId])
   } catch (error) {

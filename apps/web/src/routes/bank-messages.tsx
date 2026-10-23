@@ -1,5 +1,5 @@
 /**
- * Bank SMS page - sync card alerts from the Messages app and see every message that was read
+ * Bank Messages page - sync card alerts from the Messages app and see every message that was read
  */
 
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -8,7 +8,7 @@ import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MessagesTable } from '@/components/bank-sms/messages-table'
+import { MessagesTable } from '@/components/bank-messages/messages-table'
 import { Button } from '@/components/ui/button'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import {
@@ -22,11 +22,11 @@ import {
   useSyncedSms,
 } from '@/hooks'
 
-export const Route = createFileRoute('/bank-sms')({
-  component: BankSmsPage,
+export const Route = createFileRoute('/bank-messages')({
+  component: BankMessagesPage,
 })
 
-function BankSmsPage() {
+function BankMessagesPage() {
   const { data: status, isLoading: statusLoading } = useSmsImportStatus()
   const enabled = !!status?.enabled
   const { data: pending = [] } = usePendingSms(enabled)
@@ -52,7 +52,7 @@ function BankSmsPage() {
   return (
     <AppLayout>
       <PageHeader
-        title="Bank SMS"
+        title="Bank Messages"
         description="Card and bank alerts read from your Messages app"
         actions={
           <div className="flex gap-2">

@@ -56,10 +56,10 @@ import {
 } from 'lucide-react'
 
 // Main navigation items
-const bankSmsNavItem = {
-  title: 'Bank SMS',
+const bankMessagesNavItem = {
+  title: 'Bank Messages',
   icon: MessageSquareText,
-  href: '/bank-sms',
+  href: '/bank-messages',
 }
 
 const mainNavItems = [
@@ -156,11 +156,11 @@ export function AppSidebar() {
       reviewCounts.possibleMatches
     : 0
 
-  // Bank SMS only appears once reading bank messages is switched on
+  // Bank Messages only appears once reading bank messages is switched on
   const { data: smsStatus } = useSmsImportStatus()
   const navItems = smsStatus?.enabled
     ? mainNavItems.flatMap((item) =>
-        item.href === '/statements' ? [item, bankSmsNavItem] : [item]
+        item.href === '/statements' ? [item, bankMessagesNavItem] : [item]
       )
     : mainNavItems
 

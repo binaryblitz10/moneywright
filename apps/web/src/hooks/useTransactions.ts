@@ -57,7 +57,7 @@ export const transactionKeys = {
 
 /**
  * Refresh everything derived from transaction rows: lists, cash flow summaries, reports,
- * spending changes, Data Health reconciliation, account balances and the Bank SMS list
+ * spending changes, Data Health reconciliation, account balances and the Bank Messages list
  */
 export function invalidateTransactionTotals(queryClient: QueryClient): void {
   for (const queryKey of [

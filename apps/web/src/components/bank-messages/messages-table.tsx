@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { MessageSquareText } from 'lucide-react'
+import { ListChecks, MessageSquareText, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -14,8 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ReviewForm } from '@/components/bank-sms/review-form'
-import { EditTransactionDialog, TransactionTable } from '@/components/transactions'
+import { ReviewForm } from '@/components/bank-messages/review-form'
+import {
+  BulkActionBar,
+  EditTransactionDialog,
+  TransactionEditForm,
+  TransactionTable,
+} from '@/components/transactions'
 import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
 
 type Filter = 'all' | SyncedSms['status']
@@ -89,6 +94,9 @@ export function MessagesTable({
   const [filter, setFilter] = useState<Filter>(pending.length > 0 ? 'needs_review' : 'all')
   const [reviewing, setReviewing] = useState<PendingSms | null>(null)
   const [editing, setEditing] = useState<Transaction | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
   // When each transaction came from a message, for the New pill (pending and dismissed have none)
   const importedAtByTxn = new Map(
@@ -106,13 +114,26 @@ export function MessagesTable({
     (m) => m.transaction ?? toPlaceholderTransaction(m, pendingById.get(m.id)?.date ?? null)
   )
 
+  // Only rows that are transactions can be selected (not messages waiting for review or dismissed)
+  const selectableCount = visible.filter((m) => m.transaction).length
+
+  const changeFilter = (next: Filter) => {
+    setSelectedIds(new Set())
+    setFilter(next)
+  }
+
+  const toggleSelectionMode = () => {
+    setSelectedIds(new Set())
+    setSelectionMode((on) => !on)
+  }
+
   return (
-    <div className="space-y-3">
+    <div className={cn('space-y-3', selectedIds.size > 0 && 'pb-24')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl
           aria-label="Filter messages"
           value={filter}
-          onChange={setFilter}
+          onChange={changeFilter}
           options={[
             { value: 'all', label: `All (${messages.length})` },
             { value: 'imported', label: `Imported (${count('imported')})` },
@@ -121,11 +142,33 @@ export function MessagesTable({
             { value: 'dismissed', label: `Dismissed (${count('dismissed')})` },
           ]}
         />
-        {lastSyncAt && (
-          <p className="text-xs text-muted-foreground">
-            Last synced {new Date(lastSyncAt).toLocaleTimeString()}
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {lastSyncAt && (
+            <p className="text-xs text-muted-foreground">
+              Last synced {new Date(lastSyncAt).toLocaleTimeString()}
+            </p>
+          )}
+          {selectableCount > 0 && (
+            <button
+              type="button"
+              aria-pressed={selectionMode}
+              onClick={toggleSelectionMode}
+              className={cn(
+                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200',
+                selectionMode
+                  ? 'bg-surface-hover border-border-hover text-muted-foreground hover:text-foreground'
+                  : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground hover:border-border-hover'
+              )}
+            >
+              {selectionMode ? (
+                <X className="h-3.5 w-3.5" />
+              ) : (
+                <ListChecks className="h-3.5 w-3.5" />
+              )}
+              <span>{selectionMode ? 'Cancel' : 'Select'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -152,6 +195,9 @@ export function MessagesTable({
             else setEditing(txn)
           }}
           isEditable={(txn) => !statusById.has(txn.id) || pendingById.has(txn.id)}
+          isSelectable={(txn) => !statusById.has(txn.id)}
+          selectedIds={selectionMode ? selectedIds : undefined}
+          onSelectionChange={selectionMode ? setSelectedIds : undefined}
           renderBadge={(txn) => {
             const status = statusById.get(txn.id)
             if (status) {
@@ -191,6 +237,41 @@ export function MessagesTable({
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {selectedIds.size} Transactions</DialogTitle>
+            <DialogDescription>
+              Only the fields you change are applied to every selected transaction.
+            </DialogDescription>
+          </DialogHeader>
+          <TransactionEditForm
+            transactionIds={[...selectedIds]}
+            categories={categories}
+            onClose={() => setBulkEditOpen(false)}
+            onSuccess={() => {
+              setBulkEditOpen(false)
+              setSelectedIds(new Set())
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          totalMatching={selectableCount}
+          filtered={filter !== 'all'}
+          pageFullySelected={false}
+          categories={categories}
+          showingHidden={false}
+          selectingAll={false}
+          onSelectAllMatching={() => {}}
+          onEdit={() => setBulkEditOpen(true)}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      )}
 
       <EditTransactionDialog
         transaction={editing}

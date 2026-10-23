@@ -282,7 +282,7 @@ export const transactions = sqliteTable(
     // Manual editing and visibility
     isManuallyCategorized: integer('is_manually_categorized', { mode: 'boolean' }).default(false), // true if user manually edited summary or category
     isHidden: integer('is_hidden', { mode: 'boolean' }).default(false), // true if user hides this transaction from queries
-    smsVerified: integer('sms_verified', { mode: 'boolean' }).notNull().default(false), // true once a bank SMS alert and a statement line were matched to this transaction
+    smsVerified: integer('sms_verified', { mode: 'boolean' }).notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
 
     createdAt: text('created_at')
       .notNull()

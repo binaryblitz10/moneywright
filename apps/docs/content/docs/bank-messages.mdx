@@ -1,5 +1,5 @@
 ---
-title: Bank SMS Alerts
+title: Bank Messages
 description: Add card transactions automatically from the text messages your bank sends
 icon: MessageSquare
 ---
@@ -10,7 +10,7 @@ Moneywright can read the bank alert texts on your Mac and add each card transact
 
 1. On your iPhone, turn on **Settings → Messages → Text Message Forwarding** for your Mac, so SMS shows up in the Messages app.
 2. On your Mac, open **System Settings → Privacy & Security → Full Disk Access** (the **Open settings** button in Moneywright takes you there) and turn on Moneywright. Quit and reopen the app, then press **Check again**.
-3. In Moneywright, open **Settings → Data → Bank SMS Alerts** and turn on **Read bank messages**.
+3. In Moneywright, open **Settings → Data → Bank Messages** and turn on **Read bank messages**.
 
 Only alerts that arrive after you turn it on are imported. iMessage conversations are never read.
 
@@ -22,11 +22,11 @@ Your transaction rules name and categorize the new transaction. If you turn on *
 
 When you later upload the statement that contains the same purchase, the statement's line replaces the SMS one, so nothing is counted twice.
 
-## The Bank SMS page
+## The Bank Messages page
 
-Once reading is on, a **Bank SMS** page appears in the sidebar under Statements. Messages are read when Moneywright opens and whenever you press **Sync**. To import older messages, go to **Settings → Data → Bank SMS Alerts**, pick a date and press **Sync from date**. Messages that were already read are skipped, so syncing the same range twice is safe.
+Once reading is on, a **Bank Messages** page appears in the sidebar under Statements. Messages are read when Moneywright opens and whenever you press **Sync**. To import older messages, go to **Settings → Data → Bank Messages**, pick a date and press **Sync from date**. Messages that were already read are skipped, so syncing the same range twice is safe.
 
-The table lists every message with its merchant, account, amount and status. Use the filters to show only messages that need review, imported ones or dismissed ones. **Delete all SMS Transactions** (in **Settings → Data → Bank SMS Alerts**) removes all transactions that were imported from messages and empties the list; transactions from statements or added by hand are not touched.
+The table lists every message with its merchant, account, amount and status. Use the filters to show only messages that need review, imported ones or dismissed ones. **Delete all SMS Transactions** (in **Settings → Data → Bank Messages**) removes all transactions that were imported from messages and empties the list; transactions from statements or added by hand are not touched.
 
 ## Matching with your statements
 
@@ -34,7 +34,8 @@ A bank alert arrives first, the statement weeks later. When the same purchase sh
 
 Two transactions are matched when they have the same account, date, direction and amount, and the merchant names overlap (an alert says `RAZORPAY SWI`, the statement says `RAZORPAY*Swiggy Bangalore`). Matching is one to one, so several identical purchases pair up correctly.
 
-- A matched transaction gets a green checkmark in your transactions, and its message shows as **Verified** on the Bank SMS page.
+- A matched transaction gets a green checkmark in your transactions, and its message shows as **Verified** on the Bank Messages page.
+- The **Source** filter on the transaction tables has a **Bank Messages** option to show only transactions that came from messages.
 - A transaction that came from an alert and has not been seen on a statement yet is marked **SMS**.
 - If the date and amount match but the merchant names do not, the pair appears under **Review → Possible matches**. Choose **Same purchase** to verify it, or **Different** to keep both.
 - A category or name you set by hand on the SMS transaction is kept when the statement line replaces it.

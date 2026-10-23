@@ -1,5 +1,5 @@
 /**
- * Matching of transactions imported from bank SMS alerts with the lines of an uploaded statement.
+ * Matching of transactions imported from bank message alerts with the lines of an uploaded statement.
  *
  * The same routine runs after anything is imported, SMS or statement, so it does not matter which
  * came first. A confirmed match keeps the statement line (its text is the full one), marks it
