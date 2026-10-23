@@ -219,6 +219,10 @@ export function MessagesTable({
         />
       )}
 
+      <p className="pt-2 text-center text-xs text-muted-foreground">
+        Showing transactions synced in the last 14 days.
+      </p>
+
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>

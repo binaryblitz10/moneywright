@@ -6,7 +6,7 @@
  * be finished automatically waits in a review list so the user can complete or dismiss it.
  */
 
-import { and, eq, desc, inArray, like } from 'drizzle-orm'
+import { and, eq, desc, gte, inArray, like, or } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Account } from '../db'
 import { decrypt, decryptOptional, encrypt } from '../lib/encryption'
@@ -631,13 +631,36 @@ export async function listPendingSms(userId: string): Promise<PendingSms[]> {
 }
 
 const MAX_LISTED_MESSAGES = 500
+/** Messages that are done (imported, verified, dismissed) stay listed this long; keep in step with the page text */
+const LISTED_DAYS = 14
 
-/** Every message that was read as a transaction alert, newest first */
+/**
+ * The messages to list, newest first: every one waiting for review, and the others for the last
+ * LISTED_DAYS days counted from when they became a transaction (or were dismissed), not from when
+ * the message arrived. Older ones are in the transactions list.
+ */
 export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
+  const since = new Date(Date.now() - LISTED_DAYS * 24 * 60 * 60 * 1000)
+  const sinceValue = (dbType === 'postgres' ? since : since.toISOString()) as Date
   const rows = await db
     .select()
     .from(tables.smsMessages)
-    .where(eq(tables.smsMessages.userId, userId))
+    .where(
+      and(
+        eq(tables.smsMessages.userId, userId),
+        or(
+          eq(tables.smsMessages.status, 'needs_review'),
+          and(
+            inArray(tables.smsMessages.status, ['imported', 'dismissed']),
+            gte(tables.smsMessages.updatedAt, sinceValue)
+          ),
+          and(
+            eq(tables.smsMessages.status, 'verified'),
+            gte(tables.smsMessages.createdAt, sinceValue)
+          )
+        )
+      )
+    )
     .orderBy(desc(tables.smsMessages.receivedAt))
     .limit(MAX_LISTED_MESSAGES)
 
