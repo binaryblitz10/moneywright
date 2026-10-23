@@ -23,6 +23,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import type { TransactionFilters, Category, Account, Statement } from '@/lib/api'
 import { useConstants } from '@/hooks/useConstants'
 import { useSmsImportStatus } from '@/hooks/useSmsImport'
@@ -238,141 +239,134 @@ export function TransactionFiltersBar({
         </div>
 
         {/* Advanced Filters Panel */}
-        <div
-          className={cn(
-            'grid transition-all duration-300 ease-out overflow-hidden',
-            showAdvanced ? 'mt-4 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
-          )}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <div
-              className={cn(
-                'pt-3 border-t border-border-subtle',
-                'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'
-              )}
-            >
-              {/* Category Filter */}
-              <CategoryFilterDropdown
-                categories={categories}
-                selectedCategories={filters.category}
-                onlyHidden={filters.onlyHidden}
-                getCategoryLabel={getCategoryLabel}
-                onClear={() => {
-                  const newFilters = { ...filters }
-                  delete newFilters.category
-                  delete newFilters.onlyHidden
+        <Collapsible open={showAdvanced}>
+          <CollapsibleContent
+            className={cn(
+              'mt-4 pt-3 border-t border-border-subtle',
+              'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'
+            )}
+          >
+            {/* Category Filter */}
+            <CategoryFilterDropdown
+              categories={categories}
+              selectedCategories={filters.category}
+              onlyHidden={filters.onlyHidden}
+              getCategoryLabel={getCategoryLabel}
+              onClear={() => {
+                const newFilters = { ...filters }
+                delete newFilters.category
+                delete newFilters.onlyHidden
+                onFiltersChange(newFilters)
+              }}
+              onSetCategories={(codes) => {
+                onFiltersChange({
+                  ...filters,
+                  category: codes.length > 0 ? codes : undefined,
+                })
+              }}
+              onToggleHidden={() => {
+                onFiltersChange({
+                  ...filters,
+                  onlyHidden: !filters.onlyHidden,
+                  // Clear category filter when showing hidden
+                  category: !filters.onlyHidden ? undefined : filters.category,
+                })
+              }}
+            />
+
+            {/* Account Filter */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="h-3 w-3" />
+                Account
+              </Label>
+              <AccountSelector
+                accounts={accounts}
+                values={filters.accountId || []}
+                onValuesChange={(accountIds) => {
+                  const newFilters = {
+                    ...filters,
+                    accountId: accountIds.length > 0 ? accountIds : undefined,
+                  }
+                  // Filter statements to only those belonging to selected accounts
+                  if (filters.statementId?.length && accountIds.length > 0) {
+                    const validStatements = filters.statementId.filter(
+                      (id) =>
+                        id === BANK_MESSAGES_SOURCE ||
+                        accountIds.includes(statements?.find((s) => s.id === id)?.accountId || '')
+                    )
+                    newFilters.statementId =
+                      validStatements.length > 0 ? validStatements : undefined
+                  }
                   onFiltersChange(newFilters)
                 }}
-                onSetCategories={(codes) => {
-                  onFiltersChange({
-                    ...filters,
-                    category: codes.length > 0 ? codes : undefined,
-                  })
-                }}
-                onToggleHidden={() => {
-                  onFiltersChange({
-                    ...filters,
-                    onlyHidden: !filters.onlyHidden,
-                    // Clear category filter when showing hidden
-                    category: !filters.onlyHidden ? undefined : filters.category,
-                  })
-                }}
+                mode="multi"
+                showAllOption
+                allOptionLabel="All accounts"
+                contentClassName="w-96"
+                triggerClassName={cn(
+                  'w-full h-10 rounded-lg',
+                  'bg-surface-elevated border-border-subtle',
+                  'hover:bg-surface-hover hover:border-border-hover',
+                  filters.accountId?.length && 'border-primary/30 bg-primary/5'
+                )}
               />
-
-              {/* Account Filter */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="h-3 w-3" />
-                  Account
-                </Label>
-                <AccountSelector
-                  accounts={accounts}
-                  values={filters.accountId || []}
-                  onValuesChange={(accountIds) => {
-                    const newFilters = {
-                      ...filters,
-                      accountId: accountIds.length > 0 ? accountIds : undefined,
-                    }
-                    // Filter statements to only those belonging to selected accounts
-                    if (filters.statementId?.length && accountIds.length > 0) {
-                      const validStatements = filters.statementId.filter(
-                        (id) =>
-                          id === BANK_MESSAGES_SOURCE ||
-                          accountIds.includes(statements?.find((s) => s.id === id)?.accountId || '')
-                      )
-                      newFilters.statementId =
-                        validStatements.length > 0 ? validStatements : undefined
-                    }
-                    onFiltersChange(newFilters)
-                  }}
-                  mode="multi"
-                  showAllOption
-                  allOptionLabel="All accounts"
-                  contentClassName="w-96"
-                  triggerClassName={cn(
-                    'w-full h-10 rounded-lg',
-                    'bg-surface-elevated border-border-subtle',
-                    'hover:bg-surface-hover hover:border-border-hover',
-                    filters.accountId?.length && 'border-primary/30 bg-primary/5'
-                  )}
-                />
-              </div>
-
-              {/* Date Range */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="h-3 w-3" />
-                  Date Range
-                </Label>
-                <DateRangePicker
-                  startDate={filters.startDate}
-                  endDate={filters.endDate}
-                  country={country}
-                  variant="outline"
-                  onDateChange={(startDate, endDate) => {
-                    const newFilters = { ...filters }
-                    if (startDate) {
-                      newFilters.startDate = startDate
-                    } else {
-                      delete newFilters.startDate
-                    }
-                    if (endDate) {
-                      newFilters.endDate = endDate
-                    } else {
-                      delete newFilters.endDate
-                    }
-                    onFiltersChange(newFilters)
-                  }}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Source Filter: statements and bank messages */}
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="h-3 w-3" />
-                  Source
-                </Label>
-                <SourceSelector
-                  showBankMessages={smsStatus?.supported}
-                  statements={statements}
-                  accounts={accounts}
-                  values={filters.statementId || []}
-                  accountIds={filters.accountId}
-                  onValuesChange={(ids) =>
-                    onFiltersChange({ ...filters, statementId: ids.length > 0 ? ids : undefined })
-                  }
-                  triggerClassName={cn(
-                    'w-full h-10 rounded-lg',
-                    'bg-surface-elevated border-border-subtle',
-                    'hover:bg-surface-hover hover:border-border-hover',
-                    filters.statementId?.length && 'border-primary/30 bg-primary/5'
-                  )}
-                />
-              </div>
             </div>
-          </div>
-        </div>
+
+            {/* Date Range */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="h-3 w-3" />
+                Date Range
+              </Label>
+              <DateRangePicker
+                startDate={filters.startDate}
+                endDate={filters.endDate}
+                country={country}
+                variant="outline"
+                onDateChange={(startDate, endDate) => {
+                  const newFilters = { ...filters }
+                  if (startDate) {
+                    newFilters.startDate = startDate
+                  } else {
+                    delete newFilters.startDate
+                  }
+                  if (endDate) {
+                    newFilters.endDate = endDate
+                  } else {
+                    delete newFilters.endDate
+                  }
+                  onFiltersChange(newFilters)
+                }}
+                className="w-full"
+              />
+            </div>
+
+            {/* Source Filter: statements and bank messages */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="h-3 w-3" />
+                Source
+              </Label>
+              <SourceSelector
+                showBankMessages={smsStatus?.supported}
+                statements={statements}
+                accounts={accounts}
+                values={filters.statementId || []}
+                accountIds={filters.accountId}
+                onValuesChange={(ids) =>
+                  onFiltersChange({ ...filters, statementId: ids.length > 0 ? ids : undefined })
+                }
+                triggerClassName={cn(
+                  'w-full h-10 rounded-lg',
+                  'bg-surface-elevated border-border-subtle',
+                  'hover:bg-surface-hover hover:border-border-hover',
+                  filters.statementId?.length && 'border-primary/30 bg-primary/5'
+                )}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Active Filters Pills */}

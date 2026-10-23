@@ -108,7 +108,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
   if (isLoading) return <TableSkeleton rows={6} columns={4} />
 
   const dismissedSection = dismissedGroups.length > 0 && (
-    <Collapsible className="group/dismissed space-y-4">
+    <Collapsible className="group/dismissed">
       <CollapsibleTrigger
         className={cn(
           'w-full rounded-xl px-4 py-2 text-left transition-all duration-300',
@@ -124,7 +124,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
           <span className="ml-auto text-xs">{dismissedGroups.length}</span>
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <CollapsibleContent className="mt-4">
         <TransactionTable
           transactions={dismissedGroups.flatMap((g) => g.transactions)}
           formatAmount={formatAmount}

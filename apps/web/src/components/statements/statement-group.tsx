@@ -131,8 +131,8 @@ export function StatementGroup({
           </div>
         )}
       </div>
-      <CollapsibleContent>
-        <div className="border-t border-border-subtle bg-surface-elevated/50 p-5">{children}</div>
+      <CollapsibleContent className="border-t border-border-subtle bg-surface-elevated/50 p-5">
+        {children}
       </CollapsibleContent>
     </Collapsible>
   )

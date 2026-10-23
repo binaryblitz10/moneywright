@@ -245,6 +245,19 @@ const mutation = useMutation({
 <div style={{ borderRadius: '8px', padding: '16px' }}>
 ```
 
+### Expand/Collapse Animation
+
+Anything that expands or collapses (filter panels, statement groups, detail rows, reasoning blocks) uses `Collapsible` from `components/ui/collapsible.tsx`. It animates height, fade and a slight slide over 500ms, and keeps the content mounted so closing animates too. Do not hand-roll `grid-rows` transitions or conditionally render expanding content.
+
+```typescript
+<Collapsible open={open} onOpenChange={setOpen}>   {/* open state is optional */}
+  <CollapsibleTrigger>Details</CollapsibleTrigger>
+  {/* className styles the revealed content, margins included. Don't put spacing
+      like space-y-* on the Collapsible: it would leave a gap while closed. */}
+  <CollapsibleContent className="mt-4">...</CollapsibleContent>
+</Collapsible>
+```
+
 ### Routing
 
 - File-based routing via TanStack Router
