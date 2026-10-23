@@ -446,7 +446,6 @@ function StatementsPage() {
             statementId={recategorizeStatement.id}
             hintsAccountId={recategorizeStatement.accountId ?? undefined}
             targetName={recategorizeStatement.originalFilename || 'Statement'}
-            _targetType="statement"
             onSuccess={() => {
               queryClient.invalidateQueries({ queryKey: ['transactions'] })
             }}

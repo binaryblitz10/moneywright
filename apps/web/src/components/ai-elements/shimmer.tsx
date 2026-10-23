@@ -5,7 +5,7 @@ import { motion } from 'motion/react'
 import { type CSSProperties, memo, useMemo } from 'react'
 
 export interface TextShimmerProps {
-  children: string
+  children?: string
   className?: string
   duration?: number
   spread?: number

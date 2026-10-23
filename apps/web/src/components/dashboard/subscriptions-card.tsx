@@ -7,10 +7,10 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-react'
 import { SubscriptionsList } from './subscriptions-list'
-import type { Subscription } from '@/lib/api'
+import type { DetectedSubscription } from '@/lib/api'
 
 interface SubscriptionsCardProps {
-  subscriptions: Subscription[]
+  subscriptions: DetectedSubscription[]
   totalMonthly: number
   currency: string
   getCategoryLabel: (code: string) => string

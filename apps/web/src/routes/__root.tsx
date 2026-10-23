@@ -8,7 +8,6 @@ import {
   getSetupStatus,
   getProfiles,
   logout as logoutApi,
-  localLogin,
   getPinStatus,
 } from '@/lib/api'
 import { Toaster } from '@/components/ui/sonner'
@@ -31,15 +30,6 @@ const PUBLIC_ROUTES = ['/login', '/auth', '/pin']
  * Routes that are part of setup/onboarding flow
  */
 const SETUP_ROUTES = ['/setup', '/onboarding']
-
-/**
- * PIN-related routes
- */
-const PIN_ROUTES = ['/pin/setup', '/pin/unlock', '/pin/recover']
-
-function isPinRoute(pathname: string): boolean {
-  return PIN_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))
-}
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))

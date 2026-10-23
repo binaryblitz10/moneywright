@@ -5,10 +5,10 @@
 import { CreditCard, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatDate } from './utils'
-import type { FinancialSummary } from '@/lib/api'
+import type { AccountBalanceInfo } from '@/lib/api'
 
 interface AccountBalanceCardProps {
-  account: FinancialSummary['netWorth']['accounts'][0]
+  account: AccountBalanceInfo
 }
 
 export function AccountBalanceCard({ account }: AccountBalanceCardProps) {

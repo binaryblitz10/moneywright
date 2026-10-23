@@ -191,13 +191,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       </div>
 
       {totalPages > 1 && (
-        <Pagination
-          page={currentPage}
-          totalPages={totalPages}
-          total={groups.length}
-          limit={GROUPS_PER_PAGE}
-          onPageChange={setPage}
-        />
+        <Pagination page={currentPage} totalPages={totalPages} onPageChange={setPage} />
       )}
 
       {dismissedSection}

@@ -94,7 +94,7 @@ export const PlanAction = (props: PlanActionProps) => (
 export type PlanContentProps = ComponentProps<typeof CardContent>
 
 export const PlanContent = (props: PlanContentProps) => (
-  <CollapsibleContent asChild>
+  <CollapsibleContent>
     <CardContent data-slot="plan-content" {...props} />
   </CollapsibleContent>
 )

@@ -311,12 +311,14 @@ function InsurancePage() {
         )}
 
         {/* Upload Dialog */}
-        <UploadDialog
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          profileId={activeProfileId}
-          onSuccess={handleUploadSuccess}
-        />
+        {activeProfileId && (
+          <UploadDialog
+            open={uploadOpen}
+            onOpenChange={setUploadOpen}
+            profileId={activeProfileId}
+            onSuccess={handleUploadSuccess}
+          />
+        )}
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

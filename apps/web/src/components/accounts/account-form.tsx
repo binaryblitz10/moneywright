@@ -30,13 +30,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  createAccount,
-  updateAccount,
-  type Account,
-  type AccountType,
-  type Institution,
-} from '@/lib/api'
+import { createAccount, updateAccount, type Account, type AccountType } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useConstants } from '@/hooks'
 
@@ -66,7 +60,7 @@ export function AccountForm({
   const [institutionOpen, setInstitutionOpen] = useState(false)
 
   // Get institutions from constants
-  const { rawInstitutions, countryCode } = useConstants()
+  const { rawInstitutions } = useConstants()
 
   // Filter and sort institutions
   const sortedInstitutions = useMemo(() => {

@@ -7,10 +7,10 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-react'
 import { AccountBalanceCard } from './account-balance-card'
-import type { FinancialSummary } from '@/lib/api'
+import type { AccountBalanceInfo } from '@/lib/api'
 
 interface AccountBalancesCardProps {
-  accounts: FinancialSummary['netWorth']['accounts']
+  accounts: AccountBalanceInfo[]
 }
 
 export function AccountBalancesCard({ accounts }: AccountBalancesCardProps) {

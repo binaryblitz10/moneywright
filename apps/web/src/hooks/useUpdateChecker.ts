@@ -37,12 +37,21 @@ let backgroundDownloadStarted = false
  * Handles formats like "1.2.3", "v1.2.3", "1.2.3-beta"
  */
 function parseVersion(version: string): { major: number; minor: number; patch: number } | null {
-  const cleaned = version.replace(/^v/, '').split('-')[0]
-  const parts = cleaned.split('.').map(Number)
-  if (parts.length < 3 || parts.some(isNaN)) {
+  const parts = version.replace(/^v/, '').split('-')[0]?.split('.').map(Number)
+  const [major, minor, patch] = parts ?? []
+  if (
+    !parts ||
+    parts.length < 3 ||
+    major === undefined ||
+    minor === undefined ||
+    patch === undefined
+  ) {
     return null
   }
-  return { major: parts[0], minor: parts[1], patch: parts[2] }
+  if (parts.some(isNaN)) {
+    return null
+  }
+  return { major, minor, patch }
 }
 
 /**

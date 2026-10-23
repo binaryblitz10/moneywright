@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import {
-  useAuth,
   usePreferences,
   useSetPreference,
   useSetup,
@@ -23,7 +22,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { ToolCallModal } from '@/components/ai-elements/tool-call-modal'
 import { PREFERENCE_KEYS } from '@/lib/api'
-import type { ChatMessage } from '@/lib/api'
+import type { ChatMessage, Profile } from '@/lib/api'
 import { Plus, AlertCircle } from 'lucide-react'
 
 import {
@@ -313,8 +312,8 @@ function ChatPage() {
 
   // Handle profile change - also reset chat
   const handleProfileChangeWithReset = useCallback(
-    (profileId: string) => {
-      handleProfileChange(profileId)
+    (profile: Profile) => {
+      handleProfileChange(profile)
       // Reset chat when switching profiles
       chatStream.resetState()
       setMessages([])

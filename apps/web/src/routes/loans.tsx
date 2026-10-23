@@ -338,12 +338,14 @@ function LoansPage() {
         )}
 
         {/* Upload Dialog */}
-        <UploadDialog
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          profileId={activeProfileId}
-          onSuccess={handleUploadSuccess}
-        />
+        {activeProfileId && (
+          <UploadDialog
+            open={uploadOpen}
+            onOpenChange={setUploadOpen}
+            profileId={activeProfileId}
+            onSuccess={handleUploadSuccess}
+          />
+        )}
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -1288,11 +1290,6 @@ function LoanDetailSheet({
   const principalPaid = outstandingData?.principalPaid ?? 0
   const outstandingPrincipal = outstandingData?.outstandingPrincipal ?? loan.principalAmount ?? 0
   const principalProgressPercent = outstandingData?.principalProgressPercent ?? 0
-
-  // Total repayment progress (for reference)
-  const remainingPayable =
-    outstandingData?.remainingPayable ??
-    (totalPayable ? Math.max(0, totalPayable - totalPaid) : null)
 
   // Get type-specific details
   const getHomeLoanDetails = () => {

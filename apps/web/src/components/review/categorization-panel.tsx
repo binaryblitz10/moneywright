@@ -144,8 +144,6 @@ export function CategorizationPanel({
             <Pagination
               page={page}
               totalPages={totalPages}
-              total={total}
-              limit={LIMIT}
               onPageChange={(next) => {
                 setPage(next)
                 setSelectedIds(new Set())

@@ -210,7 +210,6 @@ function AccountsPage() {
             targetName={
               recategorizeAccount.accountName || recategorizeAccount.institution || 'Account'
             }
-            _targetType="account"
             onSuccess={() => {
               queryClient.invalidateQueries({ queryKey: ['transactions'] })
             }}

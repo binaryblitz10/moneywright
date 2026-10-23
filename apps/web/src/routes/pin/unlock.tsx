@@ -5,7 +5,6 @@ import { motion } from 'motion/react'
 import { Lock, AlertCircle, Loader2, Database, KeyRound, LayoutDashboard } from 'lucide-react'
 import { AuthLayout } from '@/components/auth/auth-layout'
 import { PinInput } from '@/components/ui/pin-input'
-import { Button } from '@/components/ui/button'
 import { verifyPin } from '@/lib/api'
 
 export const Route = createFileRoute('/pin/unlock')({

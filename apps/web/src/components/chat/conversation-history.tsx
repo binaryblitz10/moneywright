@@ -12,7 +12,7 @@ import type { ChatConversation } from '@/lib/api'
 interface ConversationHistoryProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  conversations: ChatConversation[] | undefined
+  conversations: Omit<ChatConversation, 'messages'>[] | undefined
   isLoading: boolean
   currentConversationId: string | undefined
   onSelectConversation: (id: string) => void

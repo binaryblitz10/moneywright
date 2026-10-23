@@ -203,8 +203,8 @@ export function highlightCode(
 
       const tokenized: TokenizedCode = {
         tokens: result.tokens,
-        fg: result.fg,
-        bg: result.bg,
+        fg: result.fg ?? 'inherit',
+        bg: result.bg ?? 'transparent',
       }
 
       // Cache the result
@@ -473,7 +473,6 @@ export const CodeBlockLanguageSelectorTrigger = ({
 }: CodeBlockLanguageSelectorTriggerProps) => (
   <SelectTrigger
     className={cn('h-7 border-none bg-transparent px-2 text-xs shadow-none', className)}
-    size="sm"
     {...props}
   />
 )

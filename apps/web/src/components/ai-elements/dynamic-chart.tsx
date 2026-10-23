@@ -22,6 +22,7 @@ import {
   ResponsiveContainer,
   Cell,
   Legend,
+  type PieLabelRenderProps,
 } from 'recharts'
 import { cn } from '@/lib/utils'
 
@@ -116,16 +117,8 @@ function formatValue(value: number | unknown): string {
 }
 
 // Pie chart custom label renderer
-const renderPieLabel = (props: {
-  cx: number
-  cy: number
-  midAngle: number
-  innerRadius: number
-  outerRadius: number
-  percent: number
-  name: string
-}) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props
+const renderPieLabel = (props: PieLabelRenderProps) => {
+  const { cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, percent = 0 } = props
   if (percent < 0.05) return null // Don't show labels for small slices
 
   const RADIAN = Math.PI / 180

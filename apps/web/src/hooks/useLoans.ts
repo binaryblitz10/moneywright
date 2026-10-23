@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type Query } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getLoans,
@@ -12,6 +12,7 @@ import {
   type LoanType,
   type LoanStatus,
   type LoanParseStatus,
+  type Loan,
 } from '@/lib/api'
 
 // Query Keys
@@ -37,7 +38,7 @@ export function useLoans(
     loanType?: LoanType
     status?: LoanStatus
     parseStatus?: LoanParseStatus
-    refetchInterval?: number | false | ((query: unknown) => number | false)
+    refetchInterval?: number | false | ((query: Query<Loan[]>) => number | false)
     enabled?: boolean
   }
 ) {
