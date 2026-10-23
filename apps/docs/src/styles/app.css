@@ -1,8 +1,8 @@
 /* Fonts - must be first */
-@import '@fontsource/dm-sans/400.css';
-@import '@fontsource/dm-sans/500.css';
-@import '@fontsource/dm-sans/600.css';
-@import '@fontsource/dm-sans/700.css';
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
 
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
@@ -76,30 +76,34 @@
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
   @keyframes marquee {
-  from {
-    transform: translateX(0);
+    from {
+      transform: translateX(0);
     }
-  to {
-    transform: translateX(calc(-100% - var(--gap)));
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
     }
   }
   @keyframes marquee-vertical {
-  from {
-    transform: translateY(0);
+    from {
+      transform: translateY(0);
     }
-  to {
-    transform: translateY(calc(-100% - var(--gap)));
+    to {
+      transform: translateY(calc(-100% - var(--gap)));
     }
   }
-  --animate-shine: shine var(--duration) infinite linear
-;
+  --animate-shine: shine var(--duration) infinite linear;
   @keyframes shine {
-  0% {
-    background-position: 0% 0%;}
-  50% {
-    background-position: 100% 100%;}
-  to {
-    background-position: 0% 0%;}}}
+    0% {
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 100% 100%;
+    }
+    to {
+      background-position: 0% 0%;
+    }
+  }
+}
 
 :root {
   --radius: 0.625rem;
@@ -186,42 +190,88 @@
 
 /* Spirit orb wandering animations */
 @keyframes spirit-wander-1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  20% { transform: translate(60px, 40px) scale(1.05); }
-  40% { transform: translate(20px, 80px) scale(0.98); }
-  60% { transform: translate(-40px, 50px) scale(1.03); }
-  80% { transform: translate(-20px, -30px) scale(0.97); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  20% {
+    transform: translate(60px, 40px) scale(1.05);
+  }
+  40% {
+    transform: translate(20px, 80px) scale(0.98);
+  }
+  60% {
+    transform: translate(-40px, 50px) scale(1.03);
+  }
+  80% {
+    transform: translate(-20px, -30px) scale(0.97);
+  }
 }
 
 @keyframes spirit-wander-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(-50px, -40px) scale(1.04); }
-  50% { transform: translate(-80px, 20px) scale(0.96); }
-  75% { transform: translate(-30px, 60px) scale(1.02); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-50px, -40px) scale(1.04);
+  }
+  50% {
+    transform: translate(-80px, 20px) scale(0.96);
+  }
+  75% {
+    transform: translate(-30px, 60px) scale(1.02);
+  }
 }
 
 @keyframes spirit-wander-3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-30px, -60px) scale(1.06); }
-  66% { transform: translate(40px, 30px) scale(0.95); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-30px, -60px) scale(1.06);
+  }
+  66% {
+    transform: translate(40px, 30px) scale(0.95);
+  }
 }
 
 @keyframes spirit-wander-4 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(50px, -30px) scale(1.03); }
-  50% { transform: translate(0, 50px) scale(0.97); }
-  75% { transform: translate(-50px, -20px) scale(1.04); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(50px, -30px) scale(1.03);
+  }
+  50% {
+    transform: translate(0, 50px) scale(0.97);
+  }
+  75% {
+    transform: translate(-50px, -20px) scale(1.04);
+  }
 }
 
 /* Soft breathing animations */
 @keyframes spirit-breath {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 @keyframes spirit-breath-dim {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.38; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.38;
+  }
 }
 
 @keyframes fadeInUp {
@@ -237,36 +287,50 @@
 
 /* Spirit orb animation classes */
 .animate-float {
-  animation: spirit-wander-1 25s ease-in-out infinite, spirit-breath 10s ease-in-out infinite;
+  animation:
+    spirit-wander-1 25s ease-in-out infinite,
+    spirit-breath 10s ease-in-out infinite;
 }
 
 .animate-float-delayed {
-  animation: spirit-wander-2 30s ease-in-out infinite, spirit-breath 12s ease-in-out infinite;
+  animation:
+    spirit-wander-2 30s ease-in-out infinite,
+    spirit-breath 12s ease-in-out infinite;
   animation-delay: -10s, -5s;
 }
 
 .animate-float-delayed-2 {
-  animation: spirit-wander-3 22s ease-in-out infinite, spirit-breath-dim 8s ease-in-out infinite;
+  animation:
+    spirit-wander-3 22s ease-in-out infinite,
+    spirit-breath-dim 8s ease-in-out infinite;
   animation-delay: -7s, -3s;
 }
 
 .animate-float-delayed-3 {
-  animation: spirit-wander-4 28s ease-in-out infinite, spirit-breath-dim 11s ease-in-out infinite;
+  animation:
+    spirit-wander-4 28s ease-in-out infinite,
+    spirit-breath-dim 11s ease-in-out infinite;
   animation-delay: -14s, -6s;
 }
 
 .animate-float-delayed-4 {
-  animation: spirit-wander-1 35s ease-in-out infinite, spirit-breath-dim 14s ease-in-out infinite;
+  animation:
+    spirit-wander-1 35s ease-in-out infinite,
+    spirit-breath-dim 14s ease-in-out infinite;
   animation-delay: -18s, -8s;
 }
 
 .animate-float-delayed-5 {
-  animation: spirit-wander-2 28s ease-in-out infinite, spirit-breath 11s ease-in-out infinite;
+  animation:
+    spirit-wander-2 28s ease-in-out infinite,
+    spirit-breath 11s ease-in-out infinite;
   animation-delay: -5s, -2s;
 }
 
 .animate-float-delayed-6 {
-  animation: spirit-wander-3 32s ease-in-out infinite, spirit-breath-dim 13s ease-in-out infinite;
+  animation:
+    spirit-wander-3 32s ease-in-out infinite,
+    spirit-breath-dim 13s ease-in-out infinite;
   animation-delay: -12s, -4s;
 }
 
@@ -306,7 +370,7 @@
 
 /* Noise texture overlay */
 .landing-noise::before {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");

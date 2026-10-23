@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from "react";
 
 interface ReleaseAsset {
   name: string;
@@ -23,8 +23,9 @@ export interface PlatformDownloads {
   version: string | null;
 }
 
-const GITHUB_API = 'https://api.github.com/repos/moneywright/moneywright/releases/latest';
-const RELEASES_URL = 'https://github.com/moneywright/moneywright/releases';
+const GITHUB_API =
+  "https://api.github.com/repos/moneywright/moneywright/releases/latest";
+const RELEASES_URL = "https://github.com/moneywright/moneywright/releases";
 
 const DEFAULT_DATA: PlatformDownloads = {
   macos: null,
@@ -35,7 +36,9 @@ const DEFAULT_DATA: PlatformDownloads = {
   version: null,
 };
 
-function parseAssets(assets: ReleaseAsset[]): Omit<PlatformDownloads, 'releasesUrl' | 'version'> {
+function parseAssets(
+  assets: ReleaseAsset[],
+): Omit<PlatformDownloads, "releasesUrl" | "version"> {
   let macos: string | null = null;
   let macosIntel: string | null = null;
   let windows: string | null = null;
@@ -45,19 +48,19 @@ function parseAssets(assets: ReleaseAsset[]): Omit<PlatformDownloads, 'releasesU
     const name = asset.name.toLowerCase();
 
     // macOS ARM64 (.dmg with aarch64)
-    if (name.endsWith('.dmg') && name.includes('aarch64')) {
+    if (name.endsWith(".dmg") && name.includes("aarch64")) {
       macos = asset.browser_download_url;
     }
     // macOS Intel (.dmg with x64)
-    else if (name.endsWith('.dmg') && name.includes('x64')) {
+    else if (name.endsWith(".dmg") && name.includes("x64")) {
       macosIntel = asset.browser_download_url;
     }
     // Windows (.exe)
-    else if (name.endsWith('.exe') && !name.endsWith('.exe.sig')) {
+    else if (name.endsWith(".exe") && !name.endsWith(".exe.sig")) {
       windows = asset.browser_download_url;
     }
     // Linux DEB
-    else if (name.endsWith('.deb')) {
+    else if (name.endsWith(".deb")) {
       linux = asset.browser_download_url;
     }
   }
@@ -70,7 +73,7 @@ export function useLatestRelease() {
 
   useEffect(() => {
     // Only fetch on client side
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     let cancelled = false;
 
@@ -78,7 +81,7 @@ export function useLatestRelease() {
       try {
         const response = await fetch(GITHUB_API, {
           headers: {
-            Accept: 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
         });
 
@@ -111,14 +114,14 @@ export function useLatestRelease() {
 
 export function getDownloadUrl(
   downloads: PlatformDownloads,
-  platform: 'macos' | 'windows' | 'linux'
+  platform: "macos" | "windows" | "linux",
 ): string {
   switch (platform) {
-    case 'macos':
+    case "macos":
       return downloads.macos || downloads.macosIntel || downloads.releasesUrl;
-    case 'windows':
+    case "windows":
       return downloads.windows || downloads.releasesUrl;
-    case 'linux':
+    case "linux":
       return downloads.linux || downloads.releasesUrl;
     default:
       return downloads.releasesUrl;

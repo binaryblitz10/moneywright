@@ -1,39 +1,39 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useEffect, useState, useRef } from 'react';
-import { analytics } from '@/lib/analytics';
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
+  Check,
+  ChevronDown,
+  Eye,
+  FileText,
   Github,
   Globe,
   Lock,
-  Upload,
-  TrendingUp,
-  RefreshCw,
-  FileText,
-  PieChart,
   MessageCircle,
-  Server,
-  Eye,
+  PieChart,
+  RefreshCw,
   Scale,
-  Sparkles,
+  Server,
   Shield,
-  Check,
+  Sparkles,
+  TrendingUp,
+  Upload,
   Users,
-  ChevronDown,
-} from 'lucide-react';
-import { useLatestRelease, getDownloadUrl } from '@/hooks/use-latest-release';
-import { motion, useInView } from 'motion/react';
-import { cn } from '@/lib/utils';
-import { Marquee } from '@/components/ui/marquee';
-import { ShineBorder } from '@/components/ui/shine-border';
-import { Highlighter } from '@/components/ui/highlighter';
+} from "lucide-react";
+import { motion, useInView } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/components/ui/carousel';
+} from "@/components/ui/carousel";
+import { Highlighter } from "@/components/ui/highlighter";
+import { Marquee } from "@/components/ui/marquee";
+import { ShineBorder } from "@/components/ui/shine-border";
+import { getDownloadUrl, useLatestRelease } from "@/hooks/use-latest-release";
+import { analytics } from "@/lib/analytics";
+import { cn } from "@/lib/utils";
 
 // Animation variants for reuse
 const fadeInUp = {
@@ -64,52 +64,52 @@ const scaleIn = {
 // Smooth easing
 const smoothEase = [0.25, 0.4, 0.25, 1];
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute("/")({
   component: LandingPage,
   head: () => ({
     meta: [
-      { title: 'Moneywright - Private, AI-Powered Personal Finance' },
+      { title: "Moneywright - Private, AI-Powered Personal Finance" },
       {
-        name: 'description',
+        name: "description",
         content:
-          'A desktop app that reads any bank statement, categorizes your spending with AI, and keeps your financial data on your computer. Free and open source.',
+          "A desktop app that reads any bank statement, categorizes your spending with AI, and keeps your financial data on your computer. Free and open source.",
       },
     ],
   }),
 });
 
-type Platform = 'macos' | 'windows' | 'linux';
+type Platform = "macos" | "windows" | "linux";
 
 function detectPlatform(): Platform {
-  if (typeof navigator === 'undefined') return 'macos';
+  if (typeof navigator === "undefined") return "macos";
   const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('mac')) return 'macos';
-  if (ua.includes('win')) return 'windows';
-  return 'linux';
+  if (ua.includes("mac")) return "macos";
+  if (ua.includes("win")) return "windows";
+  return "linux";
 }
 
 const platformInfo: Record<Platform, { label: string; icon: string }> = {
-  macos: { label: 'macOS', icon: '/icons/apple.svg' },
-  windows: { label: 'Windows', icon: '/icons/windows.svg' },
-  linux: { label: 'Linux', icon: '/icons/linux.svg' },
+  macos: { label: "macOS", icon: "/icons/apple.svg" },
+  windows: { label: "Windows", icon: "/icons/windows.svg" },
+  linux: { label: "Linux", icon: "/icons/linux.svg" },
 };
 
 // Bank and broker logos
 const institutions = [
-  { name: 'HDFC Bank', logo: '/institutions/hdfc.svg' },
-  { name: 'ICICI Bank', logo: '/institutions/icici.svg' },
-  { name: 'SBI', logo: '/institutions/sbi.svg' },
-  { name: 'Axis Bank', logo: '/institutions/axis.svg' },
-  { name: 'Kotak', logo: '/institutions/kotak.svg' },
-  { name: 'HSBC', logo: '/institutions/hsbc.svg' },
-  { name: 'Amex', logo: '/institutions/amex.svg' },
-  { name: 'Zerodha', logo: '/institutions/zerodha.svg' },
-  { name: 'Groww', logo: '/institutions/groww.svg' },
-  { name: 'Vested', logo: '/institutions/vested.svg' },
+  { name: "HDFC Bank", logo: "/institutions/hdfc.svg" },
+  { name: "ICICI Bank", logo: "/institutions/icici.svg" },
+  { name: "SBI", logo: "/institutions/sbi.svg" },
+  { name: "Axis Bank", logo: "/institutions/axis.svg" },
+  { name: "Kotak", logo: "/institutions/kotak.svg" },
+  { name: "HSBC", logo: "/institutions/hsbc.svg" },
+  { name: "Amex", logo: "/institutions/amex.svg" },
+  { name: "Zerodha", logo: "/institutions/zerodha.svg" },
+  { name: "Groww", logo: "/institutions/groww.svg" },
+  { name: "Vested", logo: "/institutions/vested.svg" },
 ];
 
 function LandingPage() {
-  const [platform, setPlatform] = useState<Platform>('macos');
+  const [platform, setPlatform] = useState<Platform>("macos");
   const [showMacDropdown, setShowMacDropdown] = useState(false);
   const macDropdownRef = useRef<HTMLDivElement>(null);
   const { data: downloads } = useLatestRelease();
@@ -121,32 +121,49 @@ function LandingPage() {
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (macDropdownRef.current && !macDropdownRef.current.contains(event.target as Node)) {
+      if (
+        macDropdownRef.current &&
+        !macDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowMacDropdown(false);
       }
     }
     if (showMacDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showMacDropdown]);
 
   // Get platform-specific download URL
-  const downloadUrl = downloads ? getDownloadUrl(downloads, platform) : 'https://github.com/moneywright/moneywright/releases';
-  const releasesUrl = downloads?.releasesUrl || 'https://github.com/moneywright/moneywright/releases';
+  const downloadUrl = downloads
+    ? getDownloadUrl(downloads, platform)
+    : "https://github.com/moneywright/moneywright/releases";
+  const releasesUrl =
+    downloads?.releasesUrl ||
+    "https://github.com/moneywright/moneywright/releases";
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-[#f5f5f7] overflow-x-hidden landing-noise">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-8 py-5 flex justify-between items-center bg-gradient-to-b from-[#0a0a0c] to-transparent backdrop-blur-xl">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src="/logo.png" alt="Moneywright" className="w-9 h-9 rounded-lg" />
-          <span className="font-display font-semibold text-lg">Moneywright</span>
+        <Link
+          to="/"
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
+          <img
+            src="/logo.png"
+            alt="Moneywright"
+            className="w-9 h-9 rounded-lg"
+          />
+          <span className="font-display font-semibold text-lg">
+            Moneywright
+          </span>
         </Link>
         <div className="flex gap-8 items-center">
           <Link
             to="/docs/$"
-            params={{ _splat: '' }}
+            params={{ _splat: "" }}
             className="hidden sm:block text-[#a1a1aa] hover:text-[#f5f5f7] text-sm font-medium transition-colors"
           >
             Docs
@@ -199,27 +216,50 @@ function LandingPage() {
           <h1 className="text-[clamp(2.5rem,9vw,4.5rem)] font-semibold leading-[1.1] tracking-tighter mb-4 sm:mb-6 px-2 animate-fade-in-up-1">
             Stop wondering where
             <br />
-            your money <Highlighter action="highlight" color="#10b981" strokeWidth={3} isView delay={1000}>goes</Highlighter>
+            your money{" "}
+            <Highlighter
+              action="highlight"
+              color="#10b981"
+              strokeWidth={3}
+              isView
+              delay={1000}
+            >
+              goes
+            </Highlighter>
           </h1>
 
           {/* Subtitle */}
           <p className="text-sm sm:text-lg text-[#a1a1aa] max-w-[580px] mx-auto mb-8 sm:mb-10 font-normal px-2 animate-fade-in-up-2 leading-relaxed">
-            A desktop app that reads your bank statements, categorizes every transaction with AI,
-            and finds subscriptions you forgot about. Works with any bank. Your data never leaves your computer.
+            A desktop app that reads your bank statements, categorizes every
+            transaction with AI, and finds subscriptions you forgot about. Works
+            with any bank. Your data never leaves your computer.
           </p>
 
           {/* CTA Buttons */}
           <div className="flex gap-2.5 sm:gap-3 justify-center flex-wrap px-2 animate-fade-in-up-3">
-            {platform === 'macos' ? (
+            {platform === "macos" ? (
               <div className="relative" ref={macDropdownRef}>
                 <button
+                  type="button"
                   onClick={() => setShowMacDropdown(!showMacDropdown)}
                   className="relative inline-flex items-center gap-2 bg-gradient-to-br from-[#10b981] to-[#059669] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)] transition-all shadow-[0_4px_20px_rgba(16,185,129,0.15)] overflow-hidden"
                 >
-                  <ShineBorder shineColor={['#10b981', '#14b8a6', '#06b6d4']} borderWidth={2} />
-                  <img src={platformInfo[platform].icon} alt="" className="w-4 h-4 invert" />
+                  <ShineBorder
+                    shineColor={["#10b981", "#14b8a6", "#06b6d4"]}
+                    borderWidth={2}
+                  />
+                  <img
+                    src={platformInfo[platform].icon}
+                    alt=""
+                    className="w-4 h-4 invert"
+                  />
                   Download for {platformInfo[platform].label}
-                  <ChevronDown className={cn('w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform', showMacDropdown && 'rotate-180')} />
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform",
+                      showMacDropdown && "rotate-180",
+                    )}
+                  />
                 </button>
                 {showMacDropdown && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-[#18181c] border border-white/10 rounded-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.4)] z-50">
@@ -230,12 +270,19 @@ function LandingPage() {
                       className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5"
                       onClick={() => {
                         setShowMacDropdown(false);
-                        analytics.trackDownload('macos-arm64', downloads?.version);
+                        analytics.trackDownload(
+                          "macos-arm64",
+                          downloads?.version,
+                        );
                       }}
                     >
                       <div className="flex-1 text-left">
-                        <div className="text-sm font-medium text-[#f5f5f7]">Apple Silicon</div>
-                        <div className="text-xs text-[#71717a]">M1, M2, M3, M4 Macs</div>
+                        <div className="text-sm font-medium text-[#f5f5f7]">
+                          Apple Silicon
+                        </div>
+                        <div className="text-xs text-[#71717a]">
+                          M1, M2, M3, M4 Macs
+                        </div>
                       </div>
                     </a>
                     <a
@@ -245,12 +292,19 @@ function LandingPage() {
                       className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
                       onClick={() => {
                         setShowMacDropdown(false);
-                        analytics.trackDownload('macos-intel', downloads?.version);
+                        analytics.trackDownload(
+                          "macos-intel",
+                          downloads?.version,
+                        );
                       }}
                     >
                       <div className="flex-1 text-left">
-                        <div className="text-sm font-medium text-[#f5f5f7]">Intel</div>
-                        <div className="text-xs text-[#71717a]">Older Macs (pre-2020)</div>
+                        <div className="text-sm font-medium text-[#f5f5f7]">
+                          Intel
+                        </div>
+                        <div className="text-xs text-[#71717a]">
+                          Older Macs (pre-2020)
+                        </div>
                       </div>
                     </a>
                   </div>
@@ -262,17 +316,26 @@ function LandingPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="relative inline-flex items-center gap-2 bg-gradient-to-br from-[#10b981] to-[#059669] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)] transition-all shadow-[0_4px_20px_rgba(16,185,129,0.15)] overflow-hidden"
-                onClick={() => analytics.trackDownload(platform, downloads?.version)}
+                onClick={() =>
+                  analytics.trackDownload(platform, downloads?.version)
+                }
               >
-                <ShineBorder shineColor={['#10b981', '#14b8a6', '#06b6d4']} borderWidth={2} />
-                <img src={platformInfo[platform].icon} alt="" className="w-4 h-4 invert" />
+                <ShineBorder
+                  shineColor={["#10b981", "#14b8a6", "#06b6d4"]}
+                  borderWidth={2}
+                />
+                <img
+                  src={platformInfo[platform].icon}
+                  alt=""
+                  className="w-4 h-4 invert"
+                />
                 Download for {platformInfo[platform].label}
                 <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </a>
             )}
             <a
               href="https://github.com/moneywright/moneywright"
-              onClick={() => analytics.trackCTAClick('star_github', 'hero')}
+              onClick={() => analytics.trackCTAClick("star_github", "hero")}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-[#18181c] border border-white/10 text-[#f5f5f7] px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm hover:bg-[#111115] hover:border-white/20 transition-all"
@@ -285,7 +348,7 @@ function LandingPage() {
           {/* Other platforms */}
           <div className="mt-4 flex items-center justify-center gap-4 text-[10px] sm:text-xs text-[#71717a] animate-fade-in-up-4">
             <span>Also available for</span>
-            {(['macos', 'windows', 'linux'] as Platform[])
+            {(["macos", "windows", "linux"] as Platform[])
               .filter((p) => p !== platform)
               .map((p) => (
                 <a
@@ -294,7 +357,11 @@ function LandingPage() {
                   className="inline-flex items-center gap-1.5 text-[#a1a1aa] hover:text-[#f5f5f7] transition-colors"
                   onClick={() => analytics.trackDownload(p, downloads?.version)}
                 >
-                  <img src={platformInfo[p].icon} alt="" className="w-3.5 h-3.5 opacity-70 invert" />
+                  <img
+                    src={platformInfo[p].icon}
+                    alt=""
+                    className="w-3.5 h-3.5 opacity-70 invert"
+                  />
                   {platformInfo[p].label}
                 </a>
               ))}
@@ -312,7 +379,10 @@ function LandingPage() {
         className="py-8 border-y border-white/5 bg-[#0a0a0c]/50 relative overflow-hidden"
       >
         <Marquee pauseOnHover className="[--duration:40s]">
-          <StatCard stat="Any bank" label="if you have a PDF or CSV, it works" />
+          <StatCard
+            stat="Any bank"
+            label="if you have a PDF or CSV, it works"
+          />
           <StatCard stat="0" label="accounts or signups needed" />
           <StatCard stat="100%" label="of your data stays on your computer" />
           <StatCard stat="$0" label="cost forever — fully open source" />
@@ -344,7 +414,11 @@ function LandingPage() {
               <motion.img
                 key={inst.name}
                 variants={fadeInUp}
-                transition={{ duration: 0.4, ease: smoothEase, delay: index * 0.05 }}
+                transition={{
+                  duration: 0.4,
+                  ease: smoothEase,
+                  delay: index * 0.05,
+                }}
                 src={inst.logo}
                 alt={inst.name}
                 className="h-8 sm:h-10 opacity-50 hover:opacity-80 transition-opacity grayscale hover:grayscale-0"
@@ -375,15 +449,24 @@ function LandingPage() {
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
               className="text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-tighter mb-6"
             >
-              Where did that <Highlighter action="highlight" color="#ef4444" strokeWidth={3} isView delay={700}>₹12,000 go?</Highlighter>
+              Where did that{" "}
+              <Highlighter
+                action="highlight"
+                color="#ef4444"
+                strokeWidth={3}
+                isView
+                delay={700}
+              >
+                ₹12,000 go?
+              </Highlighter>
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.2 }}
               className="text-[#a1a1aa] text-base sm:text-lg max-w-2xl mx-auto leading-relaxed"
             >
-              You check your balance. It's lower than expected. Again.
-              Somewhere between 4 bank apps and a forgotten spreadsheet, you lost track.
+              You check your balance. It's lower than expected. Again. Somewhere
+              between 4 bank apps and a forgotten spreadsheet, you lost track.
             </motion.p>
           </motion.div>
 
@@ -394,7 +477,11 @@ function LandingPage() {
             variants={staggerContainer}
             className="grid md:grid-cols-3 gap-4"
           >
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Globe className="w-6 h-6 text-[#ef4444]" />}
                 iconBg="bg-[rgba(239,68,68,0.15)]"
@@ -402,7 +489,11 @@ function LandingPage() {
                 description="HDFC for savings, ICICI credit card, Zerodha for stocks, Groww for MFs. Good luck getting the full picture."
               />
             </motion.div>
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<FileText className="w-6 h-6 text-[#f97316]" />}
                 iconBg="bg-[rgba(249,115,22,0.15)]"
@@ -410,7 +501,11 @@ function LandingPage() {
                 description="You started tracking expenses once. It lasted 3 weeks. Now it mocks you from Google Drive."
               />
             </motion.div>
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Eye className="w-6 h-6 text-[#a855f7]" />}
                 iconBg="bg-[rgba(168,85,247,0.15)]"
@@ -443,7 +538,16 @@ function LandingPage() {
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
               className="text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-tighter"
             >
-              One app. Complete <Highlighter action="highlight" color="#06b6d4" strokeWidth={3} isView delay={700}>clarity</Highlighter>
+              One app. Complete{" "}
+              <Highlighter
+                action="highlight"
+                color="#06b6d4"
+                strokeWidth={3}
+                isView
+                delay={700}
+              >
+                clarity
+              </Highlighter>
             </motion.h2>
           </motion.div>
 
@@ -469,20 +573,32 @@ function LandingPage() {
                   Upload <span className="text-[#10b981]">any</span> statement
                 </h3>
                 <p className="text-[#a1a1aa] text-sm sm:text-base leading-relaxed mb-6">
-                  PDF, CSV, Excel — from any bank in the world. AI extracts every transaction,
-                  categorizes it automatically, and builds your complete financial picture.
+                  PDF, CSV, Excel — from any bank in the world. AI extracts
+                  every transaction, categorizes it automatically, and builds
+                  your complete financial picture.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {institutions.slice(0, 6).map((inst) => (
-                    <img key={inst.name} src={inst.logo} alt={inst.name} className="h-6 opacity-60" />
+                    <img
+                      key={inst.name}
+                      src={inst.logo}
+                      alt={inst.name}
+                      className="h-6 opacity-60"
+                    />
                   ))}
-                  <span className="px-2 py-1 text-xs text-[#71717a]">+ any bank</span>
+                  <span className="px-2 py-1 text-xs text-[#71717a]">
+                    + any bank
+                  </span>
                 </div>
               </div>
             </motion.div>
 
             {/* AI Categorization */}
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Sparkles className="w-6 h-6 text-[#f97316]" />}
                 iconBg="bg-[rgba(249,115,22,0.15)]"
@@ -492,7 +608,11 @@ function LandingPage() {
             </motion.div>
 
             {/* Subscription Detection */}
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<RefreshCw className="w-6 h-6 text-[#a855f7]" />}
                 iconBg="bg-[rgba(168,85,247,0.15)]"
@@ -513,24 +633,53 @@ function LandingPage() {
                   <TrendingUp className="w-6 h-6 text-[#3b82f6]" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-semibold mb-3">
-                  Track <span className="text-[#3b82f6]">all</span> your investments
+                  Track <span className="text-[#3b82f6]">all</span> your
+                  investments
                 </h3>
                 <p className="text-[#a1a1aa] text-sm sm:text-base leading-relaxed mb-6">
-                  Stocks, mutual funds, PPF, EPF — see your complete portfolio in one place. Import from any broker and track your real net worth.
+                  Stocks, mutual funds, PPF, EPF — see your complete portfolio
+                  in one place. Import from any broker and track your real net
+                  worth.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
-                  <img src="/institutions/zerodha.svg" alt="Zerodha" className="h-6 opacity-60" />
-                  <img src="/institutions/groww.svg" alt="Groww" className="h-6 opacity-60" />
-                  <img src="/institutions/vested.svg" alt="Vested" className="h-6 opacity-60" />
-                  <img src="/institutions/epf.png" alt="EPF" className="h-6 opacity-60" />
-                  <img src="/institutions/mfcentral.svg" alt="MFCentral" className="h-6 opacity-60" />
-                  <span className="px-2 py-1 text-xs text-[#71717a]">+more</span>
+                  <img
+                    src="/institutions/zerodha.svg"
+                    alt="Zerodha"
+                    className="h-6 opacity-60"
+                  />
+                  <img
+                    src="/institutions/groww.svg"
+                    alt="Groww"
+                    className="h-6 opacity-60"
+                  />
+                  <img
+                    src="/institutions/vested.svg"
+                    alt="Vested"
+                    className="h-6 opacity-60"
+                  />
+                  <img
+                    src="/institutions/epf.png"
+                    alt="EPF"
+                    className="h-6 opacity-60"
+                  />
+                  <img
+                    src="/institutions/mfcentral.svg"
+                    alt="MFCentral"
+                    className="h-6 opacity-60"
+                  />
+                  <span className="px-2 py-1 text-xs text-[#71717a]">
+                    +more
+                  </span>
                 </div>
               </div>
             </motion.div>
 
             {/* Loan Tracking */}
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Scale className="w-6 h-6 text-[#ef4444]" />}
                 iconBg="bg-[rgba(239,68,68,0.15)]"
@@ -540,7 +689,11 @@ function LandingPage() {
             </motion.div>
 
             {/* AI Chat */}
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<MessageCircle className="w-6 h-6 text-[#06b6d4]" />}
                 iconBg="bg-[rgba(6,182,212,0.15)]"
@@ -550,7 +703,11 @@ function LandingPage() {
             </motion.div>
 
             {/* Multiple Profiles */}
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Users className="w-6 h-6 text-[#10b981]" />}
                 iconBg="bg-[rgba(16,185,129,0.15)]"
@@ -583,7 +740,16 @@ function LandingPage() {
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
               className="text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-tighter"
             >
-              Beautiful, powerful, <Highlighter action="highlight" color="#3b82f6" strokeWidth={3} isView delay={700}>yours</Highlighter>
+              Beautiful, powerful,{" "}
+              <Highlighter
+                action="highlight"
+                color="#3b82f6"
+                strokeWidth={3}
+                isView
+                delay={700}
+              >
+                yours
+              </Highlighter>
             </motion.h2>
           </motion.div>
         </div>
@@ -623,14 +789,24 @@ function LandingPage() {
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
               className="text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-tighter mb-6"
             >
-              You control <Highlighter action="highlight" color="#a855f7" strokeWidth={3} isView delay={700}>everything</Highlighter>
+              You control{" "}
+              <Highlighter
+                action="highlight"
+                color="#a855f7"
+                strokeWidth={3}
+                isView
+                delay={700}
+              >
+                everything
+              </Highlighter>
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.2 }}
               className="text-[#a1a1aa] text-base sm:text-lg leading-relaxed max-w-2xl mx-auto"
             >
-              Runs entirely on your computer. Use your own AI — OpenAI, Claude, Gemini, or run completely offline with Ollama.
+              Runs entirely on your computer. Use your own AI — OpenAI, Claude,
+              Gemini, or run completely offline with Ollama.
             </motion.p>
           </motion.div>
 
@@ -641,7 +817,11 @@ function LandingPage() {
             variants={staggerContainer}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
           >
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Server className="w-6 h-6 text-[#10b981]" />}
                 iconBg="bg-[rgba(16,185,129,0.15)]"
@@ -649,7 +829,11 @@ function LandingPage() {
                 description="A real desktop app. No cloud. No sync. Your finances stay on your machine."
               />
             </motion.div>
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Sparkles className="w-6 h-6 text-[#a855f7]" />}
                 iconBg="bg-[rgba(168,85,247,0.15)]"
@@ -657,7 +841,11 @@ function LandingPage() {
                 description="Connect OpenAI, Claude, or Gemini with your API key. Or go fully offline with Ollama."
               />
             </motion.div>
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Lock className="w-6 h-6 text-[#f97316]" />}
                 iconBg="bg-[rgba(249,115,22,0.15)]"
@@ -665,7 +853,11 @@ function LandingPage() {
                 description="Your data goes directly to your chosen AI provider. We never see it."
               />
             </motion.div>
-            <motion.div variants={scaleIn} transition={{ duration: 0.5, ease: smoothEase }} className="h-full">
+            <motion.div
+              variants={scaleIn}
+              transition={{ duration: 0.5, ease: smoothEase }}
+              className="h-full"
+            >
               <BentoCard
                 icon={<Github className="w-6 h-6 text-[#3b82f6]" />}
                 iconBg="bg-[rgba(59,130,246,0.15)]"
@@ -674,7 +866,6 @@ function LandingPage() {
               />
             </motion.div>
           </motion.div>
-
         </div>
       </section>
 
@@ -702,7 +893,16 @@ function LandingPage() {
               transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
               className="text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-tighter"
             >
-              Three steps to <Highlighter action="highlight" color="#f97316" strokeWidth={3} isView delay={700}>clarity</Highlighter>
+              Three steps to{" "}
+              <Highlighter
+                action="highlight"
+                color="#f97316"
+                strokeWidth={3}
+                isView
+                delay={700}
+              >
+                clarity
+              </Highlighter>
             </motion.h2>
           </motion.div>
 
@@ -727,9 +927,12 @@ function LandingPage() {
                 <div className="w-16 h-16 rounded-2xl bg-[rgba(16,185,129,0.15)] flex items-center justify-center mt-4 mb-5">
                   <ArrowRight className="w-8 h-8 text-[#10b981] rotate-[-90deg]" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Download & Install</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  Download & Install
+                </h3>
                 <p className="text-[#a1a1aa] text-sm leading-relaxed">
-                  One-click install for macOS, Windows, or Linux. No account needed.
+                  One-click install for macOS, Windows, or Linux. No account
+                  needed.
                 </p>
               </div>
             </motion.div>
@@ -748,9 +951,12 @@ function LandingPage() {
                 <div className="w-16 h-16 rounded-2xl bg-[rgba(168,85,247,0.15)] flex items-center justify-center mt-4 mb-5">
                   <Upload className="w-8 h-8 text-[#a855f7]" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Drop Your Statements</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  Drop Your Statements
+                </h3>
                 <p className="text-[#a1a1aa] text-sm leading-relaxed">
-                  PDF, CSV, Excel — from any bank. AI reads and categorizes everything automatically.
+                  PDF, CSV, Excel — from any bank. AI reads and categorizes
+                  everything automatically.
                 </p>
               </div>
             </motion.div>
@@ -771,7 +977,8 @@ function LandingPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">See Everything</h3>
                 <p className="text-[#a1a1aa] text-sm leading-relaxed">
-                  Where your money went, forgotten subscriptions, spending trends — all in one place.
+                  Where your money went, forgotten subscriptions, spending
+                  trends — all in one place.
                 </p>
               </div>
             </motion.div>
@@ -803,21 +1010,32 @@ function LandingPage() {
             transition={{ duration: 0.5, ease: smoothEase, delay: 0.1 }}
             className="text-[clamp(1.5rem,5vw,2.5rem)] font-semibold tracking-tighter mb-4"
           >
-            Ready to take <Highlighter action="highlight" color="#10b981" strokeWidth={3} isView delay={700}>control</Highlighter>?
+            Ready to take{" "}
+            <Highlighter
+              action="highlight"
+              color="#10b981"
+              strokeWidth={3}
+              isView
+              delay={700}
+            >
+              control
+            </Highlighter>
+            ?
           </motion.h2>
           <motion.p
             variants={fadeInUp}
             transition={{ duration: 0.5, ease: smoothEase, delay: 0.2 }}
             className="text-[#a1a1aa] text-sm sm:text-base mb-8"
           >
-            Download, import your first statement, and finally see where your money goes.
+            Download, import your first statement, and finally see where your
+            money goes.
           </motion.p>
 
           <motion.div
             variants={fadeInUp}
             transition={{ duration: 0.5, ease: smoothEase, delay: 0.3 }}
           >
-            {platform === 'macos' ? (
+            {platform === "macos" ? (
               <CtaMacDropdown downloads={downloads} releasesUrl={releasesUrl} />
             ) : (
               <a
@@ -825,10 +1043,19 @@ function LandingPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="relative inline-flex items-center gap-2 bg-gradient-to-br from-[#10b981] to-[#059669] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)] transition-all shadow-[0_4px_20px_rgba(16,185,129,0.15)] overflow-hidden"
-                onClick={() => analytics.trackDownload(platform, downloads?.version)}
+                onClick={() =>
+                  analytics.trackDownload(platform, downloads?.version)
+                }
               >
-                <ShineBorder shineColor={['#10b981', '#14b8a6', '#06b6d4']} borderWidth={2} />
-                <img src={platformInfo[platform].icon} alt="" className="w-4 h-4 invert" />
+                <ShineBorder
+                  shineColor={["#10b981", "#14b8a6", "#06b6d4"]}
+                  borderWidth={2}
+                />
+                <img
+                  src={platformInfo[platform].icon}
+                  alt=""
+                  className="w-4 h-4 invert"
+                />
                 Download for {platformInfo[platform].label}
                 <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </a>
@@ -862,7 +1089,11 @@ function LandingPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
             <div className="col-span-2 sm:col-span-1">
               <div className="flex items-center gap-3 mb-4">
-                <img src="/logo.png" alt="Moneywright" className="w-8 h-8 rounded-lg" />
+                <img
+                  src="/logo.png"
+                  alt="Moneywright"
+                  className="w-8 h-8 rounded-lg"
+                />
                 <span className="font-display font-semibold">Moneywright</span>
               </div>
               <p className="text-[#71717a] text-sm leading-relaxed">
@@ -871,29 +1102,143 @@ function LandingPage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">Docs</h4>
+              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">
+                Docs
+              </h4>
               <ul className="space-y-2">
-                <li><Link to="/docs/$" params={{ _splat: '' }} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">Getting Started</Link></li>
-                <li><Link to="/docs/$" params={{ _splat: '' }} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">Installation</Link></li>
-                <li><Link to="/docs/$" params={{ _splat: '' }} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">AI Setup</Link></li>
+                <li>
+                  <Link
+                    to="/docs/$"
+                    params={{ _splat: "" }}
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    Getting Started
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/docs/$"
+                    params={{ _splat: "" }}
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    Installation
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/docs/$"
+                    params={{ _splat: "" }}
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    AI Setup
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">Download</h4>
+              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">
+                Download
+              </h4>
               <ul className="space-y-2">
-                <li><a href={downloads ? getDownloadUrl(downloads, 'macos') : releasesUrl} onClick={() => analytics.trackDownload('macos', downloads?.version)} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"><img src="/icons/apple.svg" className="w-3.5 h-3.5 opacity-60 invert" /> macOS</a></li>
-                <li><a href={downloads ? getDownloadUrl(downloads, 'windows') : releasesUrl} onClick={() => analytics.trackDownload('windows', downloads?.version)} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"><img src="/icons/windows.svg" className="w-3.5 h-3.5 opacity-60 invert" /> Windows</a></li>
-                <li><a href={downloads ? getDownloadUrl(downloads, 'linux') : releasesUrl} onClick={() => analytics.trackDownload('linux', downloads?.version)} className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"><img src="/icons/linux.svg" className="w-3.5 h-3.5 opacity-60 invert" /> Linux</a></li>
+                <li>
+                  <a
+                    href={
+                      downloads
+                        ? getDownloadUrl(downloads, "macos")
+                        : releasesUrl
+                    }
+                    onClick={() =>
+                      analytics.trackDownload("macos", downloads?.version)
+                    }
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"
+                  >
+                    <img
+                      src="/icons/apple.svg"
+                      alt=""
+                      className="w-3.5 h-3.5 opacity-60 invert"
+                    />{" "}
+                    macOS
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={
+                      downloads
+                        ? getDownloadUrl(downloads, "windows")
+                        : releasesUrl
+                    }
+                    onClick={() =>
+                      analytics.trackDownload("windows", downloads?.version)
+                    }
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"
+                  >
+                    <img
+                      src="/icons/windows.svg"
+                      alt=""
+                      className="w-3.5 h-3.5 opacity-60 invert"
+                    />{" "}
+                    Windows
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={
+                      downloads
+                        ? getDownloadUrl(downloads, "linux")
+                        : releasesUrl
+                    }
+                    onClick={() =>
+                      analytics.trackDownload("linux", downloads?.version)
+                    }
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors inline-flex items-center gap-2"
+                  >
+                    <img
+                      src="/icons/linux.svg"
+                      alt=""
+                      className="w-3.5 h-3.5 opacity-60 invert"
+                    />{" "}
+                    Linux
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">Community</h4>
+              <h4 className="font-semibold text-sm mb-4 text-[#a1a1aa]">
+                Community
+              </h4>
               <ul className="space-y-2">
-                <li><a href="https://github.com/moneywright/moneywright" target="_blank" rel="noopener noreferrer" className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">GitHub</a></li>
-                <li><a href="https://github.com/moneywright/moneywright/issues" target="_blank" rel="noopener noreferrer" className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">Issues</a></li>
-                <li><a href={releasesUrl} target="_blank" rel="noopener noreferrer" className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors">Releases</a></li>
+                <li>
+                  <a
+                    href="https://github.com/moneywright/moneywright"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    GitHub
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://github.com/moneywright/moneywright/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    Issues
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={releasesUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#71717a] hover:text-[#f5f5f7] text-sm transition-colors"
+                  >
+                    Releases
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
@@ -907,7 +1252,15 @@ function LandingPage() {
               <span>AGPL-3.0</span>
             </div>
             <div className="text-[#71717a] text-sm">
-              An indie project by <a href="https://priyanshrastogi.com" target="_blank" rel="noopener noreferrer" className="text-[#a1a1aa] hover:text-[#f5f5f7] transition-colors">@priyanshrastogi</a>
+              An indie project by{" "}
+              <a
+                href="https://priyanshrastogi.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#a1a1aa] hover:text-[#f5f5f7] transition-colors"
+              >
+                @priyanshrastogi
+              </a>
             </div>
           </div>
         </div>
@@ -919,36 +1272,36 @@ function LandingPage() {
 // Screenshot data
 const screenshots = [
   {
-    id: 'dashboard',
-    title: 'Dashboard',
-    description: 'Get a complete overview of your finances at a glance',
-    image: '/screenshots/dashboard.png',
+    id: "dashboard",
+    title: "Dashboard",
+    description: "Get a complete overview of your finances at a glance",
+    image: "/screenshots/dashboard.png",
     icon: PieChart,
-    color: '#10b981',
+    color: "#10b981",
   },
   {
-    id: 'penny',
-    title: 'Ask Penny',
-    description: 'Chat with AI about your spending, savings, and goals',
-    image: '/screenshots/penny.png',
+    id: "penny",
+    title: "Ask Penny",
+    description: "Chat with AI about your spending, savings, and goals",
+    image: "/screenshots/penny.png",
     icon: MessageCircle,
-    color: '#a855f7',
+    color: "#a855f7",
   },
   {
-    id: 'transactions',
-    title: 'Transactions',
-    description: 'Every transaction categorized and searchable instantly',
-    image: '/screenshots/transactions.png',
+    id: "transactions",
+    title: "Transactions",
+    description: "Every transaction categorized and searchable instantly",
+    image: "/screenshots/transactions.png",
     icon: TrendingUp,
-    color: '#3b82f6',
+    color: "#3b82f6",
   },
   {
-    id: 'subscriptions',
-    title: 'Subscriptions',
-    description: 'Find and track every recurring charge automatically',
-    image: '/screenshots/subscriptions.png',
+    id: "subscriptions",
+    title: "Subscriptions",
+    description: "Find and track every recurring charge automatically",
+    image: "/screenshots/subscriptions.png",
     icon: RefreshCw,
-    color: '#f97316',
+    color: "#f97316",
   },
 ];
 
@@ -966,7 +1319,10 @@ function ScreenshotCarousel() {
       />
 
       {/* Main showcase area */}
-      <div className="relative max-w-5xl mx-auto px-4 sm:px-8" style={{ perspective: '2000px' }}>
+      <div
+        className="relative max-w-5xl mx-auto px-4 sm:px-8"
+        style={{ perspective: "2000px" }}
+      >
         {/* 3D Carousel Container */}
         <div className="relative h-[280px] sm:h-[450px] lg:h-[550px]">
           {screenshots.map((screenshot, index) => {
@@ -982,19 +1338,28 @@ function ScreenshotCarousel() {
             const zIndex = isActive ? 30 : 20 - Math.abs(offset);
 
             return (
+              // biome-ignore lint/a11y/useSemanticElements: wraps block content, invalid inside <button>
               <div
                 key={screenshot.id}
                 className={cn(
                   "absolute top-0 left-1/2 w-[85%] sm:w-[75%] max-w-[900px] transition-all duration-700 ease-out cursor-pointer",
-                  !isActive && "hover:opacity-60"
+                  !isActive && "hover:opacity-60",
                 )}
                 style={{
                   transform: `translateX(calc(-50% + ${translateX}%)) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
                   opacity,
                   zIndex,
-                  transformStyle: 'preserve-3d',
+                  transformStyle: "preserve-3d",
                 }}
+                role="button"
+                tabIndex={0}
                 onClick={() => setActiveIndex(index)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveIndex(index);
+                  }
+                }}
               >
                 {/* Screenshot card */}
                 <div
@@ -1002,19 +1367,23 @@ function ScreenshotCarousel() {
                     "relative rounded-2xl overflow-hidden transition-shadow duration-700",
                     isActive
                       ? "shadow-[0_25px_100px_-20px_rgba(0,0,0,0.8),0_0_60px_-15px_var(--glow-color)]"
-                      : "shadow-[0_15px_40px_-15px_rgba(0,0,0,0.6)]"
+                      : "shadow-[0_15px_40px_-15px_rgba(0,0,0,0.6)]",
                   )}
-                  style={{ '--glow-color': `${screenshot.color}40` } as React.CSSProperties}
+                  style={
+                    {
+                      "--glow-color": `${screenshot.color}40`,
+                    } as React.CSSProperties
+                  }
                 >
                   {/* Border glow for active */}
                   <div
                     className={cn(
                       "absolute inset-0 rounded-2xl transition-opacity duration-700",
-                      isActive ? "opacity-100" : "opacity-0"
+                      isActive ? "opacity-100" : "opacity-0",
                     )}
                     style={{
                       background: `linear-gradient(135deg, ${screenshot.color}30 0%, transparent 50%, ${screenshot.color}20 100%)`,
-                      padding: '1px',
+                      padding: "1px",
                     }}
                   />
 
@@ -1047,13 +1416,14 @@ function ScreenshotCarousel() {
 
               return (
                 <button
+                  type="button"
                   key={screenshot.id}
                   onClick={() => setActiveIndex(index)}
                   className={cn(
                     "relative flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300",
                     isActive
                       ? "text-white"
-                      : "text-[#71717a] hover:text-[#a1a1aa]"
+                      : "text-[#71717a] hover:text-[#a1a1aa]",
                   )}
                 >
                   {/* Active background pill */}
@@ -1069,7 +1439,9 @@ function ScreenshotCarousel() {
                     )}
                     style={{ color: isActive ? screenshot.color : undefined }}
                   />
-                  <span className="relative hidden sm:inline">{screenshot.title}</span>
+                  <span className="relative hidden sm:inline">
+                    {screenshot.title}
+                  </span>
                 </button>
               );
             })}
@@ -1090,7 +1462,7 @@ function ScreenshotCarousel() {
 // Consistent Bento Card component
 function BentoCard({
   icon,
-  iconBg = 'bg-[#18181c]',
+  iconBg = "bg-[#18181c]",
   title,
   description,
   compact = false,
@@ -1102,19 +1474,32 @@ function BentoCard({
   compact?: boolean;
 }) {
   return (
-    <div className={cn(
-      "group relative flex flex-col overflow-hidden rounded-2xl bg-[#18181c] border border-white/5 hover:border-white/10 transition-all h-full",
-      compact ? "p-4" : "p-6"
-    )}>
-      <div className={cn(
-        "rounded-xl flex items-center justify-center mb-4",
-        compact ? "w-10 h-10" : "w-12 h-12",
-        iconBg
-      )}>
+    <div
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-2xl bg-[#18181c] border border-white/5 hover:border-white/10 transition-all h-full",
+        compact ? "p-4" : "p-6",
+      )}
+    >
+      <div
+        className={cn(
+          "rounded-xl flex items-center justify-center mb-4",
+          compact ? "w-10 h-10" : "w-12 h-12",
+          iconBg,
+        )}
+      >
         {icon}
       </div>
-      <h3 className={cn("font-semibold mb-1", compact ? "text-sm" : "text-lg")}>{title}</h3>
-      <p className={cn("text-[#a1a1aa] leading-relaxed", compact ? "text-xs" : "text-sm")}>{description}</p>
+      <h3 className={cn("font-semibold mb-1", compact ? "text-sm" : "text-lg")}>
+        {title}
+      </h3>
+      <p
+        className={cn(
+          "text-[#a1a1aa] leading-relaxed",
+          compact ? "text-xs" : "text-sm",
+        )}
+      >
+        {description}
+      </p>
     </div>
   );
 }
@@ -1122,40 +1507,61 @@ function BentoCard({
 function StatCard({ stat, label }: { stat: string; label: string }) {
   return (
     <div className="flex items-center gap-4 px-6 py-2">
-      <span className="text-3xl sm:text-4xl font-semibold text-[#f5f5f7] whitespace-nowrap">{stat}</span>
+      <span className="text-3xl sm:text-4xl font-semibold text-[#f5f5f7] whitespace-nowrap">
+        {stat}
+      </span>
       <span className="text-[#71717a] text-sm max-w-[140px]">{label}</span>
     </div>
   );
 }
 
 // CTA Section Mac Dropdown - separate component to manage its own state
-function CtaMacDropdown({ downloads, releasesUrl }: { downloads: ReturnType<typeof useLatestRelease>['data']; releasesUrl: string }) {
+function CtaMacDropdown({
+  downloads,
+  releasesUrl,
+}: {
+  downloads: ReturnType<typeof useLatestRelease>["data"];
+  releasesUrl: string;
+}) {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
       }
     }
     if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showDropdown]);
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setShowDropdown(!showDropdown)}
         className="relative inline-flex items-center gap-2 bg-gradient-to-br from-[#10b981] to-[#059669] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)] transition-all shadow-[0_4px_20px_rgba(16,185,129,0.15)] overflow-hidden"
       >
-        <ShineBorder shineColor={['#10b981', '#14b8a6', '#06b6d4']} borderWidth={2} />
+        <ShineBorder
+          shineColor={["#10b981", "#14b8a6", "#06b6d4"]}
+          borderWidth={2}
+        />
         <img src={platformInfo.macos.icon} alt="" className="w-4 h-4 invert" />
         Download for {platformInfo.macos.label}
-        <ChevronDown className={cn('w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform', showDropdown && 'rotate-180')} />
+        <ChevronDown
+          className={cn(
+            "w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform",
+            showDropdown && "rotate-180",
+          )}
+        />
       </button>
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-[#18181c] border border-white/10 rounded-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.4)] z-50">
@@ -1166,11 +1572,13 @@ function CtaMacDropdown({ downloads, releasesUrl }: { downloads: ReturnType<type
             className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5"
             onClick={() => {
               setShowDropdown(false);
-              analytics.trackDownload('macos-arm64', downloads?.version);
+              analytics.trackDownload("macos-arm64", downloads?.version);
             }}
           >
             <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-[#f5f5f7]">Apple Silicon</div>
+              <div className="text-sm font-medium text-[#f5f5f7]">
+                Apple Silicon
+              </div>
               <div className="text-xs text-[#71717a]">M1, M2, M3, M4 Macs</div>
             </div>
           </a>
@@ -1181,12 +1589,14 @@ function CtaMacDropdown({ downloads, releasesUrl }: { downloads: ReturnType<type
             className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
             onClick={() => {
               setShowDropdown(false);
-              analytics.trackDownload('macos-intel', downloads?.version);
+              analytics.trackDownload("macos-intel", downloads?.version);
             }}
           >
             <div className="flex-1 text-left">
               <div className="text-sm font-medium text-[#f5f5f7]">Intel</div>
-              <div className="text-xs text-[#71717a]">Older Macs (pre-2020)</div>
+              <div className="text-xs text-[#71717a]">
+                Older Macs (pre-2020)
+              </div>
             </div>
           </a>
         </div>

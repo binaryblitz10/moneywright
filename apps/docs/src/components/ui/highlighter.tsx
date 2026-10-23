@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react"
-import type React from "react"
-import { useInView } from "motion/react"
-import { annotate } from "rough-notation"
-import { type RoughAnnotation } from "rough-notation/lib/model"
+import { useInView } from "motion/react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { annotate } from "rough-notation";
+import type { RoughAnnotation } from "rough-notation/lib/model";
 
 type AnnotationAction =
   | "highlight"
@@ -11,19 +11,19 @@ type AnnotationAction =
   | "circle"
   | "strike-through"
   | "crossed-off"
-  | "bracket"
+  | "bracket";
 
 interface HighlighterProps {
-  children: React.ReactNode
-  action?: AnnotationAction
-  color?: string
-  strokeWidth?: number
-  animationDuration?: number
-  iterations?: number
-  padding?: number
-  multiline?: boolean
-  isView?: boolean
-  delay?: number
+  children: React.ReactNode;
+  action?: AnnotationAction;
+  color?: string;
+  strokeWidth?: number;
+  animationDuration?: number;
+  iterations?: number;
+  padding?: number;
+  multiline?: boolean;
+  isView?: boolean;
+  delay?: number;
 }
 
 export function Highlighter({
@@ -38,34 +38,34 @@ export function Highlighter({
   isView = false,
   delay = 0,
 }: HighlighterProps) {
-  const elementRef = useRef<HTMLSpanElement>(null)
-  const annotationRef = useRef<RoughAnnotation | null>(null)
-  const [isReady, setIsReady] = useState(false)
+  const elementRef = useRef<HTMLSpanElement>(null);
+  const annotationRef = useRef<RoughAnnotation | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   const isInView = useInView(elementRef, {
     once: true,
     margin: "-10%",
-  })
+  });
 
   // If isView is false, always show. If isView is true, wait for inView
-  const shouldShow = !isView || isInView
+  const shouldShow = !isView || isInView;
 
   // Handle delay before showing annotation
   useEffect(() => {
-    if (!shouldShow) return
+    if (!shouldShow) return;
 
     const timeoutId = setTimeout(() => {
-      setIsReady(true)
-    }, delay)
+      setIsReady(true);
+    }, delay);
 
-    return () => clearTimeout(timeoutId)
-  }, [shouldShow, delay])
+    return () => clearTimeout(timeoutId);
+  }, [shouldShow, delay]);
 
   useEffect(() => {
-    if (!isReady) return
+    if (!isReady) return;
 
-    const element = elementRef.current
-    if (!element) return
+    const element = elementRef.current;
+    if (!element) return;
 
     const annotationConfig = {
       type: action,
@@ -75,26 +75,26 @@ export function Highlighter({
       iterations,
       padding,
       multiline,
-    }
+    };
 
-    const annotation = annotate(element, annotationConfig)
-    annotationRef.current = annotation
-    annotation.show()
+    const annotation = annotate(element, annotationConfig);
+    annotationRef.current = annotation;
+    annotation.show();
 
     const resizeObserver = new ResizeObserver(() => {
-      annotation.hide()
-      annotation.show()
-    })
+      annotation.hide();
+      annotation.show();
+    });
 
-    resizeObserver.observe(element)
-    resizeObserver.observe(document.body)
+    resizeObserver.observe(element);
+    resizeObserver.observe(document.body);
 
     return () => {
       if (element) {
-        annotation.remove()
-        resizeObserver.disconnect()
+        annotation.remove();
+        resizeObserver.disconnect();
       }
-    }
+    };
   }, [
     isReady,
     action,
@@ -104,11 +104,11 @@ export function Highlighter({
     iterations,
     padding,
     multiline,
-  ])
+  ]);
 
   return (
     <span ref={elementRef} className="relative inline bg-transparent">
       {children}
     </span>
-  )
+  );
 }
