@@ -338,7 +338,7 @@ export function TransactionTable({
                           {/* Imported from an SMS alert, not yet seen on a statement */}
                           {txn.smsSource && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
-                              From SMS
+                              SMS
                             </span>
                           )}
                           {renderBadge?.(txn)}
