@@ -59,7 +59,12 @@ function BankSmsPage() {
             {enabled && (
               <Button
                 className="px-5 has-[>svg]:px-5"
-                disabled={syncMutation.isPending}
+                disabled={syncMutation.isPending || status?.access !== 'ok'}
+                title={
+                  status?.access !== 'ok'
+                    ? 'Allow Moneywright to read Messages in Settings'
+                    : undefined
+                }
                 onClick={() => syncMutation.mutate(undefined)}
               >
                 {syncMutation.isPending ? (
