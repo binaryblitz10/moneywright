@@ -28,8 +28,16 @@ import {
 } from '@/components/statements'
 import { RecategorizeModal } from '@/components/transactions/recategorize-modal'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FileText, Upload as UploadIcon } from 'lucide-react'
+import {
+  Building2,
+  CreditCard,
+  FileText,
+  TrendingUp,
+  Upload as UploadIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Statement } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { isStatementOverdue } from '@/lib/statement-overdue'
 
 // Search params validation
@@ -64,6 +72,12 @@ const GROUP_KIND_LABELS: Record<StatementGroupKind, string> = {
   credit_card: 'Credit Cards',
   bank: 'Bank Accounts',
   investment: 'Investments',
+}
+
+const GROUP_KIND_ICONS: Record<StatementGroupKind, { icon: LucideIcon; className: string }> = {
+  credit_card: { icon: CreditCard, className: 'text-violet-500' },
+  bank: { icon: Building2, className: 'text-emerald-500' },
+  investment: { icon: TrendingUp, className: 'text-blue-500' },
 }
 
 function StatementsPage() {
@@ -341,13 +355,12 @@ function StatementsPage() {
             {(Object.keys(GROUP_KIND_LABELS) as StatementGroupKind[]).map((kind) => {
               const kindGroups = statementGroups.filter(([, group]) => group.kind === kind)
               if (kindGroups.length === 0) return null
+              const { icon: KindIcon, className: iconClassName } = GROUP_KIND_ICONS[kind]
               return (
-                <section key={kind} className="space-y-3">
-                  <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <section key={kind}>
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <KindIcon className={cn('h-5 w-5', iconClassName)} />
                     {GROUP_KIND_LABELS[kind]}
-                    <span className="ml-2 font-normal normal-case tracking-normal">
-                      {kindGroups.length}
-                    </span>
                   </h2>
                   <div className="space-y-4">
                     {kindGroups.map(([key, group]) => (
