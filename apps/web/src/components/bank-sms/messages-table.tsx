@@ -115,9 +115,9 @@ export function MessagesTable({
           onChange={setFilter}
           options={[
             { value: 'all', label: `All (${messages.length})` },
-            { value: 'needs_review', label: `Needs review (${count('needs_review')})` },
             { value: 'imported', label: `Imported (${count('imported')})` },
             { value: 'verified', label: `Verified (${count('verified')})` },
+            { value: 'needs_review', label: `Needs review (${count('needs_review')})` },
             { value: 'dismissed', label: `Dismissed (${count('dismissed')})` },
           ]}
         />
