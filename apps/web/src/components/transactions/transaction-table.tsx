@@ -41,6 +41,10 @@ interface TransactionTableProps {
   onSelectionChange?: (selectedIds: Set<string>) => void
   /** Renders a full-width heading row above a transaction; return null for no heading */
   renderGroupHeader?: (transaction: Transaction, index: number) => ReactNode
+  /** Extra badge shown after the name and category; return null for none */
+  renderBadge?: (transaction: Transaction) => ReactNode
+  /** Whether the edit button is offered for a row (default: always) */
+  isEditable?: (transaction: Transaction) => boolean
 }
 
 // Sort indicator component
@@ -127,6 +131,8 @@ export function TransactionTable({
   selectedIds,
   onSelectionChange,
   renderGroupHeader,
+  renderBadge,
+  isEditable,
 }: TransactionTableProps) {
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
@@ -237,7 +243,7 @@ export function TransactionTable({
             const groupHeader = renderGroupHeader?.(txn, index)
 
             return (
-              <Fragment key={txn.id}>
+              <Fragment key={`${txn.id}-${index}`}>
                 {groupHeader && (
                   <TableRow className="border-b border-border-subtle bg-surface-elevated/60 hover:bg-surface-elevated/60">
                     <TableCell colSpan={selectable ? 5 : 4} className="py-2 pl-5">
@@ -335,6 +341,7 @@ export function TransactionTable({
                               From SMS
                             </span>
                           )}
+                          {renderBadge?.(txn)}
                           {/* Subscription indicator */}
                           {txn.isSubscription && (
                             <Tooltip>
@@ -385,17 +392,19 @@ export function TransactionTable({
                     </span>
                   </TableCell>
                   <TableCell className="py-3">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onEditTransaction(txn)
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    {(isEditable?.(txn) ?? true) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEditTransaction(txn)
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               </Fragment>
