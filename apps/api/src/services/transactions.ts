@@ -101,7 +101,7 @@ export interface TransactionResponse {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
-  /** Created from a bank SMS alert and not yet matched to a statement line */
+  /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
   smsVerified: boolean
@@ -199,6 +199,19 @@ export function toTransactionResponse(txn: Transaction): TransactionResponse {
   }
 }
 
+/** Source filter value for transactions that came from bank messages (not a statement id) */
+export const BANK_MESSAGES_SOURCE = 'sms'
+
+/** Transactions from the given sources: statement ids, and bank messages for BANK_MESSAGES_SOURCE */
+function sourceCondition(sources: string[]) {
+  const conditions = sources.map((source) =>
+    source === BANK_MESSAGES_SOURCE
+      ? like(tables.transactions.hash, 'sms:%')
+      : eq(tables.transactions.statementId, source)
+  )
+  return conditions.length > 1 ? or(...conditions) : conditions[0]
+}
+
 /**
  * Build the where-conditions shared by transaction listing and duplicate detection
  */
@@ -232,11 +245,8 @@ function buildFilterConditions(userId: string, filters?: TransactionFilters) {
     const statementIds = Array.isArray(filters.statementId)
       ? filters.statementId
       : [filters.statementId]
-    if (statementIds.length === 1) {
-      conditions.push(eq(tables.transactions.statementId, statementIds[0]!))
-    } else if (statementIds.length > 1) {
-      conditions.push(or(...statementIds.map((id) => eq(tables.transactions.statementId, id)))!)
-    }
+    const condition = sourceCondition(statementIds)
+    if (condition) conditions.push(condition)
   }
 
   if (filters?.category) {
@@ -1145,11 +1155,8 @@ export async function getTransactionStats(
     const statementIds = Array.isArray(filters.statementId)
       ? filters.statementId
       : [filters.statementId]
-    if (statementIds.length === 1) {
-      conditions.push(eq(tables.transactions.statementId, statementIds[0]!))
-    } else if (statementIds.length > 1) {
-      conditions.push(or(...statementIds.map((id) => eq(tables.transactions.statementId, id)))!)
-    }
+    const condition = sourceCondition(statementIds)
+    if (condition) conditions.push(condition)
   }
 
   if (filters?.startDate) {

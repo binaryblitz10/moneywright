@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Label } from '@/components/ui/label'
 import { AccountSelector } from '@/components/ui/account-selector'
-import { StatementSelector } from '@/components/ui/statement-selector'
+import { BANK_MESSAGES_SOURCE, SourceSelector } from '@/components/ui/source-selector'
 import { DateRangePicker, getDateRangeLabel } from '@/components/ui/date-range-picker'
 import {
   Search,
@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { TransactionFilters, Category, Account, Statement } from '@/lib/api'
 import { useConstants } from '@/hooks/useConstants'
+import { useSmsImportStatus } from '@/hooks/useSmsImport'
 import { getAccountShortLabel, getStatementPeriodLabel } from '@/lib/statement-display'
 import { MetaLabel } from '@/components/ui/meta-label'
 import { CategoryPicker } from './category-picker'
@@ -55,10 +56,12 @@ export function TransactionFiltersBar({
   getCategoryLabel,
 }: TransactionFiltersBarProps) {
   const { institutions } = useConstants()
+  const { data: smsStatus } = useSmsImportStatus()
   const [searchFocused, setSearchFocused] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const getStatementLabel = (id: string) => {
+  const getSourceLabel = (id: string) => {
+    if (id === BANK_MESSAGES_SOURCE) return 'Bank Messages'
     const statement = statements.find((s) => s.id === id)
     if (!statement) return 'Statement'
     const account = accounts.find((a) => a.id === statement.accountId)
@@ -292,8 +295,10 @@ export function TransactionFiltersBar({
                     }
                     // Filter statements to only those belonging to selected accounts
                     if (filters.statementId?.length && accountIds.length > 0) {
-                      const validStatements = filters.statementId.filter((id) =>
-                        accountIds.includes(statements?.find((s) => s.id === id)?.accountId || '')
+                      const validStatements = filters.statementId.filter(
+                        (id) =>
+                          id === BANK_MESSAGES_SOURCE ||
+                          accountIds.includes(statements?.find((s) => s.id === id)?.accountId || '')
                       )
                       newFilters.statementId =
                         validStatements.length > 0 ? validStatements : undefined
@@ -342,13 +347,14 @@ export function TransactionFiltersBar({
                 />
               </div>
 
-              {/* Statement Filter */}
+              {/* Source Filter: statements and bank messages */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <FileText className="h-3 w-3" />
-                  Statement
+                  Source
                 </Label>
-                <StatementSelector
+                <SourceSelector
+                  showBankMessages={smsStatus?.supported}
                   statements={statements}
                   accounts={accounts}
                   values={filters.statementId || []}
@@ -452,7 +458,7 @@ export function TransactionFiltersBar({
           {filters.statementId?.map((id) => (
             <FilterPill
               key={id}
-              label={getStatementLabel(id)}
+              label={getSourceLabel(id)}
               icon={<FileText className="h-3 w-3" />}
               onRemove={() => {
                 const updated = filters.statementId?.filter((s) => s !== id)

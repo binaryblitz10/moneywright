@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Check, ChevronDown, Search, Sparkles } from 'lucide-react'
+import { Check, ChevronDown, MessageSquareText, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
@@ -14,12 +14,18 @@ import {
 } from '@/lib/statement-display'
 import type { Account, Statement } from '@/lib/api'
 
-export interface StatementSelectorProps {
+/** Source value for transactions that came from bank messages (the API reads it as a source) */
+export const BANK_MESSAGES_SOURCE = 'sms'
+const BANK_MESSAGES_LABEL = 'Bank Messages'
+
+export interface SourceSelectorProps {
   statements: Statement[]
   accounts: Account[]
-  /** Selected statement IDs */
+  /** Offer Bank Messages as a source (only where messages can be read) */
+  showBankMessages?: boolean
+  /** Selected sources: statement IDs and BANK_MESSAGES_SOURCE */
   values: string[]
-  onValuesChange: (statementIds: string[]) => void
+  onValuesChange: (sources: string[]) => void
   /** Only list statements of these accounts (all when empty) */
   accountIds?: string[]
   triggerClassName?: string
@@ -34,15 +40,16 @@ interface StatementGroup {
 
 const NO_ACCOUNT = 'none'
 
-export function StatementSelector({
+export function SourceSelector({
   statements,
   accounts,
+  showBankMessages = false,
   values,
   onValuesChange,
   accountIds,
   triggerClassName,
   contentClassName,
-}: StatementSelectorProps) {
+}: SourceSelectorProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const { institutions } = useConstants()
@@ -96,10 +103,16 @@ export function StatementSelector({
     values.length === 1 ? statements.find((s) => s.id === values[0]) : undefined
 
   const triggerLabel = !values.length
-    ? 'All statements'
-    : selectedStatement
-      ? `${getStatementPeriodLabel(selectedStatement)} · ${getAccountLabel(selectedStatement)}`
-      : `${values.length} statements`
+    ? 'All sources'
+    : values.length === 1 && values[0] === BANK_MESSAGES_SOURCE
+      ? BANK_MESSAGES_LABEL
+      : selectedStatement
+        ? `${getStatementPeriodLabel(selectedStatement)} · ${getAccountLabel(selectedStatement)}`
+        : `${values.length} sources`
+
+  const showMessagesRow =
+    showBankMessages &&
+    (!search || BANK_MESSAGES_LABEL.toLowerCase().includes(search.trim().toLowerCase()))
 
   const toggle = (id: string) =>
     onValuesChange(values.includes(id) ? values.filter((v) => v !== id) : [...values, id])
@@ -117,7 +130,7 @@ export function StatementSelector({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by month, account or file..."
+              placeholder="Search by month, account, file or messages..."
               data-option-search
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -129,10 +142,19 @@ export function StatementSelector({
         <div className="max-h-80 overflow-y-auto p-1.5">
           {!search && (
             <StatementRow
-              title="All statements"
+              title="All sources"
               icon={<Sparkles className="h-4 w-4 text-muted-foreground" />}
               isSelected={!values.length}
               onClick={() => onValuesChange([])}
+            />
+          )}
+
+          {showMessagesRow && (
+            <StatementRow
+              title={BANK_MESSAGES_LABEL}
+              icon={<MessageSquareText className="h-4 w-4 text-muted-foreground" />}
+              isSelected={values.includes(BANK_MESSAGES_SOURCE)}
+              onClick={() => toggle(BANK_MESSAGES_SOURCE)}
             />
           )}
 
@@ -158,10 +180,8 @@ export function StatementSelector({
             )
           })}
 
-          {!groups.length && (
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              No statements found
-            </div>
+          {!groups.length && !showMessagesRow && (
+            <div className="py-6 text-center text-sm text-muted-foreground">No sources found</div>
           )}
         </div>
       </PopoverContent>
