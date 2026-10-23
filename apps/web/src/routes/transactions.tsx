@@ -136,8 +136,14 @@ function TransactionsPage() {
 
   // Mirror the filters into the URL without adding history entries
   useEffect(() => {
-    void navigate({ search: searchFromFilters(filters, debouncedSearch), replace: true })
-  }, [filters, debouncedSearch, navigate])
+    const next = searchFromFilters(filters, debouncedSearch)
+    // Navigating re-runs the route checks, so skip it when the URL already matches
+    const unchanged = (Object.keys(next) as Array<keyof TransactionsSearchParams>).every(
+      (key) => next[key] === searchParams[key]
+    )
+    if (unchanged) return
+    void navigate({ search: next, replace: true })
+  }, [filters, debouncedSearch, navigate, searchParams])
 
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = !!activeProfileId || showFamilyView
