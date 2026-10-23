@@ -90,9 +90,9 @@ export function MessagesTable({
   const [reviewing, setReviewing] = useState<PendingSms | null>(null)
   const [editing, setEditing] = useState<Transaction | null>(null)
 
-  // Only transactions a message created are marked New (not statement lines it verified)
-  const importedIds = new Set(
-    messages.flatMap((m) => (m.status === 'imported' && m.transactionId ? [m.transactionId] : []))
+  // When each transaction came from a message, for the New pill (pending and dismissed have none)
+  const importedAtByTxn = new Map(
+    messages.flatMap((m) => (m.transactionId ? [[m.transactionId, m.importedAt] as const] : []))
   )
   const pendingById = new Map(pending.map((m) => [m.id, m]))
   const count = (status: SyncedSms['status']): number =>
@@ -162,8 +162,9 @@ export function MessagesTable({
                 </span>
               ) : null
             }
-            const isNew = Date.now() - new Date(txn.createdAt).getTime() < NEW_FOR_MS
-            return isNew && importedIds.has(txn.id) ? (
+            const importedAt = importedAtByTxn.get(txn.id)
+            const isNew = !!importedAt && Date.now() - new Date(importedAt).getTime() < NEW_FOR_MS
+            return isNew ? (
               <span className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}>
                 New
               </span>

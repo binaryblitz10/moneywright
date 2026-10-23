@@ -82,6 +82,8 @@ export interface SyncedSms {
   transactionId: string | null
   /** The transaction the message created or verified, for showing and editing it in place */
   transaction: TransactionResponse | null
+  /** When the message became a transaction (read, or added from review) */
+  importedAt: string
 }
 
 export interface SmsImportInput {
@@ -673,6 +675,8 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
     accountId: row.accountId,
     transactionId: row.transactionId,
     transaction: row.transactionId ? (transactionById.get(row.transactionId) ?? null) : null,
+    // A message added from review becomes a transaction when it is added, any other when it is read
+    importedAt: new Date(row.status === 'imported' ? row.updatedAt : row.createdAt).toISOString(),
   }))
 }
 
