@@ -13,21 +13,13 @@ import {
   RefreshCw,
   Scale,
   Server,
-  Shield,
   Sparkles,
   TrendingUp,
   Upload,
   Users,
 } from "lucide-react";
-import { motion, useInView } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 import { Highlighter } from "@/components/ui/highlighter";
 import { Marquee } from "@/components/ui/marquee";
 import { ShineBorder } from "@/components/ui/shine-border";
@@ -62,7 +54,7 @@ const scaleIn = {
 };
 
 // Smooth easing
-const smoothEase = [0.25, 0.4, 0.25, 1];
+const smoothEase: [number, number, number, number] = [0.25, 0.4, 0.25, 1];
 
 export const Route = createFileRoute("/")({
   component: LandingPage,

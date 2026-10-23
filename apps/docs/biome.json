@@ -7,7 +7,13 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.source", "!.wrangler"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.source",
+      "!.wrangler",
+      "!src/routeTree.gen.ts"
+    ]
   },
   "css": {
     "parser": {
