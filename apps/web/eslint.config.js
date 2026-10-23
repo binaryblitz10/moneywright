@@ -29,5 +29,10 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
+  },
+  {
+    // shadcn-style files export variants/hooks next to components, and the root route owns the auth context
+    files: ['src/components/ui/**', 'src/components/ai-elements/**', 'src/routes/__root.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   }
 )
