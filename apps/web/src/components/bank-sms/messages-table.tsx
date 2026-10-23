@@ -3,9 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Check, MessageSquareText } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { MessageSquareText } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
@@ -15,52 +13,87 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ReviewForm } from '@/components/bank-sms/review-form'
-import type { Account, PendingSms, SyncedSms } from '@/lib/api'
+import { EditTransactionDialog, TransactionTable } from '@/components/transactions'
+import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
 
 type Filter = 'all' | SyncedSms['status']
 
-const STATUS_LABELS: Record<SyncedSms['status'], string> = {
-  imported: 'Imported',
+const OUTCOME_BADGES: Partial<Record<SyncedSms['status'], string>> = {
   needs_review: 'Needs review',
   dismissed: 'Dismissed',
-  verified: 'Verified',
 }
 
-function formatAmount(message: SyncedSms): string {
-  if (message.amount === null) return '—'
-  const amount = new Intl.NumberFormat(message.currency === 'INR' ? 'en-IN' : 'en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(message.amount)
-  const sign = message.type === 'credit' ? '+' : message.type === 'debit' ? '-' : ''
-  return `${sign}${message.currency ?? ''} ${amount}`.trim()
+function toDateString(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** A message with no transaction (waiting for review, or dismissed) shown as a table row */
+function toPlaceholderTransaction(message: SyncedSms, date: string | null): Transaction {
+  return {
+    id: message.id,
+    accountId: message.accountId ?? '',
+    statementId: '',
+    profileId: '',
+    userId: '',
+    date: date ?? toDateString(message.receivedAt),
+    type: message.type ?? 'debit',
+    amount: message.amount ?? 0,
+    currency: message.currency ?? '',
+    originalDescription: message.merchant ?? '—',
+    summary: null,
+    category: 'other',
+    categoryConfidence: null,
+    isSubscription: false,
+    linkedEntityId: null,
+    linkedEntityType: null,
+    isManuallyCategorized: false,
+    isHidden: false,
+    smsSource: false,
+    smsVerified: false,
+    createdAt: message.receivedAt,
+    updatedAt: message.receivedAt,
+  }
 }
 
 interface MessagesTableProps {
   messages: SyncedSms[]
   pending: PendingSms[]
   accounts: Account[]
+  categories: Category[]
+  countryCode: string
+  getCategoryLabel: (code: string) => string
+  formatAmount: (amount: number, currency: string) => string
   lastSyncAt: string | null
 }
 
-export function MessagesTable({ messages, pending, accounts, lastSyncAt }: MessagesTableProps) {
+export function MessagesTable({
+  messages,
+  pending,
+  accounts,
+  categories,
+  countryCode,
+  getCategoryLabel,
+  formatAmount,
+  lastSyncAt,
+}: MessagesTableProps) {
   const [filter, setFilter] = useState<Filter>(pending.length > 0 ? 'needs_review' : 'all')
   const [reviewing, setReviewing] = useState<PendingSms | null>(null)
+  const [editing, setEditing] = useState<Transaction | null>(null)
 
-  const accountNames = new Map(accounts.map((a) => [a.id, a.accountName ?? a.institution ?? '']))
   const pendingById = new Map(pending.map((m) => [m.id, m]))
   const count = (status: SyncedSms['status']): number =>
     messages.filter((m) => m.status === status).length
   const visible = filter === 'all' ? messages : messages.filter((m) => m.status === filter)
+  // Rows without a transaction of their own are keyed by message id
+  const statusById = new Map(
+    visible.filter((m) => !m.transaction).map((m) => [m.id, m.status] as const)
+  )
+  const rows = visible.map(
+    (m) => m.transaction ?? toPlaceholderTransaction(m, pendingById.get(m.id)?.date ?? null)
+  )
 
   return (
     <div className="space-y-3">
@@ -95,72 +128,28 @@ export function MessagesTable({ messages, pending, accounts, lastSyncAt }: Messa
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Received</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-28">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((message) => {
-                const waiting = pendingById.get(message.id)
-                return (
-                  <TableRow key={message.id}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {new Date(message.receivedAt).toLocaleString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })}
-                    </TableCell>
-                    <TableCell className="max-w-md">
-                      <p className="truncate font-medium">
-                        {message.merchant ?? waiting?.body ?? '—'}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">{message.sender}</p>
-                    </TableCell>
-                    <TableCell>
-                      {(message.accountId && accountNames.get(message.accountId)) ||
-                        (message.last4 ? `Ending ${message.last4}` : '—')}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-right tabular-nums">
-                      {formatAmount(message)}
-                    </TableCell>
-                    <TableCell>
-                      {waiting ? (
-                        <Button size="sm" variant="outline" onClick={() => setReviewing(waiting)}>
-                          Review
-                        </Button>
-                      ) : (
-                        <Badge
-                          variant={
-                            message.status === 'imported' || message.status === 'verified'
-                              ? 'secondary'
-                              : 'outline'
-                          }
-                          className={
-                            message.status === 'verified'
-                              ? 'gap-1 text-emerald-700 dark:text-emerald-400'
-                              : undefined
-                          }
-                        >
-                          {message.status === 'verified' && <Check className="h-3 w-3" />}
-                          {STATUS_LABELS[message.status]}
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <TransactionTable
+          transactions={rows}
+          accounts={accounts}
+          categories={categories}
+          countryCode={countryCode}
+          getCategoryLabel={getCategoryLabel}
+          formatAmount={formatAmount}
+          onEditTransaction={(txn) => {
+            const waiting = pendingById.get(txn.id)
+            if (waiting) setReviewing(waiting)
+            else setEditing(txn)
+          }}
+          isEditable={(txn) => !statusById.has(txn.id) || pendingById.has(txn.id)}
+          renderBadge={(txn) => {
+            const label = OUTCOME_BADGES[statusById.get(txn.id) ?? 'imported']
+            return label ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
+                {label}
+              </span>
+            ) : null
+          }}
+        />
       )}
 
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>
@@ -181,6 +170,12 @@ export function MessagesTable({ messages, pending, accounts, lastSyncAt }: Messa
           )}
         </DialogContent>
       </Dialog>
+
+      <EditTransactionDialog
+        transaction={editing}
+        categories={categories}
+        onClose={() => setEditing(null)}
+      />
     </div>
   )
 }

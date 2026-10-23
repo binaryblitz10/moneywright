@@ -3482,6 +3482,8 @@ export interface SyncedSms {
   last4: string | null
   accountId: string | null
   transactionId: string | null
+  /** The transaction the message created or verified */
+  transaction: Transaction | null
 }
 
 export async function getSyncedSms(): Promise<SyncedSms[]> {

@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button'
 import { ClearMessagesButton } from '@/components/bank-sms/clear-messages-button'
 import {
   useAccounts,
+  useAuth,
+  useCategories,
   usePendingSms,
   useSmsImportStatus,
   useSyncSmsImport,
@@ -30,6 +32,19 @@ function BankSmsPage() {
   const { data: messages, isLoading: messagesLoading } = useSyncedSms(enabled)
   const { data: accounts = [] } = useAccounts()
   const syncMutation = useSyncSmsImport()
+  const { user } = useAuth()
+  const { data: categoriesData } = useCategories()
+  const categories = categoriesData?.categories || []
+
+  const formatAmount = (amount: number, curr: string) =>
+    new Intl.NumberFormat(curr === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: curr,
+      maximumFractionDigits: 2,
+    }).format(amount)
+
+  const getCategoryLabel = (code: string) =>
+    categories.find((c) => c.code === code)?.label || code.replace(/_/g, ' ')
 
   return (
     <AppLayout>
@@ -41,6 +56,7 @@ function BankSmsPage() {
             <div className="flex gap-2">
               <ClearMessagesButton disabled={(messages?.length ?? 0) === 0} />
               <Button
+                className="px-5 has-[>svg]:px-5"
                 disabled={syncMutation.isPending}
                 onClick={() => syncMutation.mutate(undefined)}
               >
@@ -84,6 +100,10 @@ function BankSmsPage() {
               messages={messages}
               pending={pending}
               accounts={accounts}
+              categories={categories}
+              countryCode={user?.country?.toLowerCase() || 'in'}
+              getCategoryLabel={getCategoryLabel}
+              formatAmount={formatAmount}
               lastSyncAt={status.lastSyncAt}
             />
           )}

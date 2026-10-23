@@ -28,7 +28,11 @@ import { getLLMSettings } from './config'
 import { findUserById } from './user'
 import { linkEntitiesForAccount } from './entity-linking'
 import type { CountryCode } from '../lib/constants'
-import { createSmsTransaction } from './transactions'
+import {
+  createSmsTransaction,
+  toTransactionResponse,
+  type TransactionResponse,
+} from './transactions'
 import { reconcileSmsTransactions } from './sms-matching'
 import { getRulesForUser } from './transaction-rules'
 import { resolveRuleFields } from '../lib/transaction-rules'
@@ -75,6 +79,8 @@ export interface SyncedSms {
   last4: string | null
   accountId: string | null
   transactionId: string | null
+  /** The transaction the message created or verified, for showing and editing it in place */
+  transaction: TransactionResponse | null
 }
 
 export interface SmsImportInput {
@@ -546,6 +552,21 @@ export async function listPendingSms(userId: string): Promise<PendingSms[]> {
     )
     .orderBy(desc(tables.smsMessages.receivedAt))
 
+  const transactionIds = rows.flatMap((row) => (row.transactionId ? [row.transactionId] : []))
+  const transactions =
+    transactionIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(tables.transactions)
+          .where(
+            and(
+              eq(tables.transactions.userId, userId),
+              inArray(tables.transactions.id, transactionIds)
+            )
+          )
+  const transactionById = new Map(transactions.map((txn) => [txn.id, toTransactionResponse(txn)]))
+
   return rows.map((row) => ({
     id: row.id,
     sender: row.sender,
@@ -572,6 +593,21 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
     .orderBy(desc(tables.smsMessages.receivedAt))
     .limit(MAX_LISTED_MESSAGES)
 
+  const transactionIds = rows.flatMap((row) => (row.transactionId ? [row.transactionId] : []))
+  const transactions =
+    transactionIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(tables.transactions)
+          .where(
+            and(
+              eq(tables.transactions.userId, userId),
+              inArray(tables.transactions.id, transactionIds)
+            )
+          )
+  const transactionById = new Map(transactions.map((txn) => [txn.id, toTransactionResponse(txn)]))
+
   return rows.map((row) => ({
     id: row.id,
     sender: row.sender,
@@ -584,6 +620,7 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
     last4: row.last4,
     accountId: row.accountId,
     transactionId: row.transactionId,
+    transaction: row.transactionId ? (transactionById.get(row.transactionId) ?? null) : null,
   }))
 }
 
