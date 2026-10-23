@@ -925,6 +925,21 @@ export async function bulkDeleteTransactions(
       .where(eq(tables.statements.id, statementId))
   }
 
+  // A deleted transaction takes its message record with it, so a deleted import leaves nothing
+  // behind. Verified records stay: they are the sender's track record, not a trace of the transaction.
+  if (deleted.length > 0) {
+    await db.delete(tables.smsMessages).where(
+      and(
+        eq(tables.smsMessages.userId, userId),
+        eq(tables.smsMessages.status, 'imported'),
+        inArray(
+          tables.smsMessages.transactionId,
+          deleted.map((row) => row.id)
+        )
+      )
+    )
+  }
+
   logger.debug(`[Transaction] Bulk deleted ${deleted.length} transactions`)
   return deleted.length
 }

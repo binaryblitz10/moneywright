@@ -23,6 +23,7 @@ import {
 } from '../lib/sms/messages-db'
 import { pickTransactionDate } from '../lib/sms/date'
 import { looksLikeTransaction, parseSms, toCompleteSms, type ParsedSms } from '../lib/sms/parse'
+import { senderTrust, type SenderCounts } from '../lib/sms/sender'
 import { parseSmsWithLLM } from '../llm/sms-parser'
 import { getLLMSettings } from './config'
 import { findUserById } from './user'
@@ -392,10 +393,19 @@ async function alreadySeen(userId: string, guid: string): Promise<boolean> {
   return !!row
 }
 
-/** Rule-based parse first; AI only fills in what the rules could not read, when the user allows it */
-async function parseMessage(body: string, aiParsing: boolean): Promise<ParsedSms | null> {
+/**
+ * Rule-based parse first; when the rules could not read everything and the user allows it, the AI
+ * reads the message too (always, for a sender that looks like a vendor, so the review form is
+ * filled in). The AI's direction and merchant replace the rules' (it reads the wording the rules
+ * only pattern-match), while the rules' amount, card digits and date are kept when found.
+ */
+async function parseMessage(
+  body: string,
+  aiParsing: boolean,
+  alwaysUseAi: boolean
+): Promise<ParsedSms | null> {
   const parsed = parseSms(body)
-  if (toCompleteSms(parsed) || !aiParsing) return parsed
+  if (!aiParsing || (!alwaysUseAi && toCompleteSms(parsed))) return parsed
 
   try {
     const ai = await parseSmsWithLLM(body)
@@ -404,14 +414,39 @@ async function parseMessage(body: string, aiParsing: boolean): Promise<ParsedSms
       date: parsed.date,
       amount: parsed.amount ?? ai.amount,
       currency: parsed.currency ?? ai.currency,
-      type: parsed.type ?? ai.type,
+      type: ai.type ?? parsed.type,
       last4: parsed.last4 ?? ai.last4,
-      merchant: parsed.merchant ?? ai.merchant,
+      merchant: ai.merchant ?? parsed.merchant,
     }
   } catch (error) {
     logger.warn('[SmsImport] AI parsing failed, leaving the message for review:', error)
     return parsed
   }
+}
+
+/** Senders of verified and of dismissed messages, with how many each sent */
+interface SenderHistory {
+  verified: SenderCounts
+  dismissed: SenderCounts
+}
+
+async function loadSenderHistory(userId: string): Promise<SenderHistory> {
+  const rows = await db
+    .select({ sender: tables.smsMessages.sender, status: tables.smsMessages.status })
+    .from(tables.smsMessages)
+    .where(
+      and(
+        eq(tables.smsMessages.userId, userId),
+        inArray(tables.smsMessages.status, ['verified', 'dismissed'])
+      )
+    )
+
+  const history: SenderHistory = { verified: new Map(), dismissed: new Map() }
+  for (const { sender, status } of rows) {
+    const counts = status === 'verified' ? history.verified : history.dismissed
+    counts.set(sender, (counts.get(sender) ?? 0) + 1)
+  }
+  return history
 }
 
 interface MessageResult {
@@ -423,12 +458,16 @@ async function processMessage(
   userId: string,
   message: IncomingMessage,
   aiParsing: boolean,
-  useAi: boolean
+  useAi: boolean,
+  senders: SenderHistory
 ): Promise<MessageResult> {
   if (!looksLikeTransaction(message.body)) return { outcome: 'ignored' }
   if (await alreadySeen(userId, message.guid)) return { outcome: 'ignored' }
 
-  const parsed = await parseMessage(message.body, aiParsing)
+  // A sender unlike every bank seen so far (a vendor confirming a charge) is never imported
+  // unattended: its message waits in review, read by the AI so the form is filled in
+  const fromVendor = senderTrust(message.sender, senders.verified, senders.dismissed) === 'vendor'
+  const parsed = await parseMessage(message.body, aiParsing, fromVendor)
   if (!parsed) return { outcome: 'ignored' }
 
   const complete = toCompleteSms(parsed)
@@ -440,7 +479,7 @@ async function processMessage(
   // and must not be added up with the account's own currency, so it waits for the user
   const foreignCurrency = !!complete && !!account && account.currency !== complete.currency
 
-  if (!complete || !account || foreignCurrency) {
+  if (!complete || !account || foreignCurrency || fromVendor) {
     await queueForReview(userId, message, { parsed, accountId: account?.id ?? null })
     return { outcome: 'needs_review' }
   }
@@ -468,6 +507,7 @@ async function runSync(userId: string, since?: Date): Promise<SyncResult> {
 
   const aiParsing = await readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_AI_PARSING)
   const useAi = await aiCategorizationAvailable(userId)
+  const senders = await loadSenderHistory(userId)
   const importedRefs: ImportedRef[] = []
   const storedCursor = await getPreference(userId, PREFERENCE_KEYS.SMS_IMPORT_CURSOR)
   // Never start from the beginning of the message history unless a date asks for it
@@ -478,7 +518,13 @@ async function runSync(userId: string, since?: Date): Promise<SyncResult> {
     const messages = readMessagesAfter(cursor, since)
     for (const message of messages) {
       try {
-        const { outcome, imported } = await processMessage(userId, message, aiParsing, useAi)
+        const { outcome, imported } = await processMessage(
+          userId,
+          message,
+          aiParsing,
+          useAi,
+          senders
+        )
         if (outcome === 'imported') result.imported++
         if (outcome === 'needs_review') result.needsReview++
         if (imported) importedRefs.push(imported)
@@ -608,7 +654,13 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
           )
   const transactionById = new Map(transactions.map((txn) => [txn.id, toTransactionResponse(txn)]))
 
-  return rows.map((row) => ({
+  // Imported or verified messages whose transaction is gone (deleted along with its statement or
+  // account) have nothing to show
+  const listed = rows.filter(
+    (row) => row.transactionId !== null || (row.status !== 'imported' && row.status !== 'verified')
+  )
+
+  return listed.map((row) => ({
     id: row.id,
     sender: row.sender,
     receivedAt: new Date(row.receivedAt).toISOString(),
