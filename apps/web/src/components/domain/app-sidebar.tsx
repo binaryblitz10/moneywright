@@ -175,6 +175,7 @@ export function AppSidebar() {
             navigate({ to: item.href })
           }}
           disabled={item.disabled}
+          isActive={isActive}
           className={cn(
             'relative h-10 transition-all duration-200',
             item.disabled && 'opacity-40 cursor-not-allowed',
