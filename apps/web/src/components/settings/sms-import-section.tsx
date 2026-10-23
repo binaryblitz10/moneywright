@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { DeleteSmsTransactionsButton } from './delete-sms-transactions-button'
 import {
   useOpenSmsPermissionSettings,
   useSmsImportStatus,
@@ -93,44 +94,17 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
   return (
     <SectionCard
       title="Bank SMS Alerts"
-      description="Import card transactions from your bank's text messages. Messages are read on this Mac only."
+      description="Import transactions from bank text messages."
       contentClassName="space-y-6"
     >
       <SettingRow
         id="sms-import-enabled"
         label="Read bank messages"
-        description="New alerts are read when Moneywright opens and when you press Sync. Text Message Forwarding must be on for this Mac in your iPhone's Messages settings."
+        description="New alerts are read when the app opens or when you press Sync."
         checked={status.enabled}
         disabled={updateMutation.isPending}
         onCheckedChange={(enabled) => updateMutation.mutate({ enabled })}
       />
-
-      {needsPermission && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">Allow access to Messages</p>
-              <p className="text-xs text-muted-foreground">
-                Turn on Moneywright in Full Disk Access, then reopen the app.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={openSettingsMutation.isPending}
-              onClick={() => openSettingsMutation.mutate()}
-            >
-              Open settings
-            </Button>
-            <Button size="sm" variant="outline" disabled={isFetching} onClick={checkAgain}>
-              Check again
-            </Button>
-          </div>
-        </div>
-      )}
 
       <SettingRow
         id="sms-import-ai"
@@ -138,7 +112,7 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
         description={
           aiBlocked
             ? 'Set up an AI provider to use this.'
-            : 'Your AI provider reads messages the rules can’t and categorizes each imported transaction, like a statement. Only transaction alerts are sent. Without it, categories come from your rules.'
+            : 'Your AI provider reads messages the rules can’t and categorizes transactions.'
         }
         checked={status.aiParsing}
         disabled={updateMutation.isPending || aiBlocked}
@@ -185,6 +159,37 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
           </div>
         </div>
       )}
+
+      {needsPermission && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Allow access to Messages</p>
+              <p className="text-xs text-muted-foreground">
+                Turn on Moneywright in Full Disk Access, then reopen the app.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={openSettingsMutation.isPending}
+              onClick={() => openSettingsMutation.mutate()}
+            >
+              Open settings
+            </Button>
+            <Button size="sm" variant="outline" disabled={isFetching} onClick={checkAgain}>
+              Check again
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <DeleteSmsTransactionsButton />
+      </div>
     </SectionCard>
   )
 }

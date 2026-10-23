@@ -10,11 +10,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MessagesTable } from '@/components/bank-sms/messages-table'
 import { Button } from '@/components/ui/button'
-import { ClearMessagesButton } from '@/components/bank-sms/clear-messages-button'
+import { ProfileSelector } from '@/components/domain/profile-selector'
 import {
   useAccounts,
   useAuth,
   useCategories,
+  useProfileSelection,
   usePendingSms,
   useSmsImportStatus,
   useSyncSmsImport,
@@ -33,6 +34,8 @@ function BankSmsPage() {
   const { data: accounts = [] } = useAccounts()
   const syncMutation = useSyncSmsImport()
   const { user } = useAuth()
+  const { showFamilyView, selectorProfileId, handleProfileChange, handleFamilyViewChange } =
+    useProfileSelection()
   const { data: categoriesData } = useCategories()
   const categories = categoriesData?.categories || []
 
@@ -52,9 +55,8 @@ function BankSmsPage() {
         title="Bank SMS"
         description="Card and bank alerts read from your Messages app"
         actions={
-          enabled && (
-            <div className="flex gap-2">
-              <ClearMessagesButton disabled={(messages?.length ?? 0) === 0} />
+          <div className="flex gap-2">
+            {enabled && (
               <Button
                 className="px-5 has-[>svg]:px-5"
                 disabled={syncMutation.isPending}
@@ -67,8 +69,14 @@ function BankSmsPage() {
                 )}
                 Sync
               </Button>
-            </div>
-          )
+            )}
+            <ProfileSelector
+              selectedProfileId={selectorProfileId}
+              onProfileChange={handleProfileChange}
+              showFamilyView={showFamilyView}
+              onFamilyViewChange={handleFamilyViewChange}
+            />
+          </div>
         }
       />
 

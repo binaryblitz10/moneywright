@@ -75,7 +75,7 @@ function SettingsPage() {
     <AppLayout>
       <PageHeader
         title="Settings"
-        description="Manage your profiles, security, rules, AI providers and dashboard"
+        description="Manage your profiles, security, data, rules, AI providers and dashboard"
       />
 
       <div className="flex max-w-5xl flex-col overflow-hidden rounded-xl border border-border-subtle bg-card shadow-sm md:flex-row">
@@ -98,6 +98,15 @@ function SettingsPage() {
               {/* Sessions - only show when auth is enabled */}
               {authEnabled && <SessionsSection sessions={sessions} isLoading={sessionsLoading} />}
 
+              <AboutSection />
+
+              {/* Danger Zone - only show when auth is enabled */}
+              {authEnabled && <DangerZoneSection onLogout={logout} />}
+            </>
+          )}
+
+          {section === 'data' && (
+            <>
               {/* Data Health - checks across all profiles */}
               <DataHealthSection profileId={undefined} />
 
@@ -106,11 +115,6 @@ function SettingsPage() {
 
               {/* Backups - hidden when the database does not support them */}
               <BackupsSection />
-
-              <AboutSection />
-
-              {/* Danger Zone - only show when auth is enabled */}
-              {authEnabled && <DangerZoneSection onLogout={logout} />}
             </>
           )}
 

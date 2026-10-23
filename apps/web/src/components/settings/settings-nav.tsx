@@ -4,11 +4,12 @@
 
 import { cn } from '@/lib/utils'
 
-export const SETTINGS_SECTIONS = ['general', 'rules', 'ai', 'appearance'] as const
+export const SETTINGS_SECTIONS = ['general', 'data', 'rules', 'ai', 'appearance'] as const
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   general: 'General',
+  data: 'Data',
   rules: 'Rules',
   ai: 'AI Providers',
   appearance: 'Appearance',

@@ -1,5 +1,5 @@
 /**
- * Removes every transaction imported from messages and empties the synced list (after a confirmation)
+ * Deletes every transaction imported from messages and empties the synced list (after a confirmation)
  */
 
 import { useState } from 'react'
@@ -17,26 +17,26 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useClearSmsImport } from '@/hooks'
 
-export function ClearMessagesButton({ disabled }: { disabled: boolean }) {
+export function DeleteSmsTransactionsButton() {
   const clearMutation = useClearSmsImport()
   const [open, setOpen] = useState(false)
 
   return (
     <>
       <Button
-        variant="outline"
-        className="px-5 has-[>svg]:px-5 text-destructive hover:text-destructive"
-        disabled={disabled || clearMutation.isPending}
+        variant="ghost"
+        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        disabled={clearMutation.isPending}
         onClick={() => setOpen(true)}
       >
         <Trash2 className="mr-2 h-4 w-4" />
-        Clear
+        Delete all SMS Transactions
       </Button>
 
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear all synced messages?</AlertDialogTitle>
+            <AlertDialogTitle>Delete all SMS transactions?</AlertDialogTitle>
             <AlertDialogDescription>
               This deletes every transaction that was imported from a message and empties this list.
               Transactions from statements or added by hand are not touched. You can sync the
@@ -45,7 +45,12 @@ export function ClearMessagesButton({ disabled }: { disabled: boolean }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => clearMutation.mutate()}>Clear</AlertDialogAction>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => clearMutation.mutate()}
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
