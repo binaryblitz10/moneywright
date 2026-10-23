@@ -189,6 +189,7 @@ function StatementsPage() {
         kind: StatementGroupKind
         logoPath: string | null
         balance: number | null
+        paidSinceStatement: number
         currency: string
         statements: Statement[]
       }
@@ -223,10 +224,9 @@ function StatementsPage() {
           subtitle: last4 ? `••${last4}` : '',
           kind,
           logoPath: getLogoPath(statement),
-          balance:
-            kind === 'credit_card'
-              ? (account?.statementBalance ?? account?.latestBalance ?? null)
-              : (account?.latestBalance ?? null),
+          // latestBalance already has payments linked after the statement subtracted
+          balance: account?.latestBalance ?? null,
+          paidSinceStatement: account?.paymentsSinceStatement ?? 0,
           currency: account?.currency ?? 'INR',
           statements: [],
         }
@@ -359,6 +359,7 @@ function StatementsPage() {
                         kind={group.kind}
                         statements={group.statements}
                         balance={group.balance}
+                        paidSinceStatement={group.paidSinceStatement}
                         currency={group.currency}
                         overdueSince={group.overdueSince}
                         onMissingClick={() => setShowUploadDialog(true)}

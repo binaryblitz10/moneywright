@@ -18,6 +18,8 @@ interface StatementGroupProps {
   overdueSince?: string | null
   /** Latest balance (outstanding amount for credit cards) */
   balance?: number | null
+  /** Credit card payments linked after the latest statement */
+  paidSinceStatement?: number
   currency?: string
   /** Opens the upload flow from a missing month in the timeline */
   onMissingClick?: () => void
@@ -41,6 +43,7 @@ export function StatementGroup({
   statements,
   overdueSince,
   balance,
+  paidSinceStatement = 0,
   currency = 'INR',
   onMissingClick,
   children,
@@ -48,6 +51,12 @@ export function StatementGroup({
   const [logoError, setLogoError] = useState(false)
   const { icon: Icon, balanceLabel } = KIND_META[kind]
   const count = statements.length
+  const formatMoney = (amount: number): string =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount)
 
   const starts = statements
     .map((s) => s.periodStart || s.periodEnd)
@@ -98,12 +107,13 @@ export function StatementGroup({
                 {balanceLabel}
               </p>
               <p className="text-sm font-semibold tabular-nums text-foreground">
-                {new Intl.NumberFormat('en-IN', {
-                  style: 'currency',
-                  currency,
-                  maximumFractionDigits: 0,
-                }).format(balance)}
+                {formatMoney(balance)}
               </p>
+              {paidSinceStatement > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {formatMoney(paidSinceStatement)} paid since statement
+                </p>
+              )}
             </div>
           )}
           <div className="text-right">
