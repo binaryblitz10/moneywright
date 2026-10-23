@@ -1293,8 +1293,13 @@ export interface LinkSuggestions {
 /**
  * Candidates for linking a card payment, best first
  */
-export async function getLinkSuggestions(transactionId: string): Promise<LinkSuggestions> {
-  const response = await api.get(`/transactions/${transactionId}/link-suggestions`)
+export async function getLinkSuggestions(
+  transactionId: string,
+  category?: string
+): Promise<LinkSuggestions> {
+  const response = await api.get(`/transactions/${transactionId}/link-suggestions`, {
+    params: { category },
+  })
   return response.data
 }
 

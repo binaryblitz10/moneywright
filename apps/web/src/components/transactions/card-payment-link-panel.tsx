@@ -25,6 +25,8 @@ type CardSuggestion = Extract<LinkSuggestion, { kind: 'card' }>
 interface CardPaymentLinkPanelProps {
   /** The card payment: a bank debit or a card credit */
   transaction: Pick<Transaction, 'id' | 'type'>
+  /** The category chosen in the edit form, when it is not saved yet */
+  category?: string
 }
 
 function formatShortDate(date: string): string {
@@ -86,9 +88,9 @@ function CandidateRow({ title, detail, actionLabel, disabled, onAction }: Candid
  * "payment received" line, or just to the card until the card statement is uploaded;
  * a card credit is linked to the bank debit that paid it. Changes apply straight away.
  */
-export function CardPaymentLinkPanel({ transaction }: CardPaymentLinkPanelProps) {
+export function CardPaymentLinkPanel({ transaction, category }: CardPaymentLinkPanelProps) {
   const isDebit = transaction.type === 'debit'
-  const { data: suggestions, isLoading } = useLinkSuggestions(transaction.id)
+  const { data: suggestions, isLoading } = useLinkSuggestions(transaction.id, category)
   const { data: accounts } = useAccounts(undefined, { enabled: isDebit })
   const linkMutation = useLinkTransactions()
   const cardMutation = useLinkToCard()

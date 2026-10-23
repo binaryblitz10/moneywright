@@ -51,13 +51,13 @@ export const transactionKeys = {
     [...transactionKeys.all, 'reviewCounts', profileId] as const,
   linkCandidates: (transactionId: string) =>
     [...transactionKeys.all, 'linkCandidates', transactionId] as const,
-  linkSuggestions: (transactionId: string) =>
-    [...transactionKeys.all, 'linkSuggestions', transactionId] as const,
+  linkSuggestions: (transactionId: string, category?: string) =>
+    [...transactionKeys.all, 'linkSuggestions', transactionId, category] as const,
 }
 
 /**
  * Refresh everything derived from transaction rows: lists, cash flow summaries, reports,
- * spending changes, Data Health reconciliation and account balances
+ * spending changes, Data Health reconciliation, account balances and the Bank SMS list
  */
 export function invalidateTransactionTotals(queryClient: QueryClient): void {
   for (const queryKey of [
@@ -161,12 +161,12 @@ export function useLinkCandidates(transactionId: string) {
 }
 
 /**
- * Fetch the card payment candidates for a transaction
+ * Fetch the card payment candidates for a transaction; `category` is the one being edited, if not saved yet
  */
-export function useLinkSuggestions(transactionId: string, enabled = true) {
+export function useLinkSuggestions(transactionId: string, category?: string, enabled = true) {
   return useQuery({
-    queryKey: transactionKeys.linkSuggestions(transactionId),
-    queryFn: () => getLinkSuggestions(transactionId),
+    queryKey: transactionKeys.linkSuggestions(transactionId, category),
+    queryFn: () => getLinkSuggestions(transactionId, category),
     enabled: enabled && !!transactionId,
   })
 }

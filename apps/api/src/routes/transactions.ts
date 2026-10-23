@@ -447,7 +447,7 @@ transactionRoutes.get('/:id/link-suggestions', async (c) => {
   const transactionId = c.req.param('id')
 
   try {
-    return c.json(await getLinkSuggestions(transactionId, userId))
+    return c.json(await getLinkSuggestions(transactionId, userId, c.req.query('category')))
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to find suggestions'
 

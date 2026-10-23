@@ -352,10 +352,12 @@ async function getLinkState(
 /**
  * Candidates for linking a card payment: for a bank debit, the card credits that could be
  * its payment line plus the cards it may have paid; for a card credit, the bank debits.
+ * `category` is the category being edited and not saved yet; it stands in for the stored one.
  */
 export async function getLinkSuggestions(
   transactionId: string,
-  userId: string
+  userId: string,
+  category: string = ''
 ): Promise<LinkSuggestions> {
   const txn = await getTransactionById(transactionId, userId)
   if (!txn) throw new Error('Transaction not found')
@@ -366,7 +368,7 @@ export async function getLinkSuggestions(
   const source = accountById.get(txn.accountId)
   const isDebit =
     txn.type === 'debit' &&
-    txn.category === CARD_PAYMENT_CATEGORY &&
+    (category || txn.category) === CARD_PAYMENT_CATEGORY &&
     !!source &&
     BANK_ACCOUNT_TYPES.includes(source.type)
   const isCardCredit = txn.type === 'credit' && source?.type === CREDIT_CARD_TYPE

@@ -141,8 +141,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
 
   // Entity linking is only offered when editing a single transaction
   const isLinkableCategory = !!single && category in LINKABLE_CATEGORIES
-  const cardPanelOwnsLink =
-    !!single && single.category === CARD_PAYMENT_CATEGORY && category === CARD_PAYMENT_CATEGORY
+  const cardPanelOwnsLink = !!single && category === CARD_PAYMENT_CATEGORY
   const entityType = isLinkableCategory ? LINKABLE_CATEGORIES[category as LinkableCategory] : null
 
   // Single edit: any field that differs from the stored transaction (the card payment panel saves its own links)
@@ -339,14 +338,9 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       )}
 
       {/* Card payments are linked to the card statement's payment line, or to the card only */}
-      {single && cardPanelOwnsLink && <CardPaymentLinkPanel transaction={single} />}
-      {single &&
-        single.category !== CARD_PAYMENT_CATEGORY &&
-        category === CARD_PAYMENT_CATEGORY && (
-          <p className="text-xs text-muted-foreground">
-            Save the category to link this payment to a card.
-          </p>
-        )}
+      {single && cardPanelOwnsLink && (
+        <CardPaymentLinkPanel transaction={single} category={category} />
+      )}
 
       {/* Loan and insurance linking - only shown for linkable categories */}
       {isLinkableCategory && (
