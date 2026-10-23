@@ -71,6 +71,7 @@ export function invalidateTransactionTotals(queryClient: QueryClient): void {
     ['subscriptions'],
     ['loans'],
     ['insurance'],
+    ['sms-import'],
   ]) {
     queryClient.invalidateQueries({ queryKey })
   }
