@@ -13,6 +13,7 @@ import { decrypt, decryptOptional, encrypt } from '../lib/encryption'
 import { getLast4 } from '../lib/account-number'
 import { isAuthEnabled } from '../lib/startup'
 import { logger } from '../lib/logger'
+import { showNotification } from '../lib/notify'
 import {
   checkMessagesAccess,
   getLatestRowId,
@@ -573,11 +574,25 @@ export function syncSmsMessages(userId: string, since?: Date): Promise<SyncResul
   return syncInFlight
 }
 
+/** Tell the user what a sync found, since nothing in the app is open to show it */
+function notifySyncResult({ imported, needsReview, verified }: SyncResult): void {
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
+  const parts = [
+    imported > 0 ? `${plural(imported, 'transaction')} imported` : null,
+    verified > 0 ? `${verified} verified` : null,
+    needsReview > 0 ? `${needsReview} to review` : null,
+  ].filter(Boolean)
+  if (parts.length > 0) showNotification('Moneywright', `From bank messages: ${parts.join(', ')}`)
+}
+
 /** Read new messages once, when the app starts, if reading is switched on */
 export function syncSmsOnStartup(userId: string): void {
   if (!isSmsImportSupported()) return
   readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_ENABLED)
     .then((enabled) => (enabled ? syncSmsMessages(userId) : null))
+    .then((result) => {
+      if (result) notifySyncResult(result)
+    })
     .catch((error) => logger.error('[SmsImport] Startup sync failed:', error))
 }
 
