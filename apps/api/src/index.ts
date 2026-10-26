@@ -48,8 +48,6 @@ import { securityHeaders } from './middleware/security-headers'
 import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
 import { recoverInterruptedProcessing } from './services/statements'
-import { syncSmsOnStartup } from './services/sms-import'
-import { DEFAULT_USER_ID } from './lib/constants'
 import { repairCardPaymentLinks } from './services/card-payments'
 
 // Get the directory where the binary/script is located
@@ -90,9 +88,6 @@ try {
 } catch (error) {
   logger.error('[Startup] Card payment link repair failed:', error)
 }
-
-// Read new bank alert messages once at startup (macOS local mode, only when the user switched it on)
-syncSmsOnStartup(DEFAULT_USER_ID)
 
 // Handle CLI arguments
 const args = process.argv.slice(2)

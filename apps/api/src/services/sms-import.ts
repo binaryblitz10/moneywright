@@ -585,9 +585,15 @@ function notifySyncResult({ imported, needsReview, verified }: SyncResult): void
   if (parts.length > 0) showNotification('Moneywright', `From bank messages: ${parts.join(', ')}`)
 }
 
-/** Read new messages once, when the app starts, if reading is switched on */
-export function syncSmsOnStartup(userId: string): void {
-  if (!isSmsImportSupported()) return
+let unlockSyncStarted = false
+
+/**
+ * Read new messages once per app run, as soon as the app is unlocked, if reading is switched on.
+ * Waiting for the unlock means the user is in the app to see the notification.
+ */
+export function syncSmsOnUnlock(userId: string): void {
+  if (unlockSyncStarted || !isSmsImportSupported()) return
+  unlockSyncStarted = true
   readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_ENABLED)
     .then((enabled) => (enabled ? syncSmsMessages(userId) : null))
     .then((result) => {

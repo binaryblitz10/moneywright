@@ -4,6 +4,7 @@ import { verifyJWT, type AccessTokenPayload } from '../lib/jwt'
 import { verifyFingerprint, hashForLog } from '../lib/hash'
 import { logger } from '../lib/logger'
 import { isAuthEnabled, isLocalhost } from '../lib/startup'
+import { syncSmsOnUnlock } from '../services/sms-import'
 
 /**
  * Auth context variables set by middleware.
@@ -125,6 +126,9 @@ export const auth = () => {
     // Set context variables
     c.set('userId', result.payload.sub)
     c.set('sessionId', result.payload.sid)
+
+    // In local mode a valid session means the PIN was entered, so the app is unlocked
+    if (!isAuthEnabled()) syncSmsOnUnlock(result.payload.sub)
 
     await next()
   })
