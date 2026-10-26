@@ -99,6 +99,16 @@ const colorStyles: Record<string, string> = {
 }
 
 /** First letter of a transaction's name, uppercased; "?" when there is none */
+const NOTE_PREVIEW_LENGTH = 30
+
+/** First line of a note, cut to a short preview */
+function truncateNote(note: string): string {
+  const line = (note.split('\n')[0] ?? '').trim()
+  return line.length > NOTE_PREVIEW_LENGTH
+    ? `${line.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`
+    : line
+}
+
 function getNameInitial(name: string): string {
   const letter = name.trim().charAt(0)
   return letter ? letter.toUpperCase() : '?'
@@ -378,6 +388,14 @@ export function TransactionTable({
                                 : null
                             }
                           />
+                          {txn.notes && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <p className="shrink-0 text-xs italic text-muted-foreground">
+                                {truncateNote(txn.notes)}
+                              </p>
+                            </>
+                          )}
                           {txn.summary && txn.summary !== txn.originalDescription && (
                             <>
                               <span className="text-muted-foreground">·</span>
