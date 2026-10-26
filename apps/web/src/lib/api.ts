@@ -834,6 +834,7 @@ export interface Transaction {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
+  notes: string | null
   /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
@@ -979,6 +980,7 @@ export async function updateTransaction(
   data: {
     category?: string
     summary?: string
+    notes?: string | null
     isHidden?: boolean
     date?: string
     amount?: number

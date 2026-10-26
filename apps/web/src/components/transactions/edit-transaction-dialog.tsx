@@ -36,6 +36,7 @@ export function EditTransactionDialog({
         </DialogHeader>
         {transaction && (
           <TransactionEditForm
+            key={transaction.id}
             transaction={transaction}
             categories={categories}
             onClose={onClose}

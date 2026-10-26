@@ -65,6 +65,7 @@ function toPlaceholderTransaction(message: SyncedSms, date: string | null): Tran
     linkedEntityType: null,
     isManuallyCategorized: false,
     isHidden: false,
+    notes: null,
     smsSource: false,
     smsVerified: false,
     createdAt: message.receivedAt,

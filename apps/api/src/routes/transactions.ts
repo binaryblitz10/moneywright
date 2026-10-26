@@ -53,6 +53,7 @@ transactionRoutes.use('*', auth())
 const updateTransactionSchema = z.object({
   category: transactionCategorySchema.optional(),
   summary: z.string().optional(),
+  notes: z.string().max(2000).nullable().optional(),
   isHidden: z.boolean().optional(),
   date: transactionDateSchema.optional(),
   amount: transactionAmountSchema.optional(),

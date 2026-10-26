@@ -55,6 +55,7 @@ function buildTermCondition(term: SearchTerm) {
   const textMatch = [
     like(tables.transactions.originalDescription, searchTerm),
     like(tables.transactions.summary, searchTerm),
+    like(tables.transactions.notes, searchTerm),
   ]
   if (amountSearch?.kind === 'partial') {
     // Match against the amount written with two decimals, as it is shown
@@ -101,6 +102,7 @@ export interface TransactionResponse {
   linkedEntityType: string | null // 'transaction' | 'credit_card' | 'insurance' | 'loan'
   isManuallyCategorized: boolean
   isHidden: boolean
+  notes: string | null
   /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
@@ -192,6 +194,7 @@ export function toTransactionResponse(txn: Transaction): TransactionResponse {
     linkedEntityType: txn.linkedEntityType,
     isManuallyCategorized: txn.isManuallyCategorized ?? false,
     isHidden: txn.isHidden ?? false,
+    notes: txn.notes ?? null,
     smsSource: txn.hash.startsWith('sms:'),
     smsVerified: txn.smsVerified ?? false,
     createdAt: txn.createdAt,
@@ -475,6 +478,7 @@ export async function updateTransaction(
   data: {
     category?: string
     summary?: string
+    notes?: string | null
     isHidden?: boolean
     date?: string
     amount?: number
@@ -518,6 +522,10 @@ export async function updateTransaction(
 
   if (data.isHidden !== undefined) {
     updateData.isHidden = data.isHidden
+  }
+
+  if (data.notes !== undefined) {
+    updateData.notes = data.notes?.trim() || null
   }
 
   if (data.date !== undefined) {

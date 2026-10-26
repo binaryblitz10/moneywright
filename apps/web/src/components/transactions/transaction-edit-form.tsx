@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +79,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   // Bulk: empty category / summary and a null hidden state mean "keep existing"
   const [category, setCategory] = useState(single?.category ?? '')
   const [summary, setSummary] = useState(single?.summary ?? '')
+  const [notes, setNotes] = useState(single?.notes ?? '')
   const [isHidden, setIsHidden] = useState<boolean | null>(single ? single.isHidden : null)
   const [linkedEntityId, setLinkedEntityId] = useState<string | null>(
     single?.linkedEntityId ?? null
@@ -111,6 +113,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const typeChange = single && money.type !== single.type ? money.type : undefined
   const hasMoneyChange =
     dateChange !== undefined || amountChange !== undefined || typeChange !== undefined
+  // Single edit only; saving an empty note clears it
+  const notesChange = single && notes.trim() !== (single.notes ?? '') ? notes.trim() : undefined
   const moneyInvalid = !!single && !areMoneyValuesValid(money)
 
   // "Create Rule" is offered once the name or category is changed
@@ -148,6 +152,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const hasChanges = single
     ? hasNameOrCategoryChange ||
       hasMoneyChange ||
+      notesChange !== undefined ||
       isHidden !== single.isHidden ||
       (!cardPanelOwnsLink && linkedEntityId !== (single.linkedEntityId ?? null))
     : hasNameOrCategoryChange || isHidden !== null
@@ -256,6 +261,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           category,
           summary: summary || undefined,
           isHidden: isHidden ?? undefined,
+          notes: notesChange,
           date: dateChange,
           amount: amountChange,
           type: typeChange,
@@ -334,6 +340,20 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
               the new values.
             </p>
           )}
+        </div>
+      )}
+
+      {single && (
+        <div className="space-y-2">
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a note about this transaction"
+            maxLength={2000}
+            rows={3}
+          />
         </div>
       )}
 

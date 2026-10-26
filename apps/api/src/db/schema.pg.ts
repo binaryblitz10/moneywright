@@ -273,6 +273,7 @@ export const transactions = pgTable(
     // Manual editing and visibility
     isManuallyCategorized: boolean('is_manually_categorized').default(false), // true if user manually edited summary or category
     isHidden: boolean('is_hidden').default(false), // true if user hides this transaction from queries
+    notes: text('notes'), // free-form note written by the user
     smsVerified: boolean('sms_verified').notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
