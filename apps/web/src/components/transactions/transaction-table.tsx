@@ -160,8 +160,8 @@ export function TransactionTable({
   const selectableRows = isSelectable ? transactions.filter(isSelectable) : transactions
   const selectedOnPage = selectable ? selectableRows.filter((t) => selectedIds.has(t.id)).length : 0
   const allOnPageSelected = selectableRows.length > 0 && selectedOnPage === selectableRows.length
-  // Clicking anywhere on a row only selects once a selection has been started via a checkbox
-  const rowClickSelects = selectable && selectedIds.size > 0
+  // Whenever selection is enabled, clicking anywhere on a row toggles it
+  const rowClickSelects = selectable
 
   // ID of the last row clicked, used as the anchor for shift-click range selection
   const anchorIdRef = useRef<string | null>(null)
