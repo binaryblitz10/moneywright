@@ -354,7 +354,11 @@ export async function getTransactions(
     .select()
     .from(tables.transactions)
     .where(and(...conditions))
-    .orderBy(orderFn(sortColumn))
+    .orderBy(
+      orderFn(sortColumn),
+      orderFn(tables.transactions.createdAt),
+      orderFn(tables.transactions.id)
+    )
     .limit(limit)
     .offset(offset)
 
