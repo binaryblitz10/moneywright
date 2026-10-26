@@ -3475,6 +3475,10 @@ export async function dismissPendingSms(id: string): Promise<void> {
   await api.post(`/sms-import/pending/${encodeURIComponent(id)}/dismiss`)
 }
 
+export async function restoreDismissedSms(id: string): Promise<void> {
+  await api.post(`/sms-import/messages/${encodeURIComponent(id)}/restore`)
+}
+
 export interface SyncedSms {
   id: string
   sender: string

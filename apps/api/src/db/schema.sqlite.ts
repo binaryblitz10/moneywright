@@ -545,7 +545,7 @@ export const smsMessages = sqliteTable(
     sender: text('sender').notNull(),
     receivedAt: text('received_at').notNull(), // ISO timestamp
     status: text('status').notNull(), // 'imported' | 'needs_review' | 'dismissed'
-    body: text('body'), // Encrypted; only kept while the message needs review
+    body: text('body'), // Encrypted; kept while the message needs review or is dismissed
     accountId: text('account_id').references(() => accounts.id, { onDelete: 'set null' }),
     transactionId: text('transaction_id').references(() => transactions.id, {
       onDelete: 'set null',

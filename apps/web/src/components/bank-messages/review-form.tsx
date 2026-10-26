@@ -27,9 +27,10 @@ interface ReviewFormProps {
   message: PendingSms
   accounts: Account[]
   onDone: () => void
+  onCancel: () => void
 }
 
-export function ReviewForm({ message, accounts, onDone }: ReviewFormProps) {
+export function ReviewForm({ message, accounts, onDone, onCancel }: ReviewFormProps) {
   const importMutation = useImportPendingSms()
   const dismissMutation = useDismissPendingSms()
 
@@ -143,36 +144,43 @@ export function ReviewForm({ message, accounts, onDone }: ReviewFormProps) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           variant="ghost"
+          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           disabled={busy}
           onClick={() => dismissMutation.mutate(message.id, { onSuccess: onDone })}
         >
+          {dismissMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Dismiss
         </Button>
-        <Button
-          disabled={!canImport || busy}
-          onClick={() =>
-            importMutation.mutate(
-              {
-                id: message.id,
-                data: {
-                  accountId,
-                  date,
-                  amount: amountValue,
-                  currency: resolvedCurrency.toUpperCase(),
-                  type,
-                  merchant: merchant.trim(),
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canImport || busy}
+            onClick={() =>
+              importMutation.mutate(
+                {
+                  id: message.id,
+                  data: {
+                    accountId,
+                    date,
+                    amount: amountValue,
+                    currency: resolvedCurrency.toUpperCase(),
+                    type,
+                    merchant: merchant.trim(),
+                  },
                 },
-              },
-              { onSuccess: onDone }
-            )
-          }
-        >
-          {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Add transaction
-        </Button>
+                { onSuccess: onDone }
+              )
+            }
+          >
+            {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Add transaction
+          </Button>
+        </div>
       </div>
     </div>
   )

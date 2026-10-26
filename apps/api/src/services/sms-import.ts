@@ -781,14 +781,33 @@ export async function importPendingSms(
   return true
 }
 
-/** Drop a waiting message without importing it. Returns false if it is not waiting. */
+/**
+ * Drop a waiting message without importing it. The text is kept so the dismissal can be undone.
+ * Returns false if it is not waiting.
+ */
 export async function dismissPendingSms(userId: string, id: string): Promise<boolean> {
   const row = await getPendingRow(userId, id)
   if (!row) return false
 
   await db
     .update(tables.smsMessages)
-    .set({ status: 'dismissed', body: null, updatedAt: nowValue() })
+    .set({ status: 'dismissed', updatedAt: nowValue() })
     .where(eq(tables.smsMessages.id, row.id))
   return true
+}
+
+/** Put a dismissed message back in the review list. Returns false if it is not dismissed. */
+export async function restoreDismissedSms(userId: string, id: string): Promise<boolean> {
+  const restored = await db
+    .update(tables.smsMessages)
+    .set({ status: 'needs_review', updatedAt: nowValue() })
+    .where(
+      and(
+        eq(tables.smsMessages.id, id),
+        eq(tables.smsMessages.userId, userId),
+        eq(tables.smsMessages.status, 'dismissed')
+      )
+    )
+    .returning({ id: tables.smsMessages.id })
+  return restored.length > 0
 }

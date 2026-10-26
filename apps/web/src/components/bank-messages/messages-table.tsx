@@ -3,8 +3,9 @@
  */
 
 import { useState } from 'react'
-import { ListChecks, MessageSquareText, X } from 'lucide-react'
+import { ListChecks, Loader2, MessageSquareText, Undo2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
@@ -21,6 +22,7 @@ import {
   TransactionEditForm,
   TransactionTable,
 } from '@/components/transactions'
+import { useRestoreDismissedSms } from '@/hooks'
 import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
 
 type Filter = 'all' | SyncedSms['status']
@@ -93,6 +95,8 @@ export function MessagesTable({
 }: MessagesTableProps) {
   const [filter, setFilter] = useState<Filter>(pending.length > 0 ? 'needs_review' : 'all')
   const [reviewing, setReviewing] = useState<PendingSms | null>(null)
+  const [restoring, setRestoring] = useState<SyncedSms | null>(null)
+  const restoreMutation = useRestoreDismissedSms()
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -191,10 +195,11 @@ export function MessagesTable({
           formatAmount={formatAmount}
           onEditTransaction={(txn) => {
             const waiting = pendingById.get(txn.id)
+            const dismissed = visible.find((m) => m.id === txn.id && m.status === 'dismissed')
             if (waiting) setReviewing(waiting)
+            else if (dismissed) setRestoring(dismissed)
             else setEditing(txn)
           }}
-          isEditable={(txn) => !statusById.has(txn.id) || pendingById.has(txn.id)}
           isSelectable={(txn) => !statusById.has(txn.id)}
           selectedIds={selectionMode ? selectedIds : undefined}
           onSelectionChange={selectionMode ? setSelectedIds : undefined}
@@ -237,8 +242,41 @@ export function MessagesTable({
               message={reviewing}
               accounts={accounts.filter((a) => a.isActive)}
               onDone={() => setReviewing(null)}
+              onCancel={() => setReviewing(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!restoring} onOpenChange={(open) => !open && setRestoring(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dismissed message</DialogTitle>
+            <DialogDescription>
+              {restoring?.sender} · {restoring && new Date(restoring.receivedAt).toLocaleString()}
+              <br />
+              Restore it to review it again and add it as a transaction.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRestoring(null)}>
+              Close
+            </Button>
+            <Button
+              disabled={restoreMutation.isPending}
+              onClick={() =>
+                restoring &&
+                restoreMutation.mutate(restoring.id, { onSuccess: () => setRestoring(null) })
+              }
+            >
+              {restoreMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Undo2 className="mr-2 h-4 w-4" />
+              )}
+              Restore
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

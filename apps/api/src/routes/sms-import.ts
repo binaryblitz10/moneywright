@@ -11,6 +11,7 @@ import {
   openFullDiskAccessSettings,
   importPendingSms,
   dismissPendingSms,
+  restoreDismissedSms,
   isSmsImportSupported,
 } from '../services/sms-import'
 import { getAccountByIdRaw } from '../services/accounts'
@@ -159,6 +160,15 @@ smsImportRoutes.post('/pending/:id/import', async (c) => {
 smsImportRoutes.post('/pending/:id/dismiss', async (c) => {
   const dismissed = await dismissPendingSms(c.get('userId'), c.req.param('id'))
   if (!dismissed) return c.json({ error: 'not_found', message: 'Message not found' }, 404)
+  return c.json({ success: true })
+})
+
+/**
+ * POST /sms-import/messages/:id/restore - undo a dismissal
+ */
+smsImportRoutes.post('/messages/:id/restore', async (c) => {
+  const restored = await restoreDismissedSms(c.get('userId'), c.req.param('id'))
+  if (!restored) return c.json({ error: 'not_found', message: 'Message not found' }, 404)
   return c.json({ success: true })
 })
 

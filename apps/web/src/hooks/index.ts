@@ -92,6 +92,7 @@ export {
   useClearSmsImport,
   useImportPendingSms,
   useDismissPendingSms,
+  useRestoreDismissedSms,
 } from './useSmsImport'
 
 // Statement hooks

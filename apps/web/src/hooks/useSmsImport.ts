@@ -10,6 +10,7 @@ import {
   openSmsPermissionSettings,
   importPendingSms,
   dismissPendingSms,
+  restoreDismissedSms,
   type SmsImportInput,
 } from '@/lib/api'
 import { transactionKeys } from './useTransactions'
@@ -151,5 +152,21 @@ export function useDismissPendingSms() {
     mutationFn: dismissPendingSms,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: smsImportKeys.all }),
     onError: () => toast.error('Could not dismiss the message'),
+  })
+}
+
+/**
+ * Undo a dismissal: put the message back in the review list
+ */
+export function useRestoreDismissedSms() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: restoreDismissedSms,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: smsImportKeys.all })
+      toast.success('Message restored to review')
+    },
+    onError: () => toast.error('Could not restore the message'),
   })
 }

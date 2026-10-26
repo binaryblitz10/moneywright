@@ -653,7 +653,7 @@ export const smsMessages = pgTable(
     sender: text('sender').notNull(),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
     status: varchar('status', { length: 20 }).notNull(), // 'imported' | 'needs_review' | 'dismissed'
-    body: text('body'), // Encrypted; only kept while the message needs review
+    body: text('body'), // Encrypted; kept while the message needs review or is dismissed
     accountId: varchar('account_id', { length: 21 }).references(() => accounts.id, {
       onDelete: 'set null',
     }),
