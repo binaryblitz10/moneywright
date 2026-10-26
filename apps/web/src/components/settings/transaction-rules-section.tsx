@@ -4,10 +4,10 @@
  * optionally limited to one direction and an amount range
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useMutation } from '@tanstack/react-query'
-import { Loader2, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Search, Trash2, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
@@ -88,7 +88,18 @@ export function TransactionRulesSection() {
   const [editing, setEditing] = useState<TransactionRule | 'new' | null>(null)
   const [applying, setApplying] = useState<TransactionRule | null>(null)
   const [deleting, setDeleting] = useState<TransactionRule | null>(null)
+  const [search, setSearch] = useState('')
   const deleteMutation = useDeleteTransactionRule()
+
+  const filteredRules = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!rules || !query) return rules ?? []
+    return rules.filter((rule) =>
+      [rule.name, getCategoryLabel(categories, rule.category), ...rule.matchTerms].some((value) =>
+        value?.toLowerCase().includes(query)
+      )
+    )
+  }, [rules, categories, search])
 
   return (
     <SectionCard
@@ -111,18 +122,36 @@ export function TransactionRulesSection() {
           No rules
         </p>
       ) : (
-        <div className="space-y-2">
-          {rules.map((rule) => (
-            <RuleRow
-              key={rule.id}
-              rule={rule}
-              categories={categories}
-              onEdit={() => setEditing(rule)}
-              onApply={() => setApplying(rule)}
-              onDelete={() => setDeleting(rule)}
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search rules by term, name or category"
+              aria-label="Search rules"
+              className="pl-9"
             />
-          ))}
-        </div>
+          </div>
+          {filteredRules.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border-subtle py-6 text-center text-sm text-muted-foreground">
+              No matching rules
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filteredRules.map((rule) => (
+                <RuleRow
+                  key={rule.id}
+                  rule={rule}
+                  categories={categories}
+                  onEdit={() => setEditing(rule)}
+                  onApply={() => setApplying(rule)}
+                  onDelete={() => setDeleting(rule)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {editing && (
