@@ -3458,6 +3458,14 @@ export async function syncSmsImport(
   return response.data
 }
 
+/** What the sync run at unlock found; only the first call per app run returns it */
+export async function getUnlockSyncResult(): Promise<{
+  result: { imported: number; needsReview: number; verified: number } | null
+}> {
+  const response = await api.get('/sms-import/unlock-sync')
+  return response.data
+}
+
 /** Remove all synced messages and the transactions created from them */
 export async function clearSmsImport(): Promise<{ transactions: number; messages: number }> {
   const response = await api.delete('/sms-import/messages')

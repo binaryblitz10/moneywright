@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getSmsImportStatus,
   updateSmsImportSettings,
   syncSmsImport,
+  getUnlockSyncResult,
   clearSmsImport,
   getPendingSms,
   getSyncedSms,
@@ -104,6 +106,39 @@ export function useSyncSmsImport() {
     },
     onError: () => toast.error('Could not read messages'),
   })
+}
+
+/**
+ * Toast what the sync run at unlock found. The server hands the result out once per app run.
+ */
+export function useUnlockSyncToast(enabled: boolean) {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({
+    queryKey: [...smsImportKeys.all, 'unlock-sync'] as const,
+    queryFn: getUnlockSyncResult,
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  useEffect(() => {
+    const result = data?.result
+    if (!result) return
+    const { imported, needsReview, verified } = result
+    if (imported + verified > 0) {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      queryClient.invalidateQueries({ queryKey: accountKeys.all })
+    }
+    queryClient.invalidateQueries({ queryKey: smsImportKeys.status() })
+    queryClient.invalidateQueries({ queryKey: smsImportKeys.pending() })
+    queryClient.invalidateQueries({ queryKey: smsImportKeys.messages() })
+    const parts = [
+      imported > 0 ? `${imported} imported` : null,
+      verified > 0 ? `${verified} verified` : null,
+      needsReview > 0 ? `${needsReview} to review` : null,
+    ].filter(Boolean)
+    if (parts.length > 0) toast.success(`From bank messages: ${parts.join(', ')}`)
+  }, [data, queryClient])
 }
 
 /**

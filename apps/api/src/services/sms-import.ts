@@ -13,7 +13,6 @@ import { decrypt, decryptOptional, encrypt } from '../lib/encryption'
 import { getLast4 } from '../lib/account-number'
 import { isAuthEnabled } from '../lib/startup'
 import { logger } from '../lib/logger'
-import { showNotification } from '../lib/notify'
 import {
   checkMessagesAccess,
   getLatestRowId,
@@ -574,32 +573,28 @@ export function syncSmsMessages(userId: string, since?: Date): Promise<SyncResul
   return syncInFlight
 }
 
-/** Tell the user what a sync found, since nothing in the app is open to show it */
-function notifySyncResult({ imported, needsReview, verified }: SyncResult): void {
-  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
-  const parts = [
-    imported > 0 ? `${plural(imported, 'transaction')} imported` : null,
-    verified > 0 ? `${verified} verified` : null,
-    needsReview > 0 ? `${needsReview} to review` : null,
-  ].filter(Boolean)
-  if (parts.length > 0) showNotification('Moneywright', `From bank messages: ${parts.join(', ')}`)
-}
-
-let unlockSyncStarted = false
+let unlockSync: Promise<SyncResult | null> | null = null
+let unlockSyncReported = false
 
 /**
  * Read new messages once per app run, as soon as the app is unlocked, if reading is switched on.
- * Waiting for the unlock means the user is in the app to see the notification.
+ * The result is handed to the web app by takeUnlockSyncResult, which shows it as a toast.
  */
 export function syncSmsOnUnlock(userId: string): void {
-  if (unlockSyncStarted || !isSmsImportSupported()) return
-  unlockSyncStarted = true
-  readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_ENABLED)
+  if (unlockSync || !isSmsImportSupported()) return
+  unlockSync = readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_ENABLED)
     .then((enabled) => (enabled ? syncSmsMessages(userId) : null))
-    .then((result) => {
-      if (result) notifySyncResult(result)
+    .catch((error) => {
+      logger.error('[SmsImport] Startup sync failed:', error)
+      return null
     })
-    .catch((error) => logger.error('[SmsImport] Startup sync failed:', error))
+}
+
+/** What the unlock sync found, waiting for it to finish. Returns it only once per app run. */
+export async function takeUnlockSyncResult(): Promise<SyncResult | null> {
+  if (!unlockSync || unlockSyncReported) return null
+  unlockSyncReported = true
+  return unlockSync
 }
 
 async function countPending(userId: string): Promise<number> {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/api'
 import { Toaster } from '@/components/ui/sonner'
 import { isMacDesktop } from '@/lib/desktop'
+import { useUnlockSyncToast } from '@/hooks/useSmsImport'
 
 /**
  * Check if the session hint cookie exists
@@ -281,6 +282,8 @@ function RootComponent() {
       }
     },
   })
+
+  useUnlockSyncToast(authenticated && isMacDesktop)
 
   // Refetch all auth data
   const refetch = useCallback(async () => {

@@ -5,6 +5,7 @@ import {
   getSmsImportStatus,
   updateSmsImportSettings,
   syncSmsMessages,
+  takeUnlockSyncResult,
   listPendingSms,
   listSyncedSms,
   clearSyncedSms,
@@ -58,6 +59,13 @@ const notSupported = {
 smsImportRoutes.get('/status', async (c) => {
   const status = await getSmsImportStatus(c.get('userId'))
   return c.json(status)
+})
+
+/**
+ * GET /sms-import/unlock-sync - what the sync run at unlock found, once per app run
+ */
+smsImportRoutes.get('/unlock-sync', async (c) => {
+  return c.json({ result: await takeUnlockSyncResult() })
 })
 
 /**
