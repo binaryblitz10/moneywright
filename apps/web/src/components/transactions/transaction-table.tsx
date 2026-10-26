@@ -314,7 +314,9 @@ export function TransactionTable({
                         {/* Title row with category badge inline */}
                         <div className="flex items-center gap-2">
                           <p className="truncate font-medium text-foreground text-sm">
-                            {toTitleCase(txn.summary || txn.originalDescription)}
+                            {txn.isManuallyCategorized && txn.summary
+                              ? txn.summary
+                              : toTitleCase(txn.summary || txn.originalDescription)}
                           </p>
                           {/* Category badge - inline */}
                           <span
