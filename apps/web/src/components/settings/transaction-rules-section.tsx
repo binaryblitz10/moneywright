@@ -387,6 +387,7 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
               categories={categories}
               value={category}
               onChange={setCategory}
+              triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
               noneLabel="No category"
               placeholder="No category"
             />

@@ -321,6 +321,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           categories={categories}
           value={category}
           onChange={handleCategoryChange}
+          triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
           {...(!single && { noneLabel: 'Keep existing', placeholder: 'Keep existing' })}
         />
         {!single && category && (

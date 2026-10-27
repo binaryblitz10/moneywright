@@ -7,6 +7,31 @@ import type { Category, CategoryKind } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 
+const ROW_CLASS =
+  'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground/85 transition-colors disabled:pointer-events-none disabled:opacity-50'
+const ROW_ACTIVE_CLASS = 'bg-foreground/[0.08] text-foreground'
+
+// Full class names so Tailwind can see them
+const DOT_COLORS: Record<string, string> = {
+  emerald: 'bg-emerald-500',
+  orange: 'bg-orange-500',
+  lime: 'bg-lime-500',
+  blue: 'bg-blue-500',
+  cyan: 'bg-cyan-500',
+  purple: 'bg-purple-500',
+  amber: 'bg-amber-500',
+  pink: 'bg-pink-500',
+  sky: 'bg-sky-500',
+  red: 'bg-red-500',
+  fuchsia: 'bg-fuchsia-500',
+  indigo: 'bg-indigo-500',
+  slate: 'bg-slate-500',
+  violet: 'bg-violet-500',
+  teal: 'bg-teal-500',
+  rose: 'bg-rose-500',
+  zinc: 'bg-zinc-500',
+}
+
 interface CategoryPickerBaseProps {
   id?: string
   categories: Category[]
@@ -178,11 +203,14 @@ export function CategoryPicker(props: CategoryPickerProps) {
         )}
       </PopoverTrigger>
       <PopoverContent
-        className={cn('w-(--radix-popover-trigger-width) min-w-72 p-2', contentClassName)}
+        className={cn(
+          'w-(--radix-popover-trigger-width) min-w-72 overflow-hidden rounded-xl border-border-hover bg-popover p-0 dark:bg-background shadow-2xl shadow-black/15 dark:shadow-black/60',
+          contentClassName
+        )}
         align={contentAlign}
       >
-        <div className="relative mb-2">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative border-b border-border-subtle">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search categories..."
             value={search}
@@ -191,11 +219,11 @@ export function CategoryPicker(props: CategoryPickerProps) {
               setActiveCode(null)
             }}
             onKeyDown={handleKeyDown}
-            className="h-8 pl-8 text-sm bg-surface-elevated border-border-subtle"
+            className="h-11 rounded-none border-0 bg-transparent pl-10 text-sm shadow-none focus-visible:ring-0"
           />
         </div>
         {/* Kind chips: single-select shows one kind, multi-select selects or clears a kind */}
-        <div className="mb-2 flex flex-wrap justify-center gap-1.5 px-0.5 py-2.5">
+        <div className="flex flex-wrap gap-1.5 border-b border-border-subtle px-3 py-2.5">
           {CATEGORY_KIND_ORDER.map((kind) => {
             const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
             const isActive = props.multiple
@@ -213,11 +241,11 @@ export function CategoryPicker(props: CategoryPickerProps) {
                   setActiveCode(null)
                 }}
                 className={cn(
-                  'whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                   'disabled:pointer-events-none disabled:opacity-50',
                   isActive
-                    ? 'border-primary/30 bg-primary/10 text-primary'
-                    : 'border-border-subtle bg-surface-elevated text-muted-foreground hover:text-foreground'
+                    ? 'border-primary/40 bg-primary/15 text-primary'
+                    : 'border-border-subtle text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground'
                 )}
               >
                 {CATEGORY_KIND_LABELS[kind]}
@@ -225,7 +253,10 @@ export function CategoryPicker(props: CategoryPickerProps) {
             )
           })}
         </div>
-        <div ref={listRef} className="max-h-60 space-y-1 overflow-y-auto">
+        <div
+          ref={listRef}
+          className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 [scrollbar-width:thin]"
+        >
           {props.multiple && !search && props.leadingRows && (
             <>
               {props.leadingRows}
@@ -233,55 +264,53 @@ export function CategoryPicker(props: CategoryPickerProps) {
             </>
           )}
           {noneLabel && (
-            <Button
+            <button
               type="button"
-              variant={active === '' ? 'secondary' : 'ghost'}
-              size="sm"
               data-code=""
-              className="w-full justify-start gap-2 px-2"
+              className={cn(ROW_CLASS, active === '' && ROW_ACTIVE_CLASS)}
               onMouseMove={() => setActiveCode('')}
               onClick={() => select('')}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {selected.length === 0 && <Check className="h-4 w-4 text-primary" />}
-              </span>
-              <span className="truncate">{noneLabel}</span>
-            </Button>
+              <span className="h-2 w-2 shrink-0 rounded-full border border-muted-foreground/50" />
+              <span className="flex-1 truncate">{noneLabel}</span>
+              {selected.length === 0 && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
           )}
           {groups.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No categories found</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">No categories found</p>
           ) : (
             groups.map(({ kind, items }) => (
-              <div key={kind} className="space-y-1">
-                <p className="px-2 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div key={kind} className="space-y-0.5">
+                <p className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
                   {CATEGORY_KIND_LABELS[kind]}
                 </p>
                 {items.map((cat) => {
                   const isSelected = selected.includes(cat.code)
                   return (
-                    <Button
+                    <button
                       key={cat.code}
                       type="button"
-                      variant={
-                        cat.code === active || (props.multiple && isSelected)
-                          ? 'secondary'
-                          : 'ghost'
-                      }
-                      size="sm"
                       disabled={disabled}
                       data-code={cat.code}
-                      className="w-full justify-start gap-2 px-2"
+                      className={cn(
+                        ROW_CLASS,
+                        (cat.code === active || (props.multiple && isSelected)) && ROW_ACTIVE_CLASS
+                      )}
                       onMouseMove={() => {
                         hoveredCodeRef.current = cat.code
                         setActiveCode(cat.code)
                       }}
                       onClick={() => select(cat.code)}
                     >
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                        {isSelected && <Check className="h-4 w-4 text-primary" />}
-                      </span>
-                      <span className="truncate">{cat.label}</span>
-                    </Button>
+                      <span
+                        className={cn(
+                          'h-2 w-2 shrink-0 rounded-full',
+                          DOT_COLORS[cat.color] ?? 'bg-zinc-500'
+                        )}
+                      />
+                      <span className="flex-1 truncate">{cat.label}</span>
+                      {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                    </button>
                   )
                 })}
               </div>
