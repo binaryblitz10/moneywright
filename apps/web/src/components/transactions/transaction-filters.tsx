@@ -324,6 +324,7 @@ export function TransactionFiltersBar({
                 endDate={filters.endDate}
                 country={country}
                 variant="field"
+                align="end"
                 onChange={(startDate, endDate) => {
                   const newFilters = { ...filters }
                   if (startDate) {

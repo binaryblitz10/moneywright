@@ -272,6 +272,7 @@ export function DateRangePicker({
       </PopoverTrigger>
       <PopoverContent
         align={align}
+        collisionPadding={16}
         className="w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0"
         {...navigation}
       >
