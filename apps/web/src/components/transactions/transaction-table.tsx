@@ -9,10 +9,20 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Check, Plus, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import {
+  BadgeCheck,
+  CreditCard,
+  Landmark,
+  Plus,
+  RefreshCw,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from 'lucide-react'
 import { CategoryPicker } from './category-picker'
-import { useUpdateTransaction } from '@/hooks'
+import { useConstants, useUpdateTransaction } from '@/hooks'
 import { cn } from '@/lib/utils'
+import { getAccountShortLabel } from '@/lib/statement-display'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
 
@@ -110,11 +120,6 @@ function truncateNote(note: string): string {
     : line
 }
 
-function getNameInitial(name: string): string {
-  const letter = name.trim().charAt(0)
-  return letter ? letter.toUpperCase() : '?'
-}
-
 /**
  * Title Case a transaction name. Mixed-case words (YouTube) and short all-caps words
  * (IRCTC, LIC) are kept; lowercase and long all-caps words are capitalised.
@@ -149,6 +154,7 @@ export function TransactionTable({
   isSelectable,
 }: TransactionTableProps) {
   const updateTransaction = useUpdateTransaction()
+  const { institutions } = useConstants()
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
 
@@ -321,17 +327,11 @@ export function TransactionTable({
                   </TableCell>
                   <TableCell className="overflow-hidden py-3">
                     <div className="flex items-center gap-3">
-                      {/* Letter badge: first letter of the name, tinted with the category colour */}
-                      <div
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border',
-                          'text-sm font-semibold transition-transform duration-200 group-hover:scale-105',
-                          getCategoryColor(txn.category)
-                        )}
-                        aria-hidden="true"
-                      >
-                        {getNameInitial(txn.summary || txn.originalDescription)}
-                      </div>
+                      <AccountAvatar
+                        logoPath={logoPath}
+                        institutionId={institutionId || 'other'}
+                        isCard={account?.type === 'credit_card'}
+                      />
                       <div className="min-w-0 flex-1">
                         {/* Title row */}
                         <div className="flex items-center gap-2">
@@ -347,9 +347,9 @@ export function TransactionTable({
                                 <span
                                   role="img"
                                   aria-label="Verified against your statement"
-                                  className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110"
+                                  className="inline-flex shrink-0 transition-transform duration-200 group-hover:scale-110"
                                 >
-                                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                  <BadgeCheck className="h-5 w-5 fill-emerald-500 text-white dark:text-background" />
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent side="top" className="text-xs">
@@ -380,10 +380,15 @@ export function TransactionTable({
                         </div>
                         {/* Meta row */}
                         <div className="flex items-center gap-2 mt-0.5">
-                          <AccountLogo
-                            logoPath={logoPath}
-                            institutionId={institutionId || 'other'}
-                            last4={last4}
+                          <AccountLabel
+                            label={
+                              account
+                                ? getAccountShortLabel(
+                                    account,
+                                    institutions[institutionId] || institutionId
+                                  )
+                                : `••${last4}`
+                            }
                             profileName={
                               showProfileBadge && profiles
                                 ? getProfileName(txn.profileId, profiles)
@@ -442,6 +447,14 @@ export function TransactionTable({
   )
 }
 
+// Drops the preset background classes so the pill's own tint can be set instead
+function withoutBackground(classes: string | undefined): string | undefined {
+  return classes
+    ?.split(' ')
+    .filter((c) => !/(^|:)bg-/.test(c))
+    .join(' ')
+}
+
 // Categories that mean "nobody has picked one yet"
 const PLACEHOLDER_CATEGORIES = new Set(['other', 'other_income'])
 
@@ -470,10 +483,14 @@ function CategoryCell({
       type="button"
       className={cn(
         'inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium',
-        'cursor-pointer transition-colors',
+        'cursor-pointer transition-[color,background-color,box-shadow]',
         uncategorized
           ? 'border-dashed border-border-hover bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground'
-          : cn(colorClass, 'hover:bg-current/20 dark:hover:bg-current/20')
+          : cn(
+              withoutBackground(colorClass),
+              // Pale tint of the pill's own colour that deepens on hover
+              'bg-current/[0.08] hover:bg-current/[0.16] dark:bg-current/10 dark:hover:bg-current/25'
+            )
       )}
     >
       {uncategorized ? (
@@ -535,38 +552,48 @@ function SortableHeading({
   )
 }
 
-function AccountLogo({
+// Round badge with the account's bank logo, or a card / bank icon when there is no logo
+function AccountAvatar({
   logoPath,
   institutionId,
-  last4,
-  profileName,
+  isCard,
 }: {
   logoPath: string | null
   institutionId: string
-  last4: string
-  profileName?: string | null
+  isCard: boolean
 }) {
   const [logoError, setLogoError] = useState(false)
+  const Icon = isCard ? CreditCard : Landmark
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="h-5 w-5 rounded bg-surface flex items-center justify-center overflow-hidden shrink-0 border border-border-subtle">
-        {logoPath && !logoError ? (
-          <img
-            src={logoPath}
-            alt={institutionId}
-            className="h-3.5 w-3.5 object-contain"
-            onError={() => setLogoError(true)}
-          />
-        ) : (
-          <span className="text-[9px] font-medium text-muted-foreground">
-            {institutionId.slice(0, 2).toUpperCase()}
-          </span>
-        )}
-      </div>
-      <span className="text-xs text-muted-foreground">
-        {profileName ? `${profileName}'s ` : ''}••{last4}
-      </span>
+    <div
+      className={cn(
+        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-subtle',
+        'transition-transform duration-200 group-hover:scale-105',
+        // Bank logos are drawn for light backgrounds
+        logoPath && !logoError ? 'bg-white' : 'bg-surface-elevated'
+      )}
+      aria-hidden="true"
+    >
+      {logoPath && !logoError ? (
+        <img
+          src={logoPath}
+          alt={institutionId}
+          className="h-5 w-5 object-contain"
+          onError={() => setLogoError(true)}
+        />
+      ) : (
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      )}
     </div>
+  )
+}
+
+function AccountLabel({ label, profileName }: { label: string; profileName?: string | null }) {
+  return (
+    <span className="shrink-0 text-xs text-muted-foreground">
+      {profileName ? `${profileName}'s ` : ''}
+      {label}
+    </span>
   )
 }
