@@ -130,8 +130,8 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
 
       <SettingRow
         id="sms-import-ignore-unknown"
-        label="Ignore messages for accounts I haven't added"
-        description="Messages that don't match one of your accounts are skipped instead of waiting in Needs review."
+        label="Ignore messages for unknown accounts"
+        description="Messages that don't match one of your accounts are ignored."
         checked={status.ignoreUnknownAccounts}
         disabled={updateMutation.isPending}
         onCheckedChange={(ignoreUnknownAccounts) =>
