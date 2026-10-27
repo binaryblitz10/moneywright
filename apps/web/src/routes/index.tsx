@@ -421,26 +421,33 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* What Changed - has its own month, ignores the timeframe picker */}
-      {show('what_changed') && (
-        <WhatChangedCard
-          profileId={profileId}
-          enabled={queryEnabled}
-          getCategoryLabel={getCategoryLabel}
-        />
-      )}
+      {/* What Changed (has its own month, ignores the timeframe picker) & Subscriptions */}
+      {(show('what_changed') || show('subscriptions')) && (
+        <div
+          className={cn(
+            'grid gap-4 mb-6',
+            show('what_changed') && show('subscriptions') && 'lg:grid-cols-2'
+          )}
+        >
+          {show('what_changed') && (
+            <WhatChangedCard
+              profileId={profileId}
+              enabled={queryEnabled}
+              getCategoryLabel={getCategoryLabel}
+            />
+          )}
 
-      {/* Subscriptions */}
-      {show('subscriptions') && (
-        <div className="mb-6">
-          <SubscriptionsCard
-            subscriptions={subscriptionsData?.subscriptions || []}
-            totalMonthly={subscriptionsData?.totalMonthly || 0}
-            currency={subscriptionsData?.currency || 'INR'}
-            getCategoryLabel={getCategoryLabel}
-            isLoading={subscriptionsLoading}
-            countryCode={user?.country?.toLowerCase() || 'in'}
-          />
+          {show('subscriptions') && (
+            <SubscriptionsCard
+              className="h-full"
+              subscriptions={subscriptionsData?.subscriptions || []}
+              totalMonthly={subscriptionsData?.totalMonthly || 0}
+              currency={subscriptionsData?.currency || 'INR'}
+              getCategoryLabel={getCategoryLabel}
+              isLoading={subscriptionsLoading}
+              countryCode={user?.country?.toLowerCase() || 'in'}
+            />
+          )}
         </div>
       )}
 

@@ -16,6 +16,7 @@ interface SubscriptionsCardProps {
   getCategoryLabel: (code: string) => string
   isLoading: boolean
   countryCode: string
+  className?: string
 }
 
 export function SubscriptionsCard({
@@ -25,10 +26,12 @@ export function SubscriptionsCard({
   getCategoryLabel,
   isLoading,
   countryCode,
+  className,
 }: SubscriptionsCardProps) {
   return (
     <SectionCard
       title="Subscriptions"
+      className={className}
       action={
         subscriptions.length > 0 && (
           <Link to="/subscriptions">
