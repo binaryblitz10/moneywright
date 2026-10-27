@@ -46,6 +46,8 @@ export interface SmsImportStatus {
   supported: boolean
   enabled: boolean
   aiParsing: boolean
+  /** Skip messages that match no added account instead of queueing them for review */
+  ignoreUnknownAccounts: boolean
   /** Whether an LLM provider is set up, needed for AI parsing */
   aiAvailable: boolean
   access: MessagesAccess | null
@@ -130,15 +132,19 @@ function normalizeWord(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-async function readFlag(userId: string, key: 'sms_import.enabled' | 'sms_import.ai_parsing') {
+async function readFlag(
+  userId: string,
+  key: 'sms_import.enabled' | 'sms_import.ai_parsing' | 'sms_import.ignore_unknown_accounts'
+) {
   return (await getPreference(userId, key)) === 'true'
 }
 
 export async function getSmsImportStatus(userId: string): Promise<SmsImportStatus> {
   const supported = isSmsImportSupported()
-  const [enabled, aiParsing, llm, pending] = await Promise.all([
+  const [enabled, aiParsing, ignoreUnknownAccounts, llm, pending] = await Promise.all([
     readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_ENABLED),
     readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_AI_PARSING),
+    readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_IGNORE_UNKNOWN),
     getLLMSettings(),
     countPending(userId),
   ])
@@ -147,6 +153,7 @@ export async function getSmsImportStatus(userId: string): Promise<SmsImportStatu
     supported,
     enabled: supported && enabled,
     aiParsing,
+    ignoreUnknownAccounts,
     aiAvailable: llm.isConfigured,
     access: supported ? checkMessagesAccess() : null,
     lastSyncAt,
@@ -160,10 +167,17 @@ export async function getSmsImportStatus(userId: string): Promise<SmsImportStatu
  */
 export async function updateSmsImportSettings(
   userId: string,
-  patch: { enabled?: boolean; aiParsing?: boolean }
+  patch: { enabled?: boolean; aiParsing?: boolean; ignoreUnknownAccounts?: boolean }
 ): Promise<void> {
   if (patch.aiParsing !== undefined) {
     await setPreference(userId, PREFERENCE_KEYS.SMS_IMPORT_AI_PARSING, String(patch.aiParsing))
+  }
+  if (patch.ignoreUnknownAccounts !== undefined) {
+    await setPreference(
+      userId,
+      PREFERENCE_KEYS.SMS_IMPORT_IGNORE_UNKNOWN,
+      String(patch.ignoreUnknownAccounts)
+    )
   }
   if (patch.enabled !== undefined) {
     if (patch.enabled) {
@@ -461,6 +475,7 @@ async function processMessage(
   message: IncomingMessage,
   aiParsing: boolean,
   useAi: boolean,
+  ignoreUnknownAccounts: boolean,
   senders: SenderHistory
 ): Promise<MessageResult> {
   if (!looksLikeTransaction(message.body)) return { outcome: 'ignored' }
@@ -476,6 +491,8 @@ async function processMessage(
   const account = parsed.last4
     ? await matchAccount(userId, parsed.last4, `${message.sender} ${message.body}`)
     : null
+
+  if (!account && ignoreUnknownAccounts) return { outcome: 'ignored' }
 
   // A charge in another currency cannot be matched with the statement (which lists it converted)
   // and must not be added up with the account's own currency, so it waits for the user
@@ -509,6 +526,7 @@ async function runSync(userId: string, since?: Date): Promise<SyncResult> {
 
   const aiParsing = await readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_AI_PARSING)
   const useAi = await aiCategorizationAvailable(userId)
+  const ignoreUnknownAccounts = await readFlag(userId, PREFERENCE_KEYS.SMS_IMPORT_IGNORE_UNKNOWN)
   const senders = await loadSenderHistory(userId)
   const importedRefs: ImportedRef[] = []
   const storedCursor = await getPreference(userId, PREFERENCE_KEYS.SMS_IMPORT_CURSOR)
@@ -525,6 +543,7 @@ async function runSync(userId: string, since?: Date): Promise<SyncResult> {
           message,
           aiParsing,
           useAi,
+          ignoreUnknownAccounts,
           senders
         )
         if (outcome === 'imported') result.imported++

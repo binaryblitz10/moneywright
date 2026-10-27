@@ -29,6 +29,7 @@ smsImportRoutes.use('*', auth())
 const settingsSchema = z.object({
   enabled: z.boolean().optional(),
   aiParsing: z.boolean().optional(),
+  ignoreUnknownAccounts: z.boolean().optional(),
 })
 
 const syncSchema = z.object({

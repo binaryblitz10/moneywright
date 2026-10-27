@@ -18,6 +18,7 @@ export const PREFERENCE_KEYS = {
   DEFAULT_CATEGORIZATION_HINTS: 'statement.default_categorization_hints',
   SMS_IMPORT_ENABLED: 'sms_import.enabled',
   SMS_IMPORT_AI_PARSING: 'sms_import.ai_parsing',
+  SMS_IMPORT_IGNORE_UNKNOWN: 'sms_import.ignore_unknown_accounts',
   SMS_IMPORT_CURSOR: 'sms_import.cursor',
 } as const
 

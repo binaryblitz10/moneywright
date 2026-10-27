@@ -128,6 +128,17 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
         onCheckedChange={(aiParsing) => updateMutation.mutate({ aiParsing })}
       />
 
+      <SettingRow
+        id="sms-import-ignore-unknown"
+        label="Ignore messages for accounts I haven't added"
+        description="Messages that don't match one of your accounts are skipped instead of waiting in Needs review."
+        checked={status.ignoreUnknownAccounts}
+        disabled={updateMutation.isPending}
+        onCheckedChange={(ignoreUnknownAccounts) =>
+          updateMutation.mutate({ ignoreUnknownAccounts })
+        }
+      />
+
       {status.enabled && !needsPermission && (
         <div className="flex items-start justify-between gap-6">
           <div className="space-y-1">

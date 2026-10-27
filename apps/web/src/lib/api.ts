@@ -3406,6 +3406,7 @@ export interface SmsImportStatus {
   supported: boolean
   enabled: boolean
   aiParsing: boolean
+  ignoreUnknownAccounts: boolean
   /** Whether an AI provider is set up, needed for AI parsing */
   aiAvailable: boolean
   access: MessagesAccess | null
@@ -3445,6 +3446,7 @@ export async function getSmsImportStatus(): Promise<SmsImportStatus> {
 export async function updateSmsImportSettings(patch: {
   enabled?: boolean
   aiParsing?: boolean
+  ignoreUnknownAccounts?: boolean
 }): Promise<SmsImportStatus> {
   const response = await api.put('/sms-import/settings', patch)
   return response.data
