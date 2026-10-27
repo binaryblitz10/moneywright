@@ -10,11 +10,12 @@ import {
 const OPTION = '[data-option]'
 const ACTIVE = 'data-active'
 // Fields that keep their own arrow and Enter keys (date inputs, selects), except the search box
-const OWN_KEYS = 'input:not([data-option-search]), textarea, select, [role="combobox"]'
+const OWN_KEYS =
+  'input:not([data-option-search]), textarea, select, [role="combobox"], [data-own-keys]'
 
 function getOptions(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(OPTION)].filter(
-    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null
+    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null && !el.closest('[inert]')
   )
 }
 

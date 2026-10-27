@@ -323,8 +323,8 @@ export function TransactionFiltersBar({
                 startDate={filters.startDate}
                 endDate={filters.endDate}
                 country={country}
-                variant="outline"
-                onDateChange={(startDate, endDate) => {
+                variant="field"
+                onChange={(startDate, endDate) => {
                   const newFilters = { ...filters }
                   if (startDate) {
                     newFilters.startDate = startDate
@@ -439,7 +439,10 @@ export function TransactionFiltersBar({
           ))}
           {(filters.startDate || filters.endDate) && (
             <FilterPill
-              label={getDateRangeLabel(filters.startDate, filters.endDate, country)}
+              label={getDateRangeLabel(
+                { startDate: filters.startDate, endDate: filters.endDate },
+                country
+              )}
               icon={<Calendar className="h-3 w-3" />}
               onRemove={() => {
                 const newFilters = { ...filters }

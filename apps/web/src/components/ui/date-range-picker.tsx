@@ -1,282 +1,354 @@
 import { useState } from 'react'
+import { ArrowLeft, ArrowRight, Calendar, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar, ChevronDown, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { RangeCalendar } from '@/components/ui/range-calendar'
+import { toLocalDateString } from '@/components/dashboard/utils'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
-import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframeKey } from '@/components/dashboard/types'
-import { getFinancialYearRange, getTimeframeDateRange } from '@/components/dashboard/utils'
+import {
+  FINANCIAL_YEAR_PRESETS,
+  LAST_PRESETS,
+  PERIOD_TO_DATE_PRESETS,
+  QUICK_PRESETS,
+  findPresetId,
+  formatLongDate,
+  getPresetLabel,
+  getPresetRange,
+  getRangeLabel,
+  parseLocalDate,
+  type DatePresetId,
+  type DateRangeValue,
+} from '@/lib/date-presets'
+import { cn } from '@/lib/utils'
 
-// Same presets as the dashboard timeframe picker. 'all' means no date filter here.
-const TIME_PRESETS = CHART_TIMEFRAME_OPTIONS.filter((o) => o.key !== 'custom' && !o.isFiscal)
+export { getRangeLabel as getDateRangeLabel } from '@/lib/date-presets'
 
-type FiscalKey = 'current_fy' | 'last_fy'
-const FISCAL_KEYS: FiscalKey[] = ['current_fy', 'last_fy']
+type Submenu = 'last' | 'period' | 'fy'
 
-/**
- * Get the date range for a preset (empty for All time, which has no date filter)
- */
-function getPresetRange(
-  key: ChartTimeframeKey,
-  country: string | null | undefined
-): { startDate?: string; endDate?: string } {
-  if (key === 'all') return {}
-  return getTimeframeDateRange(key, country) ?? {}
+interface Draft extends DateRangeValue {
+  /** The preset the dates came from; null for dates picked by hand */
+  presetId: DatePresetId | null
 }
 
-function rangeMatches(
-  key: ChartTimeframeKey,
-  country: string | null | undefined,
-  startDate?: string,
-  endDate?: string
-): boolean {
-  const range = getPresetRange(key, country)
-  return range.startDate === startDate && range.endDate === endDate
+/** Parse typed text such as "27 October 2026", "27 Oct 2026" or "2026-10-27" */
+function parseDateInput(text: string): string | null {
+  const value = text.trim()
+  if (!value) return null
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const date = iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])) : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : toLocalDateString(date)
 }
 
-/**
- * Get display label for a date range
- */
-export function getDateRangeLabel(
-  startDate?: string,
-  endDate?: string,
-  country?: string | null
-): string {
-  if (!startDate && !endDate) return 'All time'
+/** First month shown, so the range's end falls in the second month like Shopify's picker */
+function viewFor(range: DateRangeValue): Date {
+  const anchor = range.endDate ? parseLocalDate(range.endDate) : new Date()
+  return new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)
+}
 
-  for (const preset of TIME_PRESETS) {
-    if (rangeMatches(preset.key, country, startDate, endDate)) return preset.label
-  }
-  for (const key of FISCAL_KEYS) {
-    if (rangeMatches(key, country, startDate, endDate)) {
-      return getFinancialYearRange(country, key === 'current_fy' ? 0 : -1).label
-    }
-  }
+interface DateFieldProps {
+  value?: string
+  label: string
+  onCommit: (value: string) => void
+}
 
-  // Custom range - format nicely
-  if (startDate && endDate) {
-    return `${formatDate(startDate)} - ${formatDate(endDate)}`
-  } else if (startDate) {
-    return `From ${formatDate(startDate)}`
-  } else if (endDate) {
-    return `Until ${formatDate(endDate)}`
+function DateField({ value, label, onCommit }: DateFieldProps) {
+  const [text, setText] = useState<string | null>(null)
+
+  const commit = () => {
+    const parsed = text === null ? null : parseDateInput(text)
+    if (parsed) onCommit(parsed)
+    setText(null)
   }
 
-  return 'All time'
+  return (
+    <Input
+      aria-label={label}
+      value={text ?? (value ? formatLongDate(value) : '')}
+      placeholder="DD Month YYYY"
+      onFocus={(e) => {
+        setText(value ? formatLongDate(value) : '')
+        e.currentTarget.select()
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') setText(null)
+      }}
+      className="h-10 rounded-lg text-sm"
+    />
+  )
 }
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
+interface SidebarOptionProps {
+  label: string
+  selected: boolean
+  onClick: () => void
 }
 
-interface DateRangePickerProps {
+function SidebarOption({ label, selected, onClick }: SidebarOptionProps) {
+  return (
+    <button
+      type="button"
+      data-option
+      data-selected={selected || undefined}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center rounded-lg px-3 py-1.5 text-left text-sm outline-none',
+        'transition-colors',
+        selected
+          ? 'bg-surface-hover font-semibold text-foreground'
+          : 'text-foreground data-active:bg-surface-hover'
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+interface SidebarLinkProps {
+  label: string
+  onClick: () => void
+}
+
+/** A sidebar row that opens a submenu */
+function SidebarLink({ label, onClick }: SidebarLinkProps) {
+  return (
+    <button
+      type="button"
+      data-option
+      onClick={onClick}
+      className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm outline-none transition-colors data-active:bg-surface-hover"
+    >
+      {label}
+      <ChevronRight className="size-4 text-muted-foreground" />
+    </button>
+  )
+}
+
+export interface DateRangePickerProps {
+  /** Both empty means all time */
   startDate?: string
   endDate?: string
-  onDateChange: (startDate?: string, endDate?: string) => void
+  /** The preset the dates came from, when the caller keeps track (null = picked by hand) */
+  presetId?: DatePresetId | null
+  /** Receives the chosen dates and the preset they came from, if any */
+  onChange: (startDate?: string, endDate?: string, presetId?: DatePresetId | null) => void
   country?: string | null
+  /** Shown on the button instead of the range's name */
+  label?: string
+  /** Days outside these dates cannot be picked */
+  minDate?: string
+  maxDate?: string
   className?: string
-  /** Show FY options (requires country) */
-  showFiscalYear?: boolean
-  /** Align popover */
   align?: 'start' | 'center' | 'end'
-  /** Button variant - 'ghost' for dashboard style, 'outline' for filter bar style */
-  variant?: 'ghost' | 'outline'
+  /** 'compact' for page headers, 'field' for forms and filter bars */
+  variant?: 'compact' | 'field'
 }
 
 export function DateRangePicker({
   startDate,
   endDate,
-  onDateChange,
+  presetId,
+  onChange,
   country,
+  label,
+  minDate,
+  maxDate,
   className,
-  showFiscalYear = true,
   align = 'start',
-  variant = 'ghost',
+  variant = 'compact',
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
-  const navigation = useOptionNavigation()
-  const [customRange, setCustomRange] = useState<{ startDate?: string; endDate?: string } | null>(
-    null
+  const [draft, setDraft] = useState<Draft>({ startDate, endDate, presetId: null })
+  const [month, setMonth] = useState(() => viewFor({ startDate, endDate }))
+  // The first day clicked, while the end day is still to be picked
+  // Which list the sidebar shows; a submenu takes the place of the main list
+  const [submenu, setSubmenu] = useState<Submenu | null>(null)
+  const [anchor, setAnchor] = useState<string>()
+  const [preview, setPreview] = useState<string>()
+  const navigation = useOptionNavigation(submenu)
+
+  const currentPresetId =
+    presetId === undefined ? findPresetId({ startDate, endDate }, country) : presetId
+  const hasDateFilter = !!(startDate || endDate)
+  const buttonLabel = label ?? getRangeLabel({ startDate, endDate }, country, currentPresetId)
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      setDraft({ startDate, endDate, presetId: currentPresetId })
+      setMonth(viewFor({ startDate, endDate }))
+      setAnchor(undefined)
+      setPreview(undefined)
+      setSubmenu(null)
+    }
+    setOpen(next)
+  }
+
+  const choosePreset = (id: DatePresetId) => {
+    const range = getPresetRange(id, country)
+    setDraft({ ...range, presetId: id })
+    setMonth(viewFor(range))
+    setAnchor(undefined)
+  }
+
+  const pickDay = (date: string) => {
+    if (anchor) {
+      const [from, to] = [anchor, date].sort()
+      setDraft({ startDate: from, endDate: to, presetId: null })
+      setAnchor(undefined)
+    } else {
+      setDraft({ startDate: date, endDate: date, presetId: null })
+      setAnchor(date)
+    }
+  }
+
+  const commitStart = (date: string) => {
+    const end = draft.endDate && draft.endDate >= date ? draft.endDate : date
+    setDraft({ startDate: date, endDate: end, presetId: null })
+    setMonth(viewFor({ endDate: end }))
+    setAnchor(undefined)
+  }
+
+  const commitEnd = (date: string) => {
+    const start = draft.startDate && draft.startDate <= date ? draft.startDate : date
+    setDraft({ startDate: start, endDate: date, presetId: null })
+    setMonth(viewFor({ endDate: date }))
+    setAnchor(undefined)
+  }
+
+  const apply = () => {
+    onChange(draft.startDate, draft.endDate, draft.presetId)
+    setOpen(false)
+  }
+
+  // All time has no dates; any other range needs both
+  const canApply = draft.presetId === 'all' || (!!draft.startDate && !!draft.endDate)
+  const isCustom = draft.presetId === null
+  const option = (id: DatePresetId, optionLabel: string) => (
+    <SidebarOption
+      key={id}
+      label={optionLabel}
+      selected={draft.presetId === id}
+      onClick={() => choosePreset(id)}
+    />
   )
 
-  const displayLabel = getDateRangeLabel(startDate, endDate, country)
-  const hasDateFilter = startDate || endDate
-
-  // Check if current selection is a custom range (not matching any preset)
-  const isCustomSelection =
-    !!(startDate || endDate) &&
-    ![...TIME_PRESETS.map((p) => p.key), ...FISCAL_KEYS].some((key) =>
-      rangeMatches(key, country, startDate, endDate)
-    )
-
-  // Initialize custom range from current selection if it's custom
-  const effectiveCustomRange =
-    isCustomSelection && startDate && endDate ? { startDate, endDate } : customRange
+  const submenus: Record<Submenu, { label: string; options: Array<[DatePresetId, string]> }> = {
+    last: { label: 'Last', options: LAST_PRESETS.map((p) => [p.id, p.label]) },
+    period: {
+      label: 'Period to date',
+      options: PERIOD_TO_DATE_PRESETS.map((p) => [p.id, p.label]),
+    },
+    fy: {
+      label: 'Financial years',
+      options: FINANCIAL_YEAR_PRESETS.map(({ id }) => [id, getPresetLabel(id, country)]),
+    },
+  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant={variant}
-          size={variant === 'outline' ? 'default' : 'sm'}
+          variant="outline"
+          size={variant === 'field' ? 'default' : 'sm'}
           className={cn(
-            variant === 'ghost'
+            variant === 'field'
               ? cn(
-                  'h-7 text-xs text-muted-foreground hover:text-foreground',
-                  hasDateFilter && 'text-foreground'
-                )
-              : cn(
-                  'justify-between h-10 rounded-lg font-normal',
-                  'bg-surface-elevated border-border-subtle',
-                  'hover:bg-surface-hover hover:border-border-hover',
+                  'h-10 justify-between rounded-lg font-normal',
                   hasDateFilter && 'border-primary/30 bg-primary/5'
-                ),
+                )
+              : 'h-9 text-sm',
             className
           )}
         >
-          {variant === 'ghost' && <Calendar className="mr-1.5 h-3 w-3" />}
-          <span className={variant === 'outline' ? 'truncate' : undefined}>{displayLabel}</span>
+          {variant === 'compact' && <Calendar className="mr-1.5 h-4 w-4" />}
+          <span className={variant === 'field' ? 'truncate' : undefined}>{buttonLabel}</span>
           <ChevronDown
-            className={variant === 'ghost' ? 'ml-1 h-3 w-3' : 'h-4 w-4 shrink-0 opacity-50 ml-2'}
+            className={cn(variant === 'field' ? 'ml-2 opacity-50' : 'ml-1', 'h-4 w-4 shrink-0')}
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-3" align={align} {...navigation}>
-        <div className="space-y-3">
-          {/* Standard time presets */}
-          <div className="grid grid-cols-2 gap-1.5">
-            {TIME_PRESETS.map((preset) => {
-              const range = getPresetRange(preset.key, country)
-              const isSelected =
-                startDate === range.startDate && endDate === range.endDate && !isCustomSelection
-
-              return (
+      <PopoverContent
+        align={align}
+        className="w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0"
+        {...navigation}
+      >
+        <div className="flex flex-col md:flex-row">
+          {/* Presets */}
+          <div className="space-y-0.5 border-b border-border-subtle bg-surface-elevated/60 p-2 max-md:min-h-80 md:w-52 md:border-r md:border-b-0">
+            {submenu ? (
+              <>
                 <button
-                  key={preset.key}
+                  type="button"
                   data-option
-                  data-selected={isSelected || undefined}
-                  onClick={() => {
-                    onDateChange(range.startDate, range.endDate)
-                    setCustomRange(null)
-                    setOpen(false)
-                  }}
-                  className={cn(
-                    'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
-                    'outline-none data-active:ring-2 data-active:ring-primary/40',
-                    isSelected
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
-                  )}
+                  onClick={() => setSubmenu(null)}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold outline-none transition-colors data-active:bg-surface-hover"
                 >
-                  {preset.label}
+                  <ArrowLeft className="size-4" />
+                  {submenus[submenu].label}
                 </button>
-              )
-            })}
+                <div className="mx-1 my-1.5 h-px bg-border-subtle" />
+                {submenus[submenu].options.map(([id, label]) => option(id, label))}
+              </>
+            ) : (
+              <>
+                {QUICK_PRESETS.map((preset) => option(preset.id, preset.label))}
+
+                <div className="mx-1 my-1.5 h-px bg-border-subtle" />
+
+                <SidebarLink label="Last" onClick={() => setSubmenu('last')} />
+                <SidebarLink label="Period to date" onClick={() => setSubmenu('period')} />
+                <SidebarLink label="Financial years" onClick={() => setSubmenu('fy')} />
+
+                <div className="mx-1 my-1.5 h-px bg-border-subtle" />
+
+                <SidebarOption
+                  label="Custom range"
+                  selected={isCustom}
+                  onClick={() => setDraft({ ...draft, presetId: null })}
+                />
+              </>
+            )}
           </div>
 
-          {/* Financial Year section */}
-          {showFiscalYear && (
-            <>
-              <div className="h-px bg-border-subtle" />
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Financial Year
-                </Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {FISCAL_KEYS.map((key) => {
-                    const fy = getFinancialYearRange(country, key === 'current_fy' ? 0 : -1)
-                    const isSelected =
-                      startDate === fy.startDate && endDate === fy.endDate && !isCustomSelection
-
-                    return (
-                      <button
-                        key={key}
-                        data-option
-                        data-selected={isSelected || undefined}
-                        onClick={() => {
-                          onDateChange(fy.startDate, fy.endDate)
-                          setCustomRange(null)
-                          setOpen(false)
-                        }}
-                        className={cn(
-                          'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left',
-                          'outline-none data-active:ring-2 data-active:ring-primary/40',
-                          isSelected
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
-                        )}
-                      >
-                        {fy.label}
-                      </button>
-                    )
-                  })}
-                </div>
+          {/* Dates; keeps its own Enter and arrow keys */}
+          <div data-own-keys className="flex flex-col">
+            <div className="space-y-4 p-4">
+              <div className="flex items-center gap-3">
+                <DateField label="Start date" value={draft.startDate} onCommit={commitStart} />
+                <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+                <DateField label="End date" value={draft.endDate} onCommit={commitEnd} />
               </div>
-            </>
-          )}
-
-          {/* Custom Range section */}
-          <div className="h-px bg-border-subtle" />
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Custom Range
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">From</Label>
-                <Input
-                  type="date"
-                  value={effectiveCustomRange?.startDate || ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const newRange = {
-                        startDate: e.target.value,
-                        endDate:
-                          effectiveCustomRange?.endDate || new Date().toISOString().split('T')[0]!,
-                      }
-                      setCustomRange(newRange)
-                      onDateChange(newRange.startDate, newRange.endDate)
-                    }
-                  }}
-                  className="h-8 rounded-lg text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">To</Label>
-                <Input
-                  type="date"
-                  value={effectiveCustomRange?.endDate || ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const newRange = {
-                        startDate: effectiveCustomRange?.startDate || '2020-01-01',
-                        endDate: e.target.value,
-                      }
-                      setCustomRange(newRange)
-                      onDateChange(newRange.startDate, newRange.endDate)
-                    }
-                  }}
-                  className="h-8 rounded-lg text-sm"
-                />
-              </div>
+              <RangeCalendar
+                month={month}
+                onMonthChange={setMonth}
+                startDate={draft.startDate}
+                endDate={draft.endDate}
+                previewDate={anchor ? preview : undefined}
+                onPreviewChange={setPreview}
+                onSelect={pickDay}
+                minDate={minDate}
+                maxDate={maxDate}
+              />
             </div>
-            {effectiveCustomRange && (
+            <div className="mt-auto flex justify-end gap-2 border-t border-border-subtle p-4">
               <Button
                 variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground h-7 text-xs"
-                onClick={() => {
-                  setCustomRange(null)
-                  onDateChange(undefined, undefined)
-                }}
+                onClick={() => setOpen(false)}
+                className="bg-muted-foreground/15 hover:bg-muted-foreground/25 active:scale-95"
               >
-                <X className="mr-1.5 h-3 w-3" />
-                Clear custom range
+                Cancel
               </Button>
-            )}
+              <Button
+                disabled={!canApply}
+                onClick={apply}
+                className="hover:brightness-110 hover:shadow-md active:scale-95"
+              >
+                Apply
+              </Button>
+            </div>
           </div>
         </div>
       </PopoverContent>
