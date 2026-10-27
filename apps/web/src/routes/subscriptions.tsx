@@ -290,10 +290,31 @@ function SubscriptionsPage() {
             icon={TrendingUp}
           />
           <StatCard
-            label="Active / Inactive"
+            label="Active Subscriptions"
             value={stats.activeCount}
             isCount
-            subtitle={`${stats.inactiveCount} inactive · ${stats.monthlyCount}M / ${stats.quarterlyCount}Q / ${stats.yearlyCount}Y`}
+            subtitle={
+              <div className="-my-0.5 flex flex-wrap items-center gap-1.5">
+                {(['monthly', 'quarterly', 'yearly'] as const).map((frequency) => {
+                  const count = stats[`${frequency}Count`]
+                  return count > 0 ? (
+                    <span
+                      key={frequency}
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                        FREQUENCY_PILL_STYLES[frequency]
+                      )}
+                    >
+                      {count} {getFrequencyLabel(frequency)}
+                    </span>
+                  ) : null
+                })}
+                {stats.inactiveCount > 0 && <span>{stats.inactiveCount} inactive</span>}
+                {stats.activeCount === 0 && stats.inactiveCount === 0 && (
+                  <span>No subscriptions yet</span>
+                )}
+              </div>
+            }
             icon={Repeat}
           />
         </StatCardGrid>
@@ -558,7 +579,7 @@ function SubscriptionCard({
     <button
       onClick={onClick}
       className={cn(
-        'group relative w-full text-left bg-card border border-border-subtle rounded-xl p-4',
+        'group relative w-full cursor-pointer text-left bg-card border border-border-subtle rounded-xl p-4',
         'hover:border-border-hover hover:bg-surface-hover/50 transition-all duration-200',
         'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40',
         !sub.isActive && 'opacity-60'
@@ -627,13 +648,13 @@ function SubscriptionCard({
           {sub.chargeCount} {sub.chargeCount === 1 ? 'charge' : 'charges'}
         </span>
 
+        {/* Arrow indicator, just left of the last charge date */}
+        <ArrowUpRight className="h-3.5 w-3.5 -mr-1.5 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+
         {/* Last charge */}
-        <span className="text-[11px] text-muted-foreground ml-auto">
+        <span className="text-[11px] text-muted-foreground">
           {formatShortDate(sub.lastChargeDate)}
         </span>
-
-        {/* Arrow indicator */}
-        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity -mr-1" />
       </div>
     </button>
   )
