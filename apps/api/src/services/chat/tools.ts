@@ -50,6 +50,17 @@ import {
   calculateLoanOutstanding,
 } from '../entity-linking'
 
+/** Columns of the transaction CSV the model sees (notes are written by the user) */
+const TRANSACTION_COLUMNS = [
+  'date',
+  'type',
+  'amount',
+  'category',
+  'summary',
+  'originalDescription',
+  'notes',
+]
+
 /** A YYYY-MM-DD date */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
 
@@ -317,7 +328,7 @@ export function createTools(context: ToolContext) {
 - category: Transaction category
 - type: 'credit' | 'debit'. Refunds are credits under kind 'expense', so use kind 'expense' + type 'debit' for purchases
 - minAmount/maxAmount: Amount range
-- search: Search in description
+- search: Search in description, summary and the user's notes
 - accountId: Specific account
 - isSubscription: Only recurring
 
@@ -343,7 +354,11 @@ For totals per category, merchant, month or account use getTotals instead of add
         type: z.enum(['credit', 'debit']).nullable().optional().describe('Transaction type'),
         minAmount: z.number().nullable().optional().describe('Minimum amount'),
         maxAmount: z.number().nullable().optional().describe('Maximum amount'),
-        search: z.string().nullable().optional().describe('Search in description'),
+        search: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('Search in description, summary and notes'),
         accountId: z.string().nullable().optional().describe('Filter by account ID'),
         isSubscription: z.boolean().nullable().optional().describe('Only subscriptions'),
         sortBy: z.enum(['date', 'amount']).nullable().optional().describe('Sort column'),
@@ -370,14 +385,7 @@ For totals per category, merchant, month or account use getTotals instead of add
           }
 
           const { slice, hasMore } = paginate(cached.data as Record<string, unknown>[], page)
-          const csvData = toCSV(slice, [
-            'date',
-            'type',
-            'amount',
-            'category',
-            'summary',
-            'originalDescription',
-          ])
+          const csvData = toCSV(slice, TRANSACTION_COLUMNS)
 
           return {
             queryId: params.queryId,
@@ -432,8 +440,9 @@ For totals per category, merchant, month or account use getTotals instead of add
             category: t.category,
             summary: t.summary || '',
             originalDescription: t.originalDescription,
+            notes: t.notes || '',
           })),
-          ['date', 'type', 'amount', 'category', 'summary', 'originalDescription']
+          TRANSACTION_COLUMNS
         )
 
         return {

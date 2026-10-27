@@ -212,6 +212,7 @@ export function buildTransactionSchema(): DataSchema {
         type: 'string',
         description: 'Raw description from statement',
       },
+      { name: 'notes', type: 'string', description: 'Free-form note written by the user' },
       { name: 'accountId', type: 'string', description: 'Account ID' },
       { name: 'balance', type: 'number', description: 'Running balance after transaction' },
     ],
