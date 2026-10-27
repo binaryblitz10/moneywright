@@ -74,11 +74,6 @@ const mainNavItems = [
     href: '/reports',
   },
   {
-    title: 'Ask Penny',
-    icon: MessageSquare,
-    href: '/chat',
-  },
-  {
     title: 'Accounts',
     icon: Building2,
     href: '/accounts',
@@ -119,6 +114,12 @@ const mainNavItems = [
     href: '/loans',
   },
 ]
+
+const askPennyNavItem = {
+  title: 'Ask Penny',
+  icon: MessageSquare,
+  href: '/chat',
+}
 
 // Settings items
 const settingsNavItems = [
@@ -229,8 +230,15 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Settings */}
+        {/* Ask Penny */}
         <SidebarGroup className="mt-4">
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-0.5">{renderNavItem(askPennyNavItem)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Settings, pinned above the footer */}
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">{settingsNavItems.map(renderNavItem)}</SidebarMenu>
           </SidebarGroupContent>
