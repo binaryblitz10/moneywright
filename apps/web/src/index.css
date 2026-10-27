@@ -6,6 +6,36 @@
 @import '@fontsource/dm-sans/600.css';
 @import '@fontsource/dm-sans/700.css';
 
+/* DM Sans draws a stylised rupee sign; use Inter's standard glyph (with a little trailing space) for U+20B9 only */
+@font-face {
+  font-family: 'Rupee Sign';
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/rupee-400.woff2') format('woff2');
+  unicode-range: U+20B9;
+}
+@font-face {
+  font-family: 'Rupee Sign';
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/fonts/rupee-500.woff2') format('woff2');
+  unicode-range: U+20B9;
+}
+@font-face {
+  font-family: 'Rupee Sign';
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/rupee-600.woff2') format('woff2');
+  unicode-range: U+20B9;
+}
+@font-face {
+  font-family: 'Rupee Sign';
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/rupee-700.woff2') format('woff2');
+  unicode-range: U+20B9;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -231,17 +261,17 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Rupee Sign', 'DM Sans', system-ui, sans-serif;
   }
 }
 
 /* Typography utilities */
 .font-display {
-  font-family: 'Outfit Variable', system-ui, sans-serif;
+  font-family: 'Rupee Sign', 'Outfit Variable', system-ui, sans-serif;
 }
 
 .font-body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Rupee Sign', 'DM Sans', system-ui, sans-serif;
 }
 
 /* Tabular numbers for amounts */
