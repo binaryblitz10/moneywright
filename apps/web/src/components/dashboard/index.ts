@@ -12,12 +12,11 @@ export {
   formatDate,
   getDateRange,
   getCalendarMonthRange,
-  parseSavedTimeframe,
   getFiscalYearStartMonth,
   getFinancialYearRange,
   toLocalDateString,
-  getTimeframeDateRange,
 } from './utils'
+export { getTimeframeDateRange, parseSavedTimeframe } from './timeframe'
 
 // Base components
 export { MonthlyTrendsChart } from './monthly-trends-chart'

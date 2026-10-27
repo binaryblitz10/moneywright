@@ -1,161 +1,48 @@
 /**
- * Month range picker for the reports: the dashboard's time frames or a custom start and end
- * month. The current month shows the data so far.
+ * Month range picker for the reports: pick dates and the months they touch are reported.
+ * The current month shows the data so far.
  */
 
-import { useMemo } from 'react'
-import { Calendar, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { cn } from '@/lib/utils'
-import { useOptionNavigation } from '@/hooks/useOptionNavigation'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import type { ReportBounds } from '@/lib/api'
-import { getFinancialYearRange } from '@/components/dashboard/utils'
-import {
-  FY_PRESETS,
-  PERIOD_PRESETS,
-  formatMonth,
-  formatRange,
-  matchPresets,
-  monthsBetween,
-  presetRange,
-  type MonthRange,
-  type PresetKey,
-} from './report-utils'
+import { formatRange, monthDates, type MonthRange } from './report-utils'
 
 interface PeriodPickerProps {
   range: MonthRange
   bounds: ReportBounds
   userCountry: string | null | undefined
-  /** The time frame the user picked; several can cover the same months */
-  selectedPreset: string | undefined
-  onChange: (range: MonthRange, preset?: PresetKey) => void
+  onChange: (range: MonthRange) => void
 }
 
-function optionClass(active: boolean): string {
-  return cn(
-    'px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left outline-none data-active:ring-2 data-active:ring-primary/40',
-    active
-      ? 'bg-primary text-primary-foreground'
-      : 'bg-surface-elevated data-active:bg-surface-hover text-foreground'
-  )
+/** The months with data that a date range touches */
+function toMonthRange(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  { earliestMonth, currentMonth }: ReportBounds
+): MonthRange {
+  if (!earliestMonth || !startDate || !endDate) {
+    return { from: earliestMonth ?? currentMonth, to: currentMonth }
+  }
+  const to = endDate.substring(0, 7) < earliestMonth ? earliestMonth : endDate.substring(0, 7)
+  const from = startDate.substring(0, 7)
+  return {
+    from: from < earliestMonth ? earliestMonth : from > currentMonth ? currentMonth : from,
+    to: to > currentMonth ? currentMonth : to,
+  }
 }
 
-export function PeriodPicker({
-  range,
-  bounds,
-  userCountry,
-  selectedPreset,
-  onChange,
-}: PeriodPickerProps) {
-  const navigation = useOptionNavigation()
-  const matching = matchPresets(range, bounds, userCountry)
-  // The picked time frame when it still covers the range, else the first one that does
-  const active = matching.find((key) => key === selectedPreset) ?? matching[0] ?? null
-  // Newest first, so the recent months are at the top of the list
-  const months = useMemo(
-    () =>
-      bounds.earliestMonth
-        ? monthsBetween(bounds.earliestMonth, bounds.currentMonth).reverse()
-        : [],
-    [bounds]
-  )
-
-  // Presets that have months with data to show: periods, then financial years, then all time
-  const options = [
-    ...PERIOD_PRESETS.filter((p) => p.key !== 'all'),
-    ...FY_PRESETS.map(({ key, offset }) => ({
-      key,
-      label: getFinancialYearRange(userCountry, offset).label,
-    })),
-    ...PERIOD_PRESETS.filter((p) => p.key === 'all'),
-  ].flatMap(({ key, label }) => {
-    const optionRange = presetRange(key, bounds, userCountry)
-    return optionRange ? [{ key, label, range: optionRange }] : []
-  })
-
+export function PeriodPicker({ range, bounds, userCountry, onChange }: PeriodPickerProps) {
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 text-sm">
-          <Calendar className="mr-1.5 h-4 w-4" />
-          {formatRange(range)}
-          <ChevronDown className="ml-1 h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3" {...navigation}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-1.5">
-            {options.map(({ key, label, range: optionRange }) => (
-              <button
-                key={key}
-                data-option
-                data-selected={active === key || undefined}
-                onClick={() => onChange(optionRange, key)}
-                className={optionClass(active === key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="h-px bg-border-subtle" />
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Custom{active === null && ' (selected)'}
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">From</Label>
-                <Select
-                  value={range.from}
-                  onValueChange={(from) =>
-                    onChange({ from, to: from > range.to ? from : range.to })
-                  }
-                >
-                  <SelectTrigger className="h-8 w-full text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-44">
-                    {months.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {formatMonth(m)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">To</Label>
-                <Select
-                  value={range.to}
-                  onValueChange={(to) => onChange({ from: to < range.from ? to : range.from, to })}
-                >
-                  <SelectTrigger className="h-8 w-full text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-44">
-                    {months.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {formatMonth(m)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <DateRangePicker
+      startDate={monthDates(range.from).startDate}
+      endDate={monthDates(range.to).endDate}
+      presetId={null}
+      label={formatRange(range)}
+      country={userCountry}
+      minDate={bounds.earliestMonth ? monthDates(bounds.earliestMonth).startDate : undefined}
+      maxDate={monthDates(bounds.currentMonth).endDate}
+      align="end"
+      onChange={(startDate, endDate) => onChange(toMonthRange(startDate, endDate, bounds))}
+    />
   )
 }

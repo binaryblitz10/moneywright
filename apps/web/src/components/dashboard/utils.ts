@@ -2,13 +2,7 @@
  * Dashboard utility functions
  */
 
-import {
-  CHART_TIMEFRAME_OPTIONS,
-  type ChartTimeframeKey,
-  type DashboardTimeframeSelection,
-  type DateRange,
-  type TimeframeKey,
-} from './types'
+import type { TimeframeKey } from './types'
 
 /**
  * Currency formatter
@@ -137,27 +131,6 @@ export function getCalendarMonthRange(offset: number): { startDate: string; endD
 }
 
 /**
- * Parse a saved dashboard timeframe preference
- * Returns null when the value is missing or no longer valid
- */
-export function parseSavedTimeframe(value: string | undefined): DashboardTimeframeSelection | null {
-  if (!value) return null
-  try {
-    const parsed = JSON.parse(value) as Partial<DashboardTimeframeSelection>
-    const timeframe = parsed.timeframe
-    if (!CHART_TIMEFRAME_OPTIONS.some((o) => o.key === timeframe)) return null
-    if (timeframe === 'custom') {
-      const range = parsed.customDateRange
-      if (!range?.startDate || !range.endDate) return null
-      return { timeframe, customDateRange: range }
-    }
-    return { timeframe: timeframe!, customDateRange: null }
-  } catch {
-    return null
-  }
-}
-
-/**
  * Get financial year start month based on country
  * Returns 0-indexed month (0 = January, 3 = April, etc.)
  */
@@ -220,26 +193,4 @@ export function getFinancialYearRange(
     fyStartMonth === 0 ? `FY ${fyStartYear}` : `FY ${fyStartYear}-${String(fyEndYear).slice(-2)}`
 
   return { startDate, endDate, label }
-}
-
-/**
- * Resolve a preset timeframe to explicit dates (shared by the dashboard and the
- * transactions date filter). Month-count presets run from the first day of the
- * earliest month through today. 'custom' has no preset range, so it returns null.
- */
-export function getTimeframeDateRange(
-  key: ChartTimeframeKey,
-  country: string | null | undefined
-): DateRange | null {
-  if (key === 'custom') return null
-  if (key === 'current_fy' || key === 'last_fy') {
-    const fy = getFinancialYearRange(country, key === 'current_fy' ? 0 : -1)
-    return { startDate: fy.startDate, endDate: fy.endDate }
-  }
-  const option = CHART_TIMEFRAME_OPTIONS.find((t) => t.key === key)
-  if (option?.monthOffset !== undefined) return getCalendarMonthRange(option.monthOffset)
-  const months = option?.months ?? 12
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
-  return { startDate: toLocalDateString(start), endDate: toLocalDateString(now) }
 }

@@ -28,13 +28,13 @@ import { PREFERENCE_KEYS } from '@/lib/api'
 import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from '@/lib/api'
 import type { MonthlyTrendData } from '@/lib/api'
 import { DASHBOARD_WIDGETS, type DashboardWidgetId } from '@/lib/dashboard-widgets'
+import { getRangeLabel } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
 
 import {
   type DashboardTimeframeSelection,
   type DateRange,
   DEFAULT_TIMEFRAME_SELECTION,
-  CHART_TIMEFRAME_OPTIONS,
   formatCompact,
   formatCurrency,
   getTimeframeDateRange,
@@ -125,7 +125,9 @@ function DashboardPage() {
   const [showMonthlyAverage, setShowMonthlyAverage] = useState(false)
 
   const selectedTimeframeLabel =
-    CHART_TIMEFRAME_OPTIONS.find((t) => t.key === dashboardTimeframe)?.label ?? ''
+    dashboardTimeframe === 'custom'
+      ? getRangeLabel(customDateRange ?? {}, user?.country, null)
+      : getRangeLabel({}, user?.country, dashboardTimeframe)
 
   // Explicit date range from the shared timeframe, used by every date-based widget
   const dateRange = useMemo(
