@@ -491,7 +491,7 @@ function StatementsUploadPage() {
               exit={{ opacity: 0, y: -10 }}
               className="fixed top-6 right-6 z-50"
             >
-              <div className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0a0a0a] border border-emerald-500/30 text-sm font-medium text-emerald-400 overflow-hidden shadow-lg">
+              <div className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#292929] border border-emerald-500/30 text-sm font-medium text-emerald-400 overflow-hidden shadow-lg">
                 {/* Shimmer effect */}
                 <div className="absolute inset-0 animate-shimmer-slide bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
 

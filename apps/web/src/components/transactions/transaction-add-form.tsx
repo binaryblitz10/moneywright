@@ -74,7 +74,7 @@ export function TransactionAddForm({
           showAllOption={false}
           allOptionLabel="Select an account"
           contentClassName="w-(--radix-popover-trigger-width)"
-          triggerClassName="w-full h-10 rounded-lg bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover"
+          triggerClassName="w-full h-10 rounded-lg bg-background border-input hover:bg-background hover:border-border-hover"
         />
       </div>
 
@@ -98,6 +98,7 @@ export function TransactionAddForm({
           categories={categories}
           value={category}
           onChange={setCategory}
+          triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
         />
       </div>
 

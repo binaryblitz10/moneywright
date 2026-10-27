@@ -128,11 +128,11 @@
   /* Logo inversion for dark mode (make dark logos visible on dark bg) */
   --logo-invert: invert(1);
   /* Base backgrounds */
-  --background: #030303;
+  --background: #1b1b1b;
   --foreground: #fafafa;
-  --card: #0a0a0a;
+  --card: #292929;
   --card-foreground: #fafafa;
-  --popover: #0a0a0a;
+  --popover: #363636;
   --popover-foreground: #fafafa;
 
   /* Primary accent - Emerald */
@@ -140,15 +140,15 @@
   --primary-foreground: #022c22;
 
   /* Secondary */
-  --secondary: #111111;
+  --secondary: #303030;
   --secondary-foreground: #fafafa;
 
   /* Muted */
-  --muted: #18181b;
-  --muted-foreground: #71717a;
+  --muted: #333333;
+  --muted-foreground: #b4b4b4;
 
   /* Accent */
-  --accent: #111111;
+  --accent: #424242;
   --accent-foreground: #fafafa;
 
   /* Destructive */
@@ -167,11 +167,11 @@
   --chart-5: #8b5cf6;
 
   /* Sidebar */
-  --sidebar: #030303;
+  --sidebar: #191919;
   --sidebar-foreground: #fafafa;
   --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #022c22;
-  --sidebar-accent: #111111;
+  --sidebar-accent: #303030;
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #10b981;
@@ -181,10 +181,10 @@
      ======================================== */
 
   /* Surface colors */
-  --surface: #0a0a0a;
-  --surface-elevated: #111111;
-  --surface-hover: #161616;
-  --surface-active: #1a1a1a;
+  --surface: #292929;
+  --surface-elevated: #363636;
+  --surface-hover: #424242;
+  --surface-active: #3a3a3a;
 
   /* Border variants */
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -194,9 +194,9 @@
 
   /* Text colors */
   --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --text-disabled: #52525b;
+  --text-secondary: #c8c8c8;
+  --text-muted: #a8a8a8;
+  --text-disabled: #737373;
 
   /* Semantic colors */
   --positive: #10b981;

@@ -55,13 +55,13 @@ export function AuthLayout({
   features = DEFAULT_FEATURES,
 }: AuthLayoutProps) {
   return (
-    <div className="h-screen flex bg-[#030303] font-body overflow-hidden">
+    <div className="h-screen flex bg-[#1b1b1b] font-body overflow-hidden">
       {/* Left Panel - Branding (exactly 50%) */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-8 xl:p-12 relative overflow-hidden">
         {/* Animated mesh gradient background */}
         <div className="absolute inset-0">
           {/* Base dark gradient */}
-          <div className="absolute inset-0 bg-linear-to-br from-[#030303] via-[#0a0f0d] to-[#030303]" />
+          <div className="absolute inset-0 bg-linear-to-br from-[#1b1b1b] via-[#202422] to-[#1b1b1b]" />
 
           {/* Floating orbs */}
           <motion.div
@@ -227,7 +227,7 @@ export function AuthLayout({
       </div>
 
       {/* Right Panel - Form (exactly 50%) */}
-      <div className="w-full lg:w-1/2 flex flex-col h-screen relative bg-[#0a0a0a] overflow-hidden">
+      <div className="w-full lg:w-1/2 flex flex-col h-screen relative bg-[#292929] overflow-hidden">
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-emerald-950/5 pointer-events-none z-0" />
 
