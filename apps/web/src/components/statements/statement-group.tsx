@@ -130,26 +130,29 @@ export function StatementGroup({
             </p>
           </div>
           {balance != null && (
-            <div className="hidden text-right sm:block">
+            <div className="hidden w-44 shrink-0 text-right sm:block">
               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {balanceLabel}
               </p>
-              <p className="text-sm font-semibold tabular-nums text-foreground">
+              <p className="text-base font-semibold tabular-nums text-foreground">
                 {formatMoney(balance)}
               </p>
               {paidSinceStatement > 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  {formatMoney(paidSinceStatement)} paid since statement
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {formatMoney(paidSinceStatement)} paid since
                 </p>
               )}
             </div>
           )}
-          <div className="text-right">
-            <p className="text-sm font-semibold tabular-nums text-foreground">{count}</p>
-            <p className="text-[11px] text-muted-foreground">
-              statement{count === 1 ? '' : 's'}
-              {transactionTotal > 0 && ` · ${transactionTotal.toLocaleString()} txns`}
+          <div className="w-28 shrink-0 whitespace-nowrap border-l border-border-subtle pl-4 text-right">
+            <p className="text-sm font-semibold tabular-nums text-foreground">
+              {count} statement{count === 1 ? '' : 's'}
             </p>
+            {transactionTotal > 0 && (
+              <p className="text-[11px] tabular-nums text-muted-foreground">
+                {transactionTotal.toLocaleString()} txns
+              </p>
+            )}
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/statements:rotate-90" />
         </CollapsibleTrigger>
