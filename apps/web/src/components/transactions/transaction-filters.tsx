@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Label } from '@/components/ui/label'
@@ -29,7 +28,7 @@ import { useConstants } from '@/hooks/useConstants'
 import { useSmsImportStatus } from '@/hooks/useSmsImport'
 import { getAccountShortLabel, getStatementPeriodLabel } from '@/lib/statement-display'
 import { MetaLabel } from '@/components/ui/meta-label'
-import { CategoryPicker } from './category-picker'
+import { CategoryPicker, ROW_ACTIVE_CLASS, ROW_CLASS, ROW_HOVER_CLASS } from './category-picker'
 
 interface TransactionFiltersBarProps {
   filters: TransactionFilters
@@ -527,28 +526,27 @@ function CategoryFilterDropdown({
         disabled={onlyHidden}
         leadingRows={
           <>
-            <Button
-              variant={!selected.length && !onlyHidden ? 'secondary' : 'ghost'}
-              size="sm"
-              className="w-full justify-start gap-2 px-2"
+            <button
+              type="button"
+              className={cn(
+                ROW_CLASS,
+                ROW_HOVER_CLASS,
+                !selected.length && !onlyHidden && ROW_ACTIVE_CLASS
+              )}
               onClick={onClear}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center" />
-              <Sparkles className="h-4 w-4 text-muted-foreground" />
-              All categories
-            </Button>
-            <Button
-              variant={onlyHidden ? 'secondary' : 'ghost'}
-              size="sm"
-              className="w-full justify-start gap-2 px-2"
+              <Sparkles className="-mx-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">All categories</span>
+            </button>
+            <button
+              type="button"
+              className={cn(ROW_CLASS, ROW_HOVER_CLASS, onlyHidden && ROW_ACTIVE_CLASS)}
               onClick={onToggleHidden}
             >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {onlyHidden && <Check className="h-4 w-4 text-primary" />}
-              </span>
-              <EyeOff className="h-4 w-4 text-muted-foreground" />
-              Hidden
-            </Button>
+              <EyeOff className="-mx-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">Hidden</span>
+              {onlyHidden && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
           </>
         }
       />

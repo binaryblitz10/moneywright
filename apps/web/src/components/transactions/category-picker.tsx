@@ -7,9 +7,11 @@ import type { Category, CategoryKind } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 
-const ROW_CLASS =
+export const ROW_CLASS =
   'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground/85 transition-colors disabled:pointer-events-none disabled:opacity-50'
-const ROW_ACTIVE_CLASS = 'bg-foreground/[0.08] text-foreground'
+export const ROW_ACTIVE_CLASS = 'bg-foreground/[0.08] text-foreground'
+/** For rows outside the keyboard-highlighted list, which have no highlight of their own */
+export const ROW_HOVER_CLASS = 'hover:bg-foreground/[0.08] hover:text-foreground'
 
 // Full class names so Tailwind can see them
 const DOT_COLORS: Record<string, string> = {
