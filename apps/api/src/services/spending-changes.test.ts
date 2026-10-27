@@ -205,7 +205,6 @@ describe('computeSpendingChanges', () => {
     const result = ok(computeSpendingChanges(txns, months.slice(0, 6), { today: TODAY }))
     expect(result.month).toBe('2026-09')
     expect(result.isPartial).toBe(false)
-    expect(result.note).toBeNull()
     expect(result.categories).toHaveLength(1)
     expect(result.categories[0]).toMatchObject({
       category: 'food_dining',
@@ -272,7 +271,6 @@ describe('computeSpendingChanges', () => {
     const txns = [...steadyBaseline(), txn('2026-10-05', 30000, 'Swiggy')]
     const result = ok(computeSpendingChanges(txns, months, { month: '2026-10', today: TODAY }))
     expect(result.isPartial).toBe(true)
-    expect(result.note).toContain('without pro-rating')
     expect(result.totals.current).toBe(30000)
   })
 

@@ -106,8 +106,6 @@ export interface SpendingChangesReport {
   month: string
   /** True when the month is still in progress */
   isPartial: boolean
-  /** Explains how a partial month is compared, null otherwise */
-  note: string | null
   /** Baseline months actually used (YYYY-MM, chronological) */
   baselineMonths: string[]
   totals: {
@@ -426,9 +424,6 @@ export function computeSpendingChanges(
     status: 'ok',
     month,
     isPartial,
-    note: isPartial
-      ? 'Month in progress: spending so far is compared with full previous months, without pro-rating.'
-      : null,
     baselineMonths,
     totals: {
       current: totalCurrent,

@@ -71,7 +71,7 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
     <SectionCard
       title="What Changed"
       description={data && shownMonth ? getSubtitle(data) : undefined}
-      className="mb-6"
+      className="h-full"
       action={
         shownMonth && (
           <>
@@ -97,7 +97,7 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
           </>
         )
       }
-      // Fixed body height (MAX_ITEMS rows plus the note) so changing months never resizes the card
+      // Fixed body height (MAX_ITEMS rows) so changing months never resizes the card
       contentClassName="min-h-82 flex flex-col"
     >
       {isLoading || !data ? (
@@ -185,7 +185,6 @@ function WhatChangedBody({
           />
         )
       )}
-      {data.note && <p className="text-[11px] text-muted-foreground pt-2">{data.note}</p>}
     </div>
   )
 }
@@ -207,9 +206,6 @@ function CategoryChangeRow({
 }: RowProps & { change: SpendingCategoryChange }) {
   const isUp = change.direction === 'up'
   const Icon = isUp ? ArrowUpRight : ArrowDownRight
-  const drivers = change.topMerchants
-    .map((m) => `${m.merchant} ${m.count} ${m.count === 1 ? 'txn' : 'txns'}`)
-    .join(', ')
 
   return (
     <Link to="/transactions" search={{ category: change.category, ...range }} className={ROW_CLASS}>
@@ -217,7 +213,6 @@ function CategoryChangeRow({
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
         <p className="text-xs text-muted-foreground truncate">
           vs {formatCurrency(change.baselineAverage, currency)}
-          {drivers && ` · ${drivers}`}
         </p>
       </div>
       <div

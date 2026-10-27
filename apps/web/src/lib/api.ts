@@ -2124,7 +2124,6 @@ export type SpendingChangesResponse =
       currency: string
       month: string
       isPartial: boolean
-      note: string | null
       baselineMonths: string[]
       totals: { current: number; baselineAverage: number; delta: number; deltaPct: number | null }
       categories: SpendingCategoryChange[]
