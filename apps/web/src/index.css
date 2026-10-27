@@ -128,7 +128,7 @@
   /* Logo inversion for dark mode (make dark logos visible on dark bg) */
   --logo-invert: invert(1);
   /* Base backgrounds */
-  --background: #1b1b1b;
+  --background: #141414;
   --foreground: #fafafa;
   --card: #292929;
   --card-foreground: #fafafa;
@@ -167,7 +167,7 @@
   --chart-5: #8b5cf6;
 
   /* Sidebar */
-  --sidebar: #191919;
+  --sidebar: #111111;
   --sidebar-foreground: #fafafa;
   --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #022c22;

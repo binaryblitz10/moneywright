@@ -55,13 +55,13 @@ export function AuthLayout({
   features = DEFAULT_FEATURES,
 }: AuthLayoutProps) {
   return (
-    <div className="h-screen flex bg-[#1b1b1b] font-body overflow-hidden">
+    <div className="h-screen flex bg-[#141414] font-body overflow-hidden">
       {/* Left Panel - Branding (exactly 50%) */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-8 xl:p-12 relative overflow-hidden">
         {/* Animated mesh gradient background */}
         <div className="absolute inset-0">
           {/* Base dark gradient */}
-          <div className="absolute inset-0 bg-linear-to-br from-[#1b1b1b] via-[#202422] to-[#1b1b1b]" />
+          <div className="absolute inset-0 bg-linear-to-br from-[#141414] via-[#202422] to-[#141414]" />
 
           {/* Floating orbs */}
           <motion.div

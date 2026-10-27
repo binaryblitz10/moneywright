@@ -182,7 +182,7 @@ function SetupPage() {
 
   if (statusLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1b1b1b]">
+      <div className="min-h-screen flex items-center justify-center bg-[#141414]">
         <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
       </div>
     )
