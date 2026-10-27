@@ -10,7 +10,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Check, Pencil, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Check, Pencil, Plus, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { CategoryPicker } from './category-picker'
+import { useUpdateTransaction } from '@/hooks'
 import { cn } from '@/lib/utils'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
@@ -147,6 +149,7 @@ export function TransactionTable({
   isEditable,
   isSelectable,
 }: TransactionTableProps) {
+  const updateTransaction = useUpdateTransaction()
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
 
@@ -232,6 +235,9 @@ export function TransactionTable({
             <TableHead className="w-auto text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Description
             </TableHead>
+            <TableHead className="w-48 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Category
+            </TableHead>
             <TableHead className="w-35">
               <SortableHeading
                 label="Amount"
@@ -261,7 +267,7 @@ export function TransactionTable({
               <Fragment key={`${txn.id}-${index}`}>
                 {groupHeader && (
                   <TableRow className="border-b border-border-subtle bg-surface-elevated/60 hover:bg-surface-elevated/60">
-                    <TableCell colSpan={selectable ? 5 : 4} className="py-2 pl-5">
+                    <TableCell colSpan={selectable ? 6 : 5} className="py-2 pl-5">
                       {groupHeader}
                     </TableCell>
                   </TableRow>
@@ -321,23 +327,13 @@ export function TransactionTable({
                         {getNameInitial(txn.summary || txn.originalDescription)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        {/* Title row with category badge inline */}
+                        {/* Title row */}
                         <div className="flex items-center gap-2">
                           <p className="truncate font-medium text-foreground text-sm">
                             {txn.isManuallyCategorized && txn.summary
                               ? txn.summary
                               : toTitleCase(txn.summary || txn.originalDescription)}
                           </p>
-                          {/* Category badge - inline */}
-                          <span
-                            className={cn(
-                              'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0',
-                              'transition-transform duration-200 group-hover:scale-105',
-                              getCategoryColor(txn.category)
-                            )}
-                          >
-                            {getCategoryLabel(txn.category)}
-                          </span>
                           {/* Matched with a statement line: just a checkmark */}
                           {txn.smsVerified && (
                             <Tooltip>
@@ -408,6 +404,17 @@ export function TransactionTable({
                       </div>
                     </div>
                   </TableCell>
+                  <TableCell className="py-3 text-right">
+                    <CategoryCell
+                      transaction={txn}
+                      categories={categories}
+                      label={getCategoryLabel(txn.category)}
+                      colorClass={getCategoryColor(txn.category)}
+                      onChange={(category) =>
+                        updateTransaction.mutate({ transactionId: txn.id, data: { category } })
+                      }
+                    />
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap py-3">
                     <span
                       className={cn(
@@ -441,6 +448,63 @@ export function TransactionTable({
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+// Categories that mean "nobody has picked one yet"
+const PLACEHOLDER_CATEGORIES = new Set(['other', 'other_income'])
+
+// Category pill, or a dashed add button while a row has none. Click to pick a category
+function CategoryCell({
+  transaction,
+  categories,
+  label,
+  colorClass,
+  onChange,
+}: {
+  transaction: Transaction
+  categories: Category[]
+  label: string
+  colorClass: string | undefined
+  onChange: (category: string) => void
+}) {
+  const uncategorized =
+    !transaction.isManuallyCategorized &&
+    (!transaction.category ||
+      PLACEHOLDER_CATEGORIES.has(transaction.category) ||
+      !categories.some((c) => c.code === transaction.category))
+
+  const pill = (
+    <button
+      type="button"
+      className={cn(
+        'inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium',
+        'cursor-pointer transition-colors',
+        uncategorized
+          ? 'border-dashed border-border-hover bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground'
+          : cn(colorClass, 'hover:bg-current/20 dark:hover:bg-current/20')
+      )}
+    >
+      {uncategorized ? (
+        <>
+          <Plus className="h-3 w-3 shrink-0" />
+          Add category
+        </>
+      ) : (
+        <span className="truncate">{label}</span>
+      )}
+    </button>
+  )
+
+  return (
+    <CategoryPicker
+      categories={categories}
+      value={transaction.category}
+      onChange={onChange}
+      trigger={pill}
+      contentAlign="end"
+      contentClassName="w-[26rem] max-w-[calc(100vw-2rem)]"
+    />
   )
 }
 

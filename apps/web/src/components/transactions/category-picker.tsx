@@ -13,6 +13,8 @@ interface CategoryPickerBaseProps {
   placeholder?: string
   /** Extra classes for the dropdown, e.g. a fixed width when the trigger is narrow */
   contentClassName?: string
+  /** Which edge of the trigger the dropdown lines up with (default: start) */
+  contentAlign?: 'start' | 'end'
   /** Extra classes for the trigger button */
   triggerClassName?: string
 }
@@ -23,6 +25,8 @@ interface SingleCategoryPickerProps extends CategoryPickerBaseProps {
   onChange: (code: string) => void
   /** Adds a choice that clears the selection, passing an empty code to onChange */
   noneLabel?: string
+  /** Replaces the default button, e.g. a pill inside a table row */
+  trigger?: React.ReactNode
 }
 
 interface MultiCategoryPickerProps extends CategoryPickerBaseProps {
@@ -43,7 +47,13 @@ type CategoryPickerProps = SingleCategoryPickerProps | MultiCategoryPickerProps
 
 /** Searchable category list, grouped by kind. Single-select by default, or multi-select with `multiple` */
 export function CategoryPicker(props: CategoryPickerProps) {
-  const { id, categories, placeholder = 'Select a category', contentClassName } = props
+  const {
+    id,
+    categories,
+    placeholder = 'Select a category',
+    contentClassName,
+    contentAlign = 'start',
+  } = props
   const selected = props.multiple ? props.values : props.value ? [props.value] : []
   const noneLabel = props.multiple ? undefined : props.noneLabel
   const disabled = props.multiple ? props.disabled : false
@@ -142,30 +152,34 @@ export function CategoryPicker(props: CategoryPickerProps) {
   return (
     <Popover modal open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          className={cn(
-            'h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover',
-            props.triggerClassName
-          )}
-        >
-          <span
+        {!props.multiple && props.trigger ? (
+          props.trigger
+        ) : (
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
             className={cn(
-              'flex items-center gap-2 truncate',
-              !triggerText && 'text-muted-foreground'
+              'h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover',
+              props.triggerClassName
             )}
           >
-            {props.multiple && props.triggerIcon}
-            {triggerText ?? placeholder}
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+            <span
+              className={cn(
+                'flex items-center gap-2 truncate',
+                !triggerText && 'text-muted-foreground'
+              )}
+            >
+              {props.multiple && props.triggerIcon}
+              {triggerText ?? placeholder}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         className={cn('w-(--radix-popover-trigger-width) min-w-72 p-2', contentClassName)}
-        align="start"
+        align={contentAlign}
       >
         <div className="relative mb-2">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
