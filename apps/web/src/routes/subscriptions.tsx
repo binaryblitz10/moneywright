@@ -112,6 +112,26 @@ function getMonthlyPrice(amount: number, frequency: DetectedSubscription['freque
   }
 }
 
+// Pill colours per billing frequency
+const FREQUENCY_PILL_STYLES: Record<DetectedSubscription['frequency'], string> = {
+  monthly: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  quarterly: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  yearly: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  unknown: 'bg-zinc-500/10 text-zinc-500',
+}
+
+// Get annual equivalent price
+function getAnnualPrice(amount: number, frequency: DetectedSubscription['frequency']): number {
+  switch (frequency) {
+    case 'monthly':
+      return amount * 12
+    case 'quarterly':
+      return amount * 4
+    default:
+      return amount
+  }
+}
+
 // Get billing period label
 function getBillingLabel(frequency: DetectedSubscription['frequency']): string {
   switch (frequency) {
@@ -532,6 +552,7 @@ function SubscriptionCard({
   const institutionId = sub.institution || ''
   const logoPath = institutionId ? `/institutions/${countryCode}/${institutionId}.svg` : null
   const monthlyPrice = getMonthlyPrice(sub.amount, sub.frequency)
+  const annualPrice = getAnnualPrice(sub.amount, sub.frequency)
 
   return (
     <button
@@ -562,27 +583,31 @@ function SubscriptionCard({
           </p>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-base font-bold tabular-nums text-foreground">
-              {formatCurrency(monthlyPrice, currency)}
-            </span>
-            {(sub.frequency === 'quarterly' || sub.frequency === 'yearly') && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-[10px] text-muted-foreground cursor-help">
-                    {getFrequencyAbbr(sub.frequency)}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="text-xs">
-                  {getBillingLabel(sub.frequency)}: {formatCurrency(sub.amount, currency)}
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            {getFrequencyLabel(sub.frequency)}
-          </span>
+        <span
+          className={cn(
+            'shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full',
+            FREQUENCY_PILL_STYLES[sub.frequency]
+          )}
+        >
+          {getFrequencyLabel(sub.frequency)}
+        </span>
+      </div>
+
+      {/* Middle row: Monthly and annual cost */}
+      <div className="flex items-end justify-between gap-3 pt-3 pb-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+            Monthly
+          </p>
+          <p className="text-base font-bold tabular-nums text-foreground">
+            {formatCurrency(monthlyPrice, currency)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Annual</p>
+          <p className="text-base font-bold tabular-nums text-foreground">
+            {formatCurrency(annualPrice, currency)}
+          </p>
         </div>
       </div>
 
