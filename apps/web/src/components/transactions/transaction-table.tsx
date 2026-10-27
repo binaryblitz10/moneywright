@@ -1,5 +1,4 @@
 import { Fragment, useRef, useState, type MouseEvent, type ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
@@ -10,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Check, Pencil, Plus, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Check, Plus, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { CategoryPicker } from './category-picker'
 import { useUpdateTransaction } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -238,7 +237,7 @@ export function TransactionTable({
             <TableHead className="w-48 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Category
             </TableHead>
-            <TableHead className="w-35">
+            <TableHead className="w-35 pr-6">
               <SortableHeading
                 label="Amount"
                 column="amount"
@@ -248,7 +247,6 @@ export function TransactionTable({
                 className="ml-auto"
               />
             </TableHead>
-            <TableHead className="w-11"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -262,12 +260,13 @@ export function TransactionTable({
               : null
 
             const groupHeader = renderGroupHeader?.(txn, index)
+            const canEdit = isEditable?.(txn) ?? true
 
             return (
               <Fragment key={`${txn.id}-${index}`}>
                 {groupHeader && (
                   <TableRow className="border-b border-border-subtle bg-surface-elevated/60 hover:bg-surface-elevated/60">
-                    <TableCell colSpan={selectable ? 6 : 5} className="py-2 pl-5">
+                    <TableCell colSpan={selectable ? 5 : 4} className="py-2 pl-5">
                       {groupHeader}
                     </TableCell>
                   </TableRow>
@@ -275,11 +274,18 @@ export function TransactionTable({
                 <TableRow
                   className={cn(
                     'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
-                    'hover:bg-surface-hover',
-                    rowClickSelects && 'cursor-pointer',
+                    'hover:bg-surface-hover select-none',
+                    (rowClickSelects || canEdit) && 'cursor-pointer',
                     selectable && selectedIds.has(txn.id) && 'bg-primary/5'
                   )}
-                  onClick={rowClickSelects ? (e) => handleRowClick(e, index) : undefined}
+                  // Selecting takes over clicks while selection is on, otherwise a click opens the editor
+                  onClick={
+                    rowClickSelects
+                      ? (e) => handleRowClick(e, index)
+                      : canEdit
+                        ? () => onEditTransaction(txn)
+                        : undefined
+                  }
                   // Stop shift-click from highlighting text while range selecting
                   onMouseDown={selectable ? (e) => e.shiftKey && e.preventDefault() : undefined}
                 >
@@ -404,7 +410,7 @@ export function TransactionTable({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-right">
+                  <TableCell className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <CategoryCell
                       transaction={txn}
                       categories={categories}
@@ -415,7 +421,7 @@ export function TransactionTable({
                       }
                     />
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap py-3">
+                  <TableCell className="text-right whitespace-nowrap py-3 pr-6">
                     <span
                       className={cn(
                         'font-semibold tabular-nums text-sm transition-colors duration-200',
@@ -425,21 +431,6 @@ export function TransactionTable({
                       {txn.type === 'credit' ? '+' : '-'}
                       {formatAmount(txn.amount, txn.currency)}
                     </span>
-                  </TableCell>
-                  <TableCell className="py-3">
-                    {(isEditable?.(txn) ?? true) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onEditTransaction(txn)
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
                   </TableCell>
                 </TableRow>
               </Fragment>
