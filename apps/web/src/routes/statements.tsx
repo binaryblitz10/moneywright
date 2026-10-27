@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
@@ -99,6 +100,11 @@ function StatementsPage() {
     const saved = localStorage.getItem(SORT_STORAGE_KEY)
     return (saved as SortOption) || 'period_desc'
   })
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  // Statement ids present when the upload finished; anything else that shows up is new
+  const knownIdsRef = useRef<Set<string> | null>(null)
+  const scrollToGroupRef = useRef<string | null>(null)
+  const statusesRef = useRef<Map<string, string>>(new Map())
   const [editStatement, setEditStatement] = useState<Statement | null>(null)
   const [recategorizeStatement, setRecategorizeStatement] = useState<Statement | null>(null)
 
@@ -251,6 +257,56 @@ function StatementsPage() {
     return [...groups.entries()].sort(([, a], [, b]) => a.sortKey - b.sortKey)
   })()
 
+  const setGroupOpen = (key: string, open: boolean) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev)
+      if (open) next.add(key)
+      else next.delete(key)
+      return next
+    })
+
+  // After an upload, open and scroll to the group that received the new statement(s)
+  useEffect(() => {
+    const known = knownIdsRef.current
+    if (!known || !statements) return
+    const [first] = statements.filter((s) => !known.has(s.id))
+    if (!first) return
+    knownIdsRef.current = null
+    const key =
+      first.documentType === 'investment_statement'
+        ? `source:${first.sourceId ?? 'none'}`
+        : `account:${first.accountId ?? 'none'}`
+    scrollToGroupRef.current = key
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to fetched data
+    setOpenGroups((prev) => new Set(prev).add(key))
+  }, [statements])
+
+  useEffect(() => {
+    const key = scrollToGroupRef.current
+    if (!key || !openGroups.has(key)) return
+    scrollToGroupRef.current = null
+    document
+      .getElementById(`statement-group-${key}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [openGroups])
+
+  // Toast when a statement that was processing finishes
+  useEffect(() => {
+    if (!statements) return
+    const previous = statusesRef.current
+    for (const s of statements) {
+      const before = previous.get(s.id)
+      if (before !== 'pending' && before !== 'parsing') continue
+      const name = s.originalFilename || 'Statement'
+      if (s.status === 'completed') {
+        toast.success(`${name} processed: ${s.transactionCount.toLocaleString()} transactions`)
+      } else if (s.status === 'failed') {
+        toast.error(`${name} failed to process`)
+      }
+    }
+    statusesRef.current = new Map(statements.map((s) => [s.id, s.status]))
+  }, [statements])
+
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return ''
     if (bytes < 1024) return `${bytes} B`
@@ -335,6 +391,7 @@ function StatementsPage() {
                 onClose={() => setShowUploadDialog(false)}
                 onSuccess={() => {
                   setShowUploadDialog(false)
+                  knownIdsRef.current = new Set(statements?.map((s) => s.id))
                   queryClient.invalidateQueries({ queryKey: ['statements'] })
                   queryClient.invalidateQueries({ queryKey: ['accounts'] })
                 }}
@@ -366,6 +423,9 @@ function StatementsPage() {
                     {kindGroups.map(([key, group]) => (
                       <StatementGroup
                         key={key}
+                        id={`statement-group-${key}`}
+                        open={openGroups.has(key)}
+                        onOpenChange={(open) => setGroupOpen(key, open)}
                         title={group.title}
                         subtitle={group.subtitle}
                         logoPath={group.logoPath}

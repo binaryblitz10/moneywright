@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Building2, ChevronRight, CreditCard, TrendingUp } from 'lucide-react'
+import { AlertCircle, Building2, ChevronRight, CreditCard, Loader2, TrendingUp } from 'lucide-react'
 import type { Statement } from '@/lib/api'
 import { OverdueBadge } from '@/components/ui/overdue-badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -8,6 +8,10 @@ import { CoverageTimeline } from './coverage-timeline'
 export type StatementGroupKind = 'bank' | 'credit_card' | 'investment'
 
 interface StatementGroupProps {
+  /** DOM id, so the page can scroll this group into view */
+  id?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
   title: string
   /** e.g. "••1234" */
   subtitle: string
@@ -36,6 +40,9 @@ const monthYear = (date: string): string =>
   new Date(date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 export function StatementGroup({
+  id,
+  open,
+  onOpenChange,
   title,
   subtitle,
   logoPath,
@@ -74,10 +81,19 @@ export function StatementGroup({
         ? monthYear(last)
         : `${monthYear(first)} – ${monthYear(last)}`
       : null
+  const processingCount = statements.filter(
+    (s) => s.status === 'pending' || s.status === 'parsing'
+  ).length
+  const failedCount = statements.filter((s) => s.status === 'failed').length
   const transactionTotal = statements.reduce((sum, s) => sum + s.transactionCount, 0)
 
   return (
-    <Collapsible className="group/statements animate-fade-in overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-sm transition-colors hover:border-border-hover">
+    <Collapsible
+      id={id}
+      open={open}
+      onOpenChange={onOpenChange}
+      className="scroll-mt-20 group/statements animate-fade-in overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-sm transition-colors hover:border-border-hover"
+    >
       <div>
         <CollapsibleTrigger className="flex w-full items-center gap-4 px-5 pt-4 pb-3 text-left">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-subtle bg-surface-elevated">
@@ -96,6 +112,18 @@ export function StatementGroup({
             <div className="flex items-center gap-2">
               <p className="truncate text-sm font-semibold text-foreground">{title}</p>
               {overdueSince && <OverdueBadge lastStatementDate={overdueSince} />}
+              {processingCount > 0 && (
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {processingCount} processing
+                </span>
+              )}
+              {failedCount > 0 && (
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                  <AlertCircle className="h-3 w-3" />
+                  {failedCount} failed
+                </span>
+              )}
             </div>
             <p className="truncate text-xs text-muted-foreground">
               {[subtitle, range].filter(Boolean).join(' · ')}
