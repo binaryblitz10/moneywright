@@ -4,7 +4,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { MessageSquare, History, Trash2, Loader2 } from 'lucide-react'
+import { History, Trash2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDate } from './utils'
 import type { ChatConversation } from '@/lib/api'
@@ -39,7 +39,7 @@ export function ConversationHistory({
         <SheetHeader>
           <SheetTitle>Chat History</SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 space-y-2 px-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -56,7 +56,6 @@ export function ConversationHistory({
                   conv.id === currentConversationId ? 'bg-primary/10' : 'hover:bg-muted'
                 )}
               >
-                <MessageSquare className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{conv.title || 'New conversation'}</p>
                   <p className="text-xs text-muted-foreground">{formatDate(conv.updatedAt)}</p>
