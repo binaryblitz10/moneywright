@@ -482,7 +482,7 @@ function CategoryCell({
     <button
       type="button"
       className={cn(
-        'inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium',
+        'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
         'cursor-pointer transition-[color,background-color,box-shadow]',
         uncategorized
           ? 'border-dashed border-border-hover bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground'
@@ -495,7 +495,7 @@ function CategoryCell({
     >
       {uncategorized ? (
         <>
-          <Plus className="h-3 w-3 shrink-0" />
+          <Plus className="h-2.5 w-2.5 shrink-0" />
           Add category
         </>
       ) : (
