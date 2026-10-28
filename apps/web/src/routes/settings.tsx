@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks'
 import { getLLMSettings, getLLMProviders, getProfiles, getUserSessions } from '@/lib/api'
 import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
+import { QueryError } from '@/components/ui/query-error'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import {
@@ -23,6 +24,7 @@ import {
   TransactionRulesSection,
   DataHealthSection,
   DashboardWidgetsSection,
+  ThemeSection,
   BackupsSection,
   SmsImportSection,
   SettingsNav,
@@ -48,7 +50,13 @@ function SettingsPage() {
   const navigate = useNavigate({ from: '/settings' })
 
   // LLM Settings queries
-  const { data: llmSettings, isLoading: llmLoading } = useQuery({
+  const {
+    data: llmSettings,
+    isLoading: llmLoading,
+    isError: llmError,
+    error: llmErrorValue,
+    refetch: refetchLlm,
+  } = useQuery({
     queryKey: ['llm-settings'],
     queryFn: getLLMSettings,
   })
@@ -59,7 +67,13 @@ function SettingsPage() {
   })
 
   // Profiles query
-  const { data: profiles = [], isLoading: profilesLoading } = useQuery({
+  const {
+    data: profiles = [],
+    isLoading: profilesLoading,
+    isError: profilesError,
+    error: profilesErrorValue,
+    refetch: refetchProfiles,
+  } = useQuery({
     queryKey: ['profiles'],
     queryFn: getProfiles,
   })
@@ -87,7 +101,13 @@ function SettingsPage() {
         <div className="min-w-0 flex-1 [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none [&>[data-slot=card]+[data-slot=card]]:border-t [&>[data-slot=card]+[data-slot=card]]:border-border-subtle">
           {section === 'general' && (
             <>
-              {profilesLoading ? <SectionSkeleton /> : <ProfilesSection profiles={profiles} />}
+              {profilesError ? (
+                <QueryError error={profilesErrorValue} onRetry={refetchProfiles} size="sm" />
+              ) : profilesLoading ? (
+                <SectionSkeleton />
+              ) : (
+                <ProfilesSection profiles={profiles} />
+              )}
 
               {/* PIN Section - only show when auth is disabled (local mode) */}
               {!authEnabled && <PinSection />}
@@ -126,13 +146,20 @@ function SettingsPage() {
           )}
 
           {section === 'ai' &&
-            (llmLoading ? (
+            (llmError ? (
+              <QueryError error={llmErrorValue} onRetry={refetchLlm} size="sm" />
+            ) : llmLoading ? (
               <SectionSkeleton />
             ) : (
               <AIProvidersSection settings={llmSettings} providers={providers} />
             ))}
 
-          {section === 'appearance' && <DashboardWidgetsSection />}
+          {section === 'appearance' && (
+            <>
+              <ThemeSection />
+              <DashboardWidgetsSection />
+            </>
+          )}
         </div>
       </div>
     </AppLayout>

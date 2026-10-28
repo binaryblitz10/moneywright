@@ -103,6 +103,7 @@ export {
   useStatementStatus,
   useUploadStatements,
   useDeleteStatement,
+  useBulkDeleteStatements,
   useUpdateStatement,
   useStatementProcessing,
 } from './useStatements'

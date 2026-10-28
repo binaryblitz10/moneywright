@@ -1,12 +1,6 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import {
-  useAuth,
-  useProfileSelection,
-  useReviewCounts,
-  useSmsImportStatus,
-  useUpdateChecker,
-} from '@/hooks'
-import { useTheme } from '@/hooks/useTheme'
+import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { isMacDesktop } from '@/lib/desktop'
 import { markSidebarNavigation } from '@/lib/back-navigation'
@@ -22,130 +16,27 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import {
-  LayoutDashboard,
-  FileBarChart,
-  FileText,
-  Wallet,
-  Building2,
-  TrendingUp,
-  MessageSquare,
-  Settings,
-  ChevronUp,
-  LogOut,
-  Moon,
-  Sun,
-  Check,
-  Repeat,
-  Shield,
-  Landmark,
-  ClipboardCheck,
-  Download,
-  X,
-  MessageSquareText,
-} from 'lucide-react'
+import { Download, Search, X } from 'lucide-react'
+import { MOD_KEY } from '@/lib/platform'
+import { askPennyNavItem, getNavGroups, settingsNavItem, type NavItem } from './nav-items'
 
-// Main navigation items
-const bankMessagesNavItem = {
-  title: 'Bank Messages',
-  icon: MessageSquareText,
-  href: '/bank-messages',
+// Every page renders its own layout, so the sidebar remounts on navigation.
+// Keep its scroll position here so it survives that.
+let savedNavScroll = 0
+
+interface AppSidebarProps {
+  onOpenSearch: () => void
 }
 
-const mainNavItems = [
-  {
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    href: '/',
-  },
-  {
-    title: 'Reports',
-    icon: FileBarChart,
-    href: '/reports',
-  },
-  {
-    title: 'Accounts',
-    icon: Building2,
-    href: '/accounts',
-  },
-  {
-    title: 'Statements',
-    icon: FileText,
-    href: '/statements',
-  },
-  {
-    title: 'Transactions',
-    icon: Wallet,
-    href: '/transactions',
-  },
-  {
-    title: 'Review',
-    icon: ClipboardCheck,
-    href: '/review',
-  },
-  {
-    title: 'Subscriptions',
-    icon: Repeat,
-    href: '/subscriptions',
-  },
-  {
-    title: 'Investments',
-    icon: TrendingUp,
-    href: '/investments',
-  },
-  {
-    title: 'Insurance',
-    icon: Shield,
-    href: '/insurance',
-  },
-  {
-    title: 'Loans',
-    icon: Landmark,
-    href: '/loans',
-  },
-]
-
-const askPennyNavItem = {
-  title: 'Ask Penny',
-  icon: MessageSquare,
-  href: '/chat',
-}
-
-// Settings items
-const settingsNavItems = [
-  {
-    title: 'Settings',
-    icon: Settings,
-    href: '/settings',
-  },
-]
-
-export function AppSidebar() {
+export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, authEnabled, logout } = useAuth()
-  const { theme, setTheme } = useTheme()
   const { updateAvailable, isReady, restartToUpdate, dismissUpdate } = useUpdateChecker()
+  const contentRef = useRef<HTMLDivElement>(null)
 
-  const initials = user?.name
-    ? user.name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-    : user?.email?.charAt(0).toUpperCase() || 'U'
-
-  const isDark = theme === 'dark'
+  useLayoutEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = savedNavScroll
+  }, [])
 
   // Items waiting in the Review queues
   const { activeProfileId } = useProfileSelection()
@@ -159,47 +50,33 @@ export function AppSidebar() {
 
   // Bank Messages only appears once reading bank messages is switched on
   const { data: smsStatus } = useSmsImportStatus()
-  const navItems = smsStatus?.enabled
-    ? mainNavItems.flatMap((item) =>
-        item.href === '/statements' ? [item, bankMessagesNavItem] : [item]
-      )
-    : mainNavItems
+  const navGroups = getNavGroups(!!smsStatus?.enabled)
 
-  const renderNavItem = (item: (typeof mainNavItems)[0] & { disabled?: boolean }) => {
+  const renderNavItem = (item: NavItem) => {
     const isActive = location.pathname === item.href
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
           onClick={() => {
-            if (item.disabled) return
             markSidebarNavigation()
             navigate({ to: item.href })
           }}
-          disabled={item.disabled}
           isActive={isActive}
           className={cn(
-            'relative h-10 transition-all duration-200',
-            item.disabled && 'opacity-40 cursor-not-allowed',
+            'relative h-8 transition-all duration-200',
             isActive && 'text-foreground font-medium',
-            !isActive &&
-              !item.disabled &&
-              'text-muted-foreground hover:text-foreground hover:bg-surface-hover'
+            !isActive && 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'
           )}
         >
           {/* Active indicator bar */}
           {isActive && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-5 rounded-r-full bg-primary" />
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-4 rounded-r-full bg-primary" />
           )}
-          <item.icon className={cn('h-4.5 w-4.5', isActive && 'text-primary')} />
+          <item.icon className={cn('h-4 w-4', isActive && 'text-primary')} />
           <span className="text-sm">{item.title}</span>
           {item.href === '/review' && reviewTotal > 0 && (
             <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
               {reviewTotal > 99 ? '99+' : reviewTotal}
-            </span>
-          )}
-          {item.disabled && (
-            <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded bg-muted text-muted-foreground">
-              Soon
             </span>
           )}
         </SidebarMenuButton>
@@ -210,37 +87,51 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-(--border-subtle)">
       {/* Logo Header */}
-      <SidebarHeader className={cn('px-4 py-5', isMacDesktop && 'pt-9')}>
+      <SidebarHeader className={cn('px-4 py-4', isMacDesktop && 'pt-9')}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
             <img src="/logo.png" alt="Moneywright" className="relative h-8 w-8" />
           </div>
           <span className="text-lg font-semibold font-display tracking-tight">Moneywright</span>
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label={`Search (${MOD_KEY} K)`}
+            title={`Search (${MOD_KEY} K)`}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors cursor-pointer"
+          >
+            <Search className="h-4 w-4" />
+          </button>
         </div>
       </SidebarHeader>
 
       <SidebarSeparator className="mx-0 w-full bg-(--border-subtle)" />
 
-      <SidebarContent className="px-2 py-2">
-        {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">{navItems.map(renderNavItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent
+        ref={contentRef}
+        onScroll={(e) => {
+          savedNavScroll = e.currentTarget.scrollTop
+        }}
+        className="px-2 py-2 gap-0"
+      >
+        {navGroups.map((group, i) => (
+          <SidebarGroup
+            key={group.label}
+            className={cn('py-1', i > 0 && 'border-t border-(--border-subtle) mt-1 pt-2')}
+          >
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5" aria-label={group.label}>
+                {group.items.map(renderNavItem)}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
-        {/* Ask Penny */}
-        <SidebarGroup className="mt-4">
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">{renderNavItem(askPennyNavItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Settings, pinned above the footer */}
+        {/* Ask Penny, pinned above the footer */}
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">{settingsNavItems.map(renderNavItem)}</SidebarMenu>
+            <SidebarMenu className="gap-0.5">{renderNavItem(askPennyNavItem)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
@@ -308,84 +199,9 @@ export function AppSidebar() {
 
       <SidebarSeparator className="mx-0 w-full bg-(--border-subtle)" />
 
-      {/* Footer */}
-      <SidebarFooter className="px-2 py-3">
-        {authEnabled ? (
-          /* User dropdown when auth is enabled */
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton className="h-auto py-2.5 px-2 hover:bg-surface-hover transition-colors">
-                    <Avatar className="h-9 w-9 border border-(--border-subtle)">
-                      <AvatarImage src={user?.picture || undefined} alt={user?.name || 'User'} />
-                      <AvatarFallback className="text-xs bg-surface-elevated">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                      <span className="text-sm font-medium truncate w-full">
-                        {user?.name || 'User'}
-                      </span>
-                      <span className="text-xs text-muted-foreground truncate w-full">
-                        {user?.email}
-                      </span>
-                    </div>
-                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  className="w-[--radix-popper-anchor-width] mb-1"
-                  align="start"
-                >
-                  <DropdownMenuItem
-                    onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                    className="cursor-pointer"
-                  >
-                    {isDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                    {isDark ? 'Light Mode' : 'Dark Mode'}
-                    {isDark && <Check className="ml-auto h-4 w-4 text-primary" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      markSidebarNavigation()
-                      navigate({ to: '/settings' })
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => logout()}
-                    className="text-destructive focus:text-destructive cursor-pointer"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        ) : (
-          /* Simple theme switch when auth is disabled */
-          <div className="flex items-center justify-between px-3 py-2">
-            <Label
-              htmlFor="theme-switch"
-              className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
-            >
-              {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              Dark Mode
-            </Label>
-            <Switch
-              id="theme-switch"
-              checked={isDark}
-              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-            />
-          </div>
-        )}
+      {/* Footer: just the Settings link */}
+      <SidebarFooter className="px-2 py-2">
+        <SidebarMenu>{renderNavItem(settingsNavItem)}</SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )

@@ -132,6 +132,7 @@ export function TransactionRulesSection() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search rules by term, name or category"
               aria-label="Search rules"
+              data-page-search
               className="pl-9"
             />
           </div>
