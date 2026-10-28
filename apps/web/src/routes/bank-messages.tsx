@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { QueryError } from '@/components/ui/query-error'
 import { MessagesTable } from '@/components/bank-messages/messages-table'
 import { Button } from '@/components/ui/button'
 import { ProfileSelector } from '@/components/domain/profile-selector'
@@ -27,10 +28,22 @@ export const Route = createFileRoute('/bank-messages')({
 })
 
 function BankMessagesPage() {
-  const { data: status, isLoading: statusLoading } = useSmsImportStatus()
+  const {
+    data: status,
+    isLoading: statusLoading,
+    isError: statusError,
+    error: statusErrorValue,
+    refetch: refetchStatus,
+  } = useSmsImportStatus()
   const enabled = !!status?.enabled
   const { data: pending = [] } = usePendingSms(enabled)
-  const { data: messages, isLoading: messagesLoading } = useSyncedSms(enabled)
+  const {
+    data: messages,
+    isLoading: messagesLoading,
+    isError: messagesError,
+    error: messagesErrorValue,
+    refetch: refetchMessages,
+  } = useSyncedSms(enabled)
   const { data: accounts = [] } = useAccounts()
   const syncMutation = useSyncSmsImport()
   const { user } = useAuth()
@@ -55,7 +68,7 @@ function BankMessagesPage() {
         title="Bank Messages"
         description="Card and bank alerts read from your Messages app"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {enabled && (
               <Button
                 className="px-5 has-[>svg]:px-5"
@@ -85,7 +98,9 @@ function BankMessagesPage() {
         }
       />
 
-      {statusLoading ? (
+      {statusError ? (
+        <QueryError error={statusErrorValue} onRetry={() => void refetchStatus()} />
+      ) : statusLoading ? (
         <Skeleton className="h-48 w-full rounded-xl" />
       ) : !status?.enabled ? (
         <EmptyState
@@ -106,7 +121,9 @@ function BankMessagesPage() {
             </p>
           )}
 
-          {messagesLoading || !messages ? (
+          {messagesError ? (
+            <QueryError error={messagesErrorValue} onRetry={() => void refetchMessages()} />
+          ) : messagesLoading || !messages ? (
             <Skeleton className="h-48 w-full rounded-xl" />
           ) : (
             <MessagesTable

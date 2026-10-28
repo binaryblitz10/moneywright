@@ -3,10 +3,11 @@
  */
 
 import { useState } from 'react'
-import { ListChecks, Loader2, MessageSquareText, Undo2, X } from 'lucide-react'
+import { ListChecks, Loader2, MessageSquareText, Search, Undo2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
   Dialog,
@@ -102,6 +103,7 @@ export function MessagesTable({
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
   // When each transaction came from a message, for the New pill (pending and dismissed have none)
   const importedAtByTxn = new Map(
@@ -110,7 +112,19 @@ export function MessagesTable({
   const pendingById = new Map(pending.map((m) => [m.id, m]))
   const count = (status: SyncedSms['status']): number =>
     messages.filter((m) => m.status === status).length
-  const visible = filter === 'all' ? messages : messages.filter((m) => m.status === filter)
+  const query = search.trim().toLowerCase()
+  const matchesSearch = (m: SyncedSms): boolean =>
+    !query ||
+    [
+      m.sender,
+      m.merchant,
+      m.last4,
+      m.transaction?.originalDescription,
+      m.transaction?.summary,
+    ].some((field) => field?.toLowerCase().includes(query))
+  const visible = messages.filter(
+    (m) => (filter === 'all' || m.status === filter) && matchesSearch(m)
+  )
   // Rows without a transaction of their own are keyed by message id
   const statusById = new Map(
     visible.filter((m) => !m.transaction).map((m) => [m.id, m.status] as const)
@@ -134,9 +148,42 @@ export function MessagesTable({
 
   return (
     <div className={cn('space-y-3', selectedIds.size > 0 && 'pb-24')}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-3 p-4 rounded-2xl',
+          'bg-linear-to-b from-card to-card/80',
+          'border border-border-subtle',
+          'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
+          'dark:shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]'
+        )}
+      >
+        <div className="relative min-w-60 flex-1">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search messages"
+            data-page-search
+            placeholder="Search by sender or merchant..."
+            value={search}
+            onChange={(e) => {
+              setSelectedIds(new Set())
+              setSearch(e.target.value)
+            }}
+            className="h-11 rounded-xl border-border-subtle bg-surface-elevated pl-10 pr-10 placeholder:text-muted-foreground/60"
+          />
+          {search && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 transition-colors hover:bg-surface-hover"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          )}
+        </div>
         <SegmentedControl
           aria-label="Filter messages"
+          className="max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           value={filter}
           onChange={changeFilter}
           options={[
@@ -147,12 +194,10 @@ export function MessagesTable({
             { value: 'dismissed', label: `Dismissed (${count('dismissed')})` },
           ]}
         />
-        <div className="flex items-center gap-3">
-          {lastSyncAt && (
-            <p className="text-xs text-muted-foreground">
-              Last synced {new Date(lastSyncAt).toLocaleTimeString()}
-            </p>
-          )}
+      </div>
+
+      {(selectableCount > 0 || lastSyncAt) && (
+        <div className="flex flex-wrap items-center gap-3">
           {selectableCount > 0 && (
             <button
               type="button"
@@ -173,8 +218,13 @@ export function MessagesTable({
               <span>{selectionMode ? 'Cancel' : 'Select'}</span>
             </button>
           )}
+          {lastSyncAt && (
+            <p className="ml-auto text-xs text-muted-foreground">
+              Last synced {new Date(lastSyncAt).toLocaleTimeString()}
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
       {visible.length === 0 ? (
         <EmptyState
@@ -183,7 +233,7 @@ export function MessagesTable({
           description={
             messages.length === 0
               ? 'Press Sync to read your bank messages, or sync from an earlier date in Settings.'
-              : 'No messages match this filter.'
+              : 'No messages match your search or filter.'
           }
         />
       ) : (
@@ -305,7 +355,7 @@ export function MessagesTable({
         <BulkActionBar
           selectedIds={selectedIds}
           totalMatching={selectableCount}
-          filtered={filter !== 'all'}
+          filtered={filter !== 'all' || !!query}
           pageFullySelected={false}
           categories={categories}
           showingHidden={false}

@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
@@ -8,6 +8,7 @@ import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -47,8 +48,16 @@ import { getSubscriptions } from '@/lib/api'
 import type { DetectedSubscription, Profile } from '@/lib/api'
 import { CategoryIcon } from '@/components/ui/category-icon'
 
+type SubscriptionsSearchParams = {
+  /** Open the Add Subscription dialog on arrival */
+  add?: boolean
+}
+
 export const Route = createFileRoute('/subscriptions')({
   component: SubscriptionsPage,
+  validateSearch: (search: Record<string, unknown>): SubscriptionsSearchParams => ({
+    add: search.add === true || search.add === 'true' ? true : undefined,
+  }),
 })
 
 // Format currency for display
@@ -90,15 +99,6 @@ function getFrequencyLabel(frequency: DetectedSubscription['frequency']): string
     default:
       return 'Recurring'
   }
-}
-
-// Get frequency abbreviation - always /mo since we show monthly equivalent
-function getFrequencyAbbr(frequency: DetectedSubscription['frequency']): string {
-  // For quarterly/yearly, we show the monthly equivalent price, so suffix is /mo
-  if (frequency === 'quarterly' || frequency === 'yearly') {
-    return '/mo'
-  }
-  return ''
 }
 
 // Get monthly equivalent price
@@ -149,6 +149,8 @@ type FrequencyFilter = 'all' | 'monthly' | 'quarterly' | 'yearly'
 type StatusFilter = 'all' | 'active' | 'inactive'
 
 function SubscriptionsPage() {
+  const navigate = useNavigate()
+  const searchParams = useSearch({ from: '/subscriptions' })
   const { user, profiles } = useAuth()
   const {
     activeProfileId,
@@ -162,6 +164,17 @@ function SubscriptionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+
+  // Open the add dialog if ?add=true is in the URL, then clear the param
+  useEffect(() => {
+    if (searchParams.add) {
+      const timer = setTimeout(() => {
+        setShowAddDialog(true)
+        navigate({ to: '/subscriptions', search: {}, replace: true })
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams.add, navigate])
 
   const countryCode = user?.country?.toLowerCase() || 'in'
 
@@ -181,7 +194,13 @@ function SubscriptionsPage() {
   )
 
   // Fetch subscriptions
-  const { data: subscriptionsData, isLoading } = useQuery({
+  const {
+    data: subscriptionsData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['subscriptions', activeProfileId ?? 'family'],
     queryFn: () => getSubscriptions(activeProfileId),
     enabled: queryEnabled,
@@ -335,11 +354,12 @@ function SubscriptionsPage() {
             <div className="relative flex-1 min-w-60">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                data-page-search
                 placeholder="Search subscriptions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
-                  'pl-10 pr-4 h-11 rounded-xl border-0',
+                  'pl-10 pr-4 h-11 rounded-xl border border-border-subtle',
                   'bg-surface-elevated',
                   'placeholder:text-muted-foreground/60',
                   'focus-visible:ring-2 focus-visible:ring-primary/20'
@@ -447,7 +467,9 @@ function SubscriptionsPage() {
         </div>
 
         {/* Subscriptions Grid */}
-        {isLoading ? (
+        {isError ? (
+          <QueryError error={error} onRetry={refetch} />
+        ) : isLoading ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="bg-card border border-border-subtle rounded-xl p-4 space-y-3">

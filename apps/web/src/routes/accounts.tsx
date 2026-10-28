@@ -5,9 +5,11 @@ import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
-import { Building2, CreditCard, Upload } from 'lucide-react'
+import { Building2, CreditCard, Search, Upload } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
+import { SearchSortBar, type SortChoice } from '@/components/ui/search-sort-bar'
 import type { Account, Statement } from '@/lib/api'
 import {
   useAuth,
@@ -30,6 +32,39 @@ export const Route = createFileRoute('/accounts')({
   component: AccountsPage,
 })
 
+type AccountSort = 'default' | 'name_asc' | 'name_desc' | 'balance_desc' | 'balance_asc' | 'type'
+
+const ACCOUNT_SORT_OPTIONS: SortChoice<AccountSort>[] = [
+  { value: 'default', label: 'Default order' },
+  { value: 'name_asc', label: 'Name (A-Z)' },
+  { value: 'name_desc', label: 'Name (Z-A)' },
+  { value: 'balance_desc', label: 'Balance (High to low)' },
+  { value: 'balance_asc', label: 'Balance (Low to high)' },
+  { value: 'type', label: 'Type' },
+]
+
+function accountDisplayName(account: Account): string {
+  return account.accountName || account.institution || ''
+}
+
+function sortAccounts(list: Account[], sort: AccountSort): Account[] {
+  if (sort === 'default') return list
+  return [...list].sort((a, b) => {
+    switch (sort) {
+      case 'name_asc':
+        return accountDisplayName(a).localeCompare(accountDisplayName(b))
+      case 'name_desc':
+        return accountDisplayName(b).localeCompare(accountDisplayName(a))
+      case 'balance_desc':
+        return (b.latestBalance ?? -Infinity) - (a.latestBalance ?? -Infinity)
+      case 'balance_asc':
+        return (a.latestBalance ?? Infinity) - (b.latestBalance ?? Infinity)
+      default:
+        return a.type.localeCompare(b.type)
+    }
+  })
+}
+
 function AccountsPage() {
   const queryClient = useQueryClient()
   const { user, profiles } = useAuth()
@@ -40,6 +75,8 @@ function AccountsPage() {
     handleProfileChange,
     handleFamilyViewChange,
   } = useProfileSelection()
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<AccountSort>('default')
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [recategorizeAccount, setRecategorizeAccount] = useState<Account | null>(null)
   const [selectedCreditCard, setSelectedCreditCard] = useState<Account | null>(null)
@@ -50,9 +87,13 @@ function AccountsPage() {
   const queryEnabled = !!activeProfileId || showFamilyView
 
   // Query hooks
-  const { data: accounts, isLoading: accountsLoading } = useAccounts(activeProfileId, {
-    enabled: queryEnabled,
-  })
+  const {
+    data: accounts,
+    isLoading: accountsLoading,
+    isError,
+    error,
+    refetch,
+  } = useAccounts(activeProfileId, { enabled: queryEnabled })
   const { data: accountTypes } = useAccountTypes()
   const { data: statements } = useStatements(activeProfileId, { enabled: queryEnabled })
   const { institutions } = useConstants()
@@ -71,9 +112,23 @@ function AccountsPage() {
     }
   })
 
-  // Separate credit cards from bank accounts
-  const creditCards = accounts?.filter((a) => a.type === 'credit_card') || []
-  const bankAccounts = accounts?.filter((a) => a.type !== 'credit_card') || []
+  // Search by name, then separate credit cards from bank accounts and sort each section
+  const searchTerm = search.trim().toLowerCase()
+  const matchingAccounts = (accounts ?? []).filter((a) => {
+    if (!searchTerm) return true
+    const institutionName = a.institution ? institutions[a.institution] : undefined
+    return [a.accountName, a.productName, a.institution, institutionName].some((value) =>
+      value?.toLowerCase().includes(searchTerm)
+    )
+  })
+  const creditCards = sortAccounts(
+    matchingAccounts.filter((a) => a.type === 'credit_card'),
+    sort
+  )
+  const bankAccounts = sortAccounts(
+    matchingAccounts.filter((a) => a.type !== 'credit_card'),
+    sort
+  )
 
   return (
     <AppLayout>
@@ -117,7 +172,20 @@ function AccountsPage() {
         )}
 
         {/* Accounts Display */}
-        {accountsLoading ? (
+        {accounts && accounts.length > 0 && (
+          <SearchSortBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search accounts..."
+            sort={sort}
+            sortOptions={ACCOUNT_SORT_OPTIONS}
+            onSortChange={setSort}
+          />
+        )}
+
+        {isError ? (
+          <QueryError error={error} onRetry={refetch} />
+        ) : accountsLoading ? (
           <div className="space-y-8">
             <section>
               <div className="h-7 w-32 bg-surface-elevated rounded animate-pulse mb-4" />
@@ -128,6 +196,12 @@ function AccountsPage() {
               </div>
             </section>
           </div>
+        ) : accounts && accounts.length > 0 && matchingAccounts.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="No matching accounts"
+            description="Try adjusting your search."
+          />
         ) : accounts && accounts.length > 0 ? (
           <div className="space-y-8">
             {/* Credit Cards Section */}

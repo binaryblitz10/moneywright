@@ -112,7 +112,7 @@ export function TransactionFiltersBar({
       {/* Main Filter Bar */}
       <div
         className={cn(
-          'relative flex flex-col p-4 rounded-2xl transition-all duration-300',
+          'relative flex flex-col p-3 sm:p-4 rounded-2xl transition-all duration-300',
           'bg-linear-to-b from-card to-card/80',
           'border border-border-subtle',
           'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
@@ -122,7 +122,7 @@ export function TransactionFiltersBar({
         {/* Top Row: Search + Quick Filters */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Search Input - Command Bar Style */}
-          <div className="relative flex-1 min-w-60">
+          <div className="relative min-w-0 flex-1 basis-full sm:basis-60">
             <div
               className={cn(
                 'absolute inset-0 rounded-xl transition-all duration-200',
@@ -139,13 +139,14 @@ export function TransactionFiltersBar({
             />
             <Input
               ref={searchRef}
+              data-page-search
               placeholder="Search transactions..."
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               className={cn(
-                'relative pl-10 pr-4 h-11 rounded-xl border-0',
+                'relative pl-10 pr-4 h-11 rounded-xl border border-border-subtle',
                 'bg-surface-elevated dark:bg-surface-elevated',
                 'placeholder:text-muted-foreground/60',
                 'focus-visible:ring-0 focus-visible:ring-offset-0',
@@ -163,7 +164,7 @@ export function TransactionFiltersBar({
           </div>
 
           {/* Quick Filter Chips */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
             {/* Transaction Type Selector */}
             <SegmentedControl
               aria-label="Transaction type"

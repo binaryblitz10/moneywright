@@ -30,6 +30,7 @@ import {
   List,
   History,
   Loader2,
+  Search,
 } from 'lucide-react'
 import { StatCardGridSkeleton, CardSkeleton } from '@/components/ui/skeleton'
 import type { InvestmentSource, InvestmentHolding } from '@/lib/api'
@@ -56,10 +57,23 @@ import {
   HoldingForm,
 } from '@/components/investments'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
+import { SearchSortBar, type SortChoice } from '@/components/ui/search-sort-bar'
 
 export const Route = createFileRoute('/investments')({
   component: InvestmentsPage,
 })
+
+type HoldingSort = 'name_asc' | 'name_desc' | 'value_desc' | 'value_asc' | 'gain_desc' | 'gain_asc'
+
+const HOLDING_SORT_OPTIONS: SortChoice<HoldingSort>[] = [
+  { value: 'name_asc', label: 'Name (A-Z)' },
+  { value: 'name_desc', label: 'Name (Z-A)' },
+  { value: 'value_desc', label: 'Value (High to low)' },
+  { value: 'value_asc', label: 'Value (Low to high)' },
+  { value: 'gain_desc', label: 'Gain (High to low)' },
+  { value: 'gain_asc', label: 'Gain (Low to high)' },
+]
 
 function InvestmentsPage() {
   const queryClient = useQueryClient()
@@ -78,6 +92,8 @@ function InvestmentsPage() {
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
   const [showInINR, setShowInINR] = useState(true)
+  const [holdingSearch, setHoldingSearch] = useState('')
+  const [holdingSort, setHoldingSort] = useState<HoldingSort>('value_desc')
 
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = !!activeProfileId || showFamilyView
@@ -85,12 +101,20 @@ function InvestmentsPage() {
   // Query hooks
   const { data: typesData } = useInvestmentTypes()
   const { rawInvestmentSourceTypes } = useConstants()
-  const { data: sources, isLoading: sourcesLoading } = useInvestmentSources(activeProfileId, {
-    enabled: queryEnabled,
-  })
-  const { data: holdings, isLoading: holdingsLoading } = useInvestmentHoldings(activeProfileId, {
-    enabled: queryEnabled,
-  })
+  const {
+    data: sources,
+    isLoading: sourcesLoading,
+    isError: sourcesError,
+    error: sourcesErrorValue,
+    refetch: refetchSources,
+  } = useInvestmentSources(activeProfileId, { enabled: queryEnabled })
+  const {
+    data: holdings,
+    isLoading: holdingsLoading,
+    isError: holdingsError,
+    error: holdingsErrorValue,
+    refetch: refetchHoldings,
+  } = useInvestmentHoldings(activeProfileId, { enabled: queryEnabled })
   const { data: summary, isLoading: summaryLoading } = useInvestmentSummary(activeProfileId, {
     enabled: queryEnabled,
   })
@@ -209,6 +233,42 @@ function InvestmentsPage() {
     calcTotals.totalInvested > 0 ? (totalGainLoss / calcTotals.totalInvested) * 100 : null
 
   const isLoading = sourcesLoading || holdingsLoading
+  const loadError = sourcesError ? sourcesErrorValue : holdingsError ? holdingsErrorValue : null
+  const retryLoad = () => {
+    if (sourcesError) refetchSources()
+    if (holdingsError) refetchHoldings()
+  }
+
+  // Search and sort the All Holdings tab; values compare in the displayed currency
+  const holdingSearchTerm = holdingSearch.trim().toLowerCase()
+  const holdingGainPercent = (h: InvestmentHolding): number | null =>
+    h.investedValue !== null && h.investedValue > 0
+      ? ((h.currentValue - h.investedValue) / h.investedValue) * 100
+      : null
+  const visibleHoldings = (holdings ?? [])
+    .filter((h) => !holdingSearchTerm || h.name.toLowerCase().includes(holdingSearchTerm))
+    .sort((a, b) => {
+      switch (holdingSort) {
+        case 'name_asc':
+          return a.name.localeCompare(b.name)
+        case 'name_desc':
+          return b.name.localeCompare(a.name)
+        case 'value_desc':
+          return (
+            localConvertToINR(b.currentValue, b.currency) -
+            localConvertToINR(a.currentValue, a.currency)
+          )
+        case 'value_asc':
+          return (
+            localConvertToINR(a.currentValue, a.currency) -
+            localConvertToINR(b.currentValue, b.currency)
+          )
+        case 'gain_desc':
+          return (holdingGainPercent(b) ?? -Infinity) - (holdingGainPercent(a) ?? -Infinity)
+        case 'gain_asc':
+          return (holdingGainPercent(a) ?? Infinity) - (holdingGainPercent(b) ?? Infinity)
+      }
+    })
 
   return (
     <AppLayout>
@@ -356,7 +416,9 @@ function InvestmentsPage() {
         </Dialog>
 
         {/* Main Content */}
-        {isLoading ? (
+        {loadError ? (
+          <QueryError error={loadError} onRetry={retryLoad} />
+        ) : isLoading ? (
           <div className="space-y-6">
             <StatCardGridSkeleton />
             <div className="space-y-4">
@@ -415,20 +477,38 @@ function InvestmentsPage() {
             </TabsContent>
 
             {/* All Holdings View */}
-            <TabsContent value="all-holdings">
-              <HoldingsTable
-                holdings={holdings || []}
-                sources={sources}
-                holdingTypes={holdingTypes}
-                formatCurrency={formatCurrency}
-                formatPercentage={formatPercentage}
-                showInINR={showInINR}
-                convertToINR={localConvertToINR}
-                onEditHolding={setEditingHolding}
-                onDeleteHolding={(id) => deleteHoldingMutation.mutate(id)}
-                profiles={profiles}
-                showProfileBadge={showFamilyView}
-              />
+            <TabsContent value="all-holdings" className="space-y-4">
+              {(holdings?.length ?? 0) > 0 && (
+                <SearchSortBar
+                  search={holdingSearch}
+                  onSearchChange={setHoldingSearch}
+                  searchPlaceholder="Search holdings..."
+                  sort={holdingSort}
+                  sortOptions={HOLDING_SORT_OPTIONS}
+                  onSortChange={setHoldingSort}
+                />
+              )}
+              {holdingSearchTerm && visibleHoldings.length === 0 ? (
+                <EmptyState
+                  icon={Search}
+                  title="No matching holdings"
+                  description="Try adjusting your search."
+                />
+              ) : (
+                <HoldingsTable
+                  holdings={visibleHoldings}
+                  sources={sources}
+                  holdingTypes={holdingTypes}
+                  formatCurrency={formatCurrency}
+                  formatPercentage={formatPercentage}
+                  showInINR={showInINR}
+                  convertToINR={localConvertToINR}
+                  onEditHolding={setEditingHolding}
+                  onDeleteHolding={(id) => deleteHoldingMutation.mutate(id)}
+                  profiles={profiles}
+                  showProfileBadge={showFamilyView}
+                />
+              )}
             </TabsContent>
 
             {/* History View */}
