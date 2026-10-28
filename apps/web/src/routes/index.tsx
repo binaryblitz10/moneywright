@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { Fragment, useState, useMemo, useCallback, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -13,6 +13,7 @@ import {
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
+import { QueryError } from '@/components/ui/query-error'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
@@ -27,7 +28,15 @@ import {
 import { PREFERENCE_KEYS } from '@/lib/api'
 import { getSummary, getAccounts, getMonthTransactions, getSubscriptions } from '@/lib/api'
 import type { MonthlyTrendData } from '@/lib/api'
-import { DASHBOARD_WIDGETS, type DashboardWidgetId } from '@/lib/dashboard-widgets'
+import {
+  DASHBOARD_WIDGETS,
+  HALF_WIDTH_SECTIONS,
+  chunkSectionRows,
+  isCardWidget,
+  type CardWidgetId,
+  type DashboardWidgetId,
+  type SectionWidgetId,
+} from '@/lib/dashboard-widgets'
 import { getRangeLabel } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
 
@@ -95,7 +104,7 @@ function DashboardPage() {
   const setPreferenceMutation = useSetPreference()
 
   // Widgets switched off in Settings stay hidden; nothing shows until the choice is known
-  const { isVisible } = useDashboardWidgets(isAuthenticated)
+  const { isVisible, order } = useDashboardWidgets(isAuthenticated)
   const show = (id: DashboardWidgetId) => !preferencesLoading && isVisible(id)
 
   // Dashboard-wide timeframe: one selection drives every date-based widget.
@@ -168,7 +177,13 @@ function DashboardPage() {
   )
 
   // Fetch summary
-  const { data: summary, isLoading: summaryLoading } = useQuery({
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['summary', profileId ?? 'family', dateRange.startDate, dateRange.endDate],
     queryFn: () =>
       getSummary(profileId, {
@@ -259,9 +274,152 @@ function DashboardPage() {
     : []
   const hasData = summary && (allAccounts.length > 0 || accountsCount > 0)
 
-  const statCardCount = DASHBOARD_WIDGETS.filter((w) => w.group === 'cards' && show(w.id)).length
-  const showCategoryCards = show('spending_by_category') || show('income_by_category')
   const allWidgetsHidden = !preferencesLoading && DASHBOARD_WIDGETS.every((w) => !isVisible(w.id))
+
+  const orderedWidgets = order.filter((id) => show(id))
+  const orderedCards = orderedWidgets.filter((id): id is CardWidgetId => isCardWidget(id))
+  const sectionRows = chunkSectionRows(
+    orderedWidgets.filter((id): id is SectionWidgetId => !isCardWidget(id))
+  )
+
+  const statCardNodes: Record<CardWidgetId, ReactNode> = {
+    net_worth: (
+      <StatCard
+        label="Net Worth"
+        formatValue={formatCurrency}
+        value={summary?.netWorth.total}
+        currency={summary?.netWorth.currency}
+        subtitle={
+          summary
+            ? `${formatCompact(summary.netWorth.totalAssets, summary.netWorth.currency)} assets - ${formatCompact(summary.netWorth.totalLiabilities, summary.netWorth.currency)} liabilities`
+            : 'Across all accounts'
+        }
+        icon={Banknote}
+        loading={summaryLoading}
+      />
+    ),
+    income: (
+      <StatCard
+        label="Income"
+        formatValue={formatCurrency}
+        value={summary?.transactions.totalIncome}
+        currency={summary?.transactions.currency}
+        subtitle={transactionCountSubtitle(summary?.transactions.incomeCount)}
+        icon={Wallet}
+        loading={summaryLoading}
+        transactionsLink={categoriesLink(summary?.transactions.incomeBreakdown)}
+      />
+    ),
+    expenses: (
+      <StatCard
+        label="Expenses"
+        formatValue={formatCurrency}
+        value={summary?.transactions.totalExpenses}
+        currency={summary?.transactions.currency}
+        subtitle={transactionCountSubtitle(summary?.transactions.expenseCount)}
+        icon={CreditCard}
+        loading={summaryLoading}
+        transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
+      />
+    ),
+    savings_rate: (
+      <StatCard
+        label="Savings Rate"
+        value={savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100}
+        formatValue={(rate) => `${Math.round(rate)}%`}
+        subtitle={savingsSubtitle}
+        icon={PiggyBank}
+        loading={summaryLoading}
+      />
+    ),
+    investments: (
+      <StatCard
+        label="Investments"
+        formatValue={formatCurrency}
+        value={investedAmount === undefined ? undefined : Math.abs(investedAmount)}
+        currency={summary?.transactions.currency}
+        subtitle={
+          investedAmount !== undefined && investedAmount < 0
+            ? `Net withdrawn · ${selectedTimeframeLabel}`
+            : `Invested · ${selectedTimeframeLabel}`
+        }
+        icon={TrendingUp}
+        loading={summaryLoading}
+        transactionsLink={{
+          category: 'investment',
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+        }}
+      />
+    ),
+  }
+
+  const sectionNodes: Record<SectionWidgetId, ReactNode> = {
+    income_vs_expenses: (
+      <IncomeExpensesCard
+        trendsData={trendsData}
+        isLoading={trendsLoading}
+        onMonthClick={handleMonthClick}
+        getCategoryLabel={getCategoryLabel}
+      />
+    ),
+    spending_by_category: (
+      <SpendingByCategoryCard
+        categoryStats={
+          summary
+            ? {
+                categoryBreakdown: summary.transactions.categoryBreakdown,
+                totalDebits: summary.transactions.totalExpenses,
+                currency: summary.transactions.currency,
+              }
+            : undefined
+        }
+        isLoading={summaryLoading}
+        showMonthlyAverage={showMonthlyAverage}
+        onShowMonthlyAverageChange={setShowMonthlyAverage}
+        totalMonths={categoryTotalMonths}
+        getCategoryLabel={getCategoryLabel}
+        getCategoryColor={getCategoryColor}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+        previousPeriod={summary?.transactions.previousPeriod}
+      />
+    ),
+    income_by_category: (
+      <IncomeByCategoryCard
+        incomeBreakdown={summary?.transactions.incomeBreakdown}
+        totalIncome={summary?.transactions.totalIncome ?? 0}
+        currency={summary?.transactions.currency ?? 'INR'}
+        isLoading={summaryLoading}
+        showMonthlyAverage={showMonthlyAverage}
+        onShowMonthlyAverageChange={setShowMonthlyAverage}
+        totalMonths={categoryTotalMonths}
+        getCategoryLabel={getCategoryLabel}
+        getCategoryColor={getCategoryColor}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
+    ),
+    what_changed: (
+      <WhatChangedCard
+        profileId={profileId}
+        enabled={queryEnabled}
+        getCategoryLabel={getCategoryLabel}
+      />
+    ),
+    subscriptions: (
+      <SubscriptionsCard
+        className="h-full"
+        subscriptions={subscriptionsData?.subscriptions || []}
+        totalMonthly={subscriptionsData?.totalMonthly || 0}
+        currency={subscriptionsData?.currency || 'INR'}
+        getCategoryLabel={getCategoryLabel}
+        isLoading={subscriptionsLoading}
+        countryCode={user?.country?.toLowerCase() || 'in'}
+      />
+    ),
+    account_balances: <AccountBalancesCard accounts={allAccounts} />,
+  }
 
   return (
     <AppLayout>
@@ -285,199 +443,63 @@ function DashboardPage() {
         }
       />
 
-      {/* Main Stats Grid */}
-      {statCardCount > 0 && (
-        <StatCardGrid className={cn('mb-6', STAT_GRID_COLUMNS[statCardCount])}>
-          {show('net_worth') && (
-            <StatCard
-              label="Net Worth"
-              formatValue={formatCurrency}
-              value={summary?.netWorth.total}
-              currency={summary?.netWorth.currency}
-              subtitle={
-                summary
-                  ? `${formatCompact(summary.netWorth.totalAssets, summary.netWorth.currency)} assets - ${formatCompact(summary.netWorth.totalLiabilities, summary.netWorth.currency)} liabilities`
-                  : 'Across all accounts'
-              }
-              icon={Banknote}
-              loading={summaryLoading}
+      {isError ? (
+        <QueryError error={error} onRetry={refetch} />
+      ) : (
+        <>
+          {/* Main Stats Grid */}
+          {orderedCards.length > 0 && (
+            <StatCardGrid className={cn('mb-6', STAT_GRID_COLUMNS[orderedCards.length])}>
+              {orderedCards.map((id) => (
+                <Fragment key={id}>{statCardNodes[id]}</Fragment>
+              ))}
+            </StatCardGrid>
+          )}
+
+          {/* Sections in the saved order; neighbouring half-width ones share a row */}
+          {sectionRows.map((row) => {
+            const [first] = row
+            if (first && row.length === 1 && !HALF_WIDTH_SECTIONS.has(first)) {
+              return <Fragment key={first}>{sectionNodes[first]}</Fragment>
+            }
+            return (
+              <div
+                key={row.join('-')}
+                className={cn('grid gap-4 mb-6', row.length === 2 && 'lg:grid-cols-2')}
+              >
+                {row.map((id) => (
+                  <Fragment key={id}>{sectionNodes[id]}</Fragment>
+                ))}
+              </div>
+            )
+          })}
+
+          {/* Every widget switched off in Settings */}
+          {allWidgetsHidden && hasData && (
+            <EmptyState
+              icon={LayoutGrid}
+              title="All dashboard widgets are hidden"
+              description="Turn widgets back on in Settings to see them here."
+              action={{ label: 'Open Settings', href: '/settings' }}
+              size="lg"
             />
           )}
-          {show('income') && (
-            <StatCard
-              label="Income"
-              formatValue={formatCurrency}
-              value={summary?.transactions.totalIncome}
-              currency={summary?.transactions.currency}
-              subtitle={transactionCountSubtitle(summary?.transactions.incomeCount)}
-              icon={Wallet}
-              loading={summaryLoading}
-              transactionsLink={categoriesLink(summary?.transactions.incomeBreakdown)}
-            />
-          )}
-          {show('expenses') && (
-            <StatCard
-              label="Expenses"
-              formatValue={formatCurrency}
-              value={summary?.transactions.totalExpenses}
-              currency={summary?.transactions.currency}
-              subtitle={transactionCountSubtitle(summary?.transactions.expenseCount)}
-              icon={CreditCard}
-              loading={summaryLoading}
-              transactionsLink={categoriesLink(summary?.transactions.categoryBreakdown)}
-            />
-          )}
-          {show('savings_rate') && (
-            <StatCard
-              label="Savings Rate"
-              value={
-                savingsRate === null || savingsRate === undefined ? undefined : savingsRate * 100
-              }
-              formatValue={(rate) => `${Math.round(rate)}%`}
-              subtitle={savingsSubtitle}
-              icon={PiggyBank}
-              loading={summaryLoading}
-            />
-          )}
-          {show('investments') && (
-            <StatCard
-              label="Investments"
-              formatValue={formatCurrency}
-              value={investedAmount === undefined ? undefined : Math.abs(investedAmount)}
-              currency={summary?.transactions.currency}
-              subtitle={
-                investedAmount !== undefined && investedAmount < 0
-                  ? `Net withdrawn · ${selectedTimeframeLabel}`
-                  : `Invested · ${selectedTimeframeLabel}`
-              }
-              icon={TrendingUp}
-              loading={summaryLoading}
-              transactionsLink={{
-                category: 'investment',
-                startDate: dateRange.startDate,
-                endDate: dateRange.endDate,
+
+          {/* Empty State */}
+          {!summaryLoading && !hasData && (
+            <EmptyState
+              icon={Upload}
+              title="Get started with Moneywright"
+              description="Upload your bank statements or credit card statements to unlock powerful financial insights and track your spending automatically."
+              action={{
+                label: 'Upload Your First Statement',
+                href: '/statements?upload=true',
+                icon: Upload,
               }}
+              size="lg"
             />
           )}
-        </StatCardGrid>
-      )}
-
-      {/* Income vs Expenses Chart */}
-      {show('income_vs_expenses') && (
-        <IncomeExpensesCard
-          trendsData={trendsData}
-          isLoading={trendsLoading}
-          onMonthClick={handleMonthClick}
-          getCategoryLabel={getCategoryLabel}
-        />
-      )}
-
-      {/* Spending by Category & Income by Category Row */}
-      {showCategoryCards && (
-        <div
-          className={cn(
-            'grid gap-4 mb-6',
-            show('spending_by_category') && show('income_by_category') && 'lg:grid-cols-2'
-          )}
-        >
-          {show('spending_by_category') && (
-            <SpendingByCategoryCard
-              categoryStats={
-                summary
-                  ? {
-                      categoryBreakdown: summary.transactions.categoryBreakdown,
-                      totalDebits: summary.transactions.totalExpenses,
-                      currency: summary.transactions.currency,
-                    }
-                  : undefined
-              }
-              isLoading={summaryLoading}
-              showMonthlyAverage={showMonthlyAverage}
-              onShowMonthlyAverageChange={setShowMonthlyAverage}
-              totalMonths={categoryTotalMonths}
-              getCategoryLabel={getCategoryLabel}
-              getCategoryColor={getCategoryColor}
-              startDate={dateRange.startDate}
-              endDate={dateRange.endDate}
-              previousPeriod={summary?.transactions.previousPeriod}
-            />
-          )}
-
-          {show('income_by_category') && (
-            <IncomeByCategoryCard
-              incomeBreakdown={summary?.transactions.incomeBreakdown}
-              totalIncome={summary?.transactions.totalIncome ?? 0}
-              currency={summary?.transactions.currency ?? 'INR'}
-              isLoading={summaryLoading}
-              showMonthlyAverage={showMonthlyAverage}
-              onShowMonthlyAverageChange={setShowMonthlyAverage}
-              totalMonths={categoryTotalMonths}
-              getCategoryLabel={getCategoryLabel}
-              getCategoryColor={getCategoryColor}
-              startDate={dateRange.startDate}
-              endDate={dateRange.endDate}
-            />
-          )}
-        </div>
-      )}
-
-      {/* What Changed (has its own month, ignores the timeframe picker) & Subscriptions */}
-      {(show('what_changed') || show('subscriptions')) && (
-        <div
-          className={cn(
-            'grid gap-4 mb-6',
-            show('what_changed') && show('subscriptions') && 'lg:grid-cols-2'
-          )}
-        >
-          {show('what_changed') && (
-            <WhatChangedCard
-              profileId={profileId}
-              enabled={queryEnabled}
-              getCategoryLabel={getCategoryLabel}
-            />
-          )}
-
-          {show('subscriptions') && (
-            <SubscriptionsCard
-              className="h-full"
-              subscriptions={subscriptionsData?.subscriptions || []}
-              totalMonthly={subscriptionsData?.totalMonthly || 0}
-              currency={subscriptionsData?.currency || 'INR'}
-              getCategoryLabel={getCategoryLabel}
-              isLoading={subscriptionsLoading}
-              countryCode={user?.country?.toLowerCase() || 'in'}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Account Balances */}
-      {show('account_balances') && <AccountBalancesCard accounts={allAccounts} />}
-
-      {/* Every widget switched off in Settings */}
-      {allWidgetsHidden && hasData && (
-        <EmptyState
-          icon={LayoutGrid}
-          title="All dashboard widgets are hidden"
-          description="Turn widgets back on in Settings to see them here."
-          action={{ label: 'Open Settings', href: '/settings' }}
-          size="lg"
-        />
-      )}
-
-      {/* Empty State */}
-      {!summaryLoading && !hasData && (
-        <EmptyState
-          icon={Upload}
-          title="Get started with Moneywright"
-          description="Upload your bank statements or credit card statements to unlock powerful financial insights and track your spending automatically."
-          action={{
-            label: 'Upload Your First Statement',
-            href: '/statements?upload=true',
-            icon: Upload,
-          }}
-          size="lg"
-        />
+        </>
       )}
 
       {/* Month Detail Modal */}

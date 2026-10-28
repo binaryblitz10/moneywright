@@ -1,11 +1,16 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { PREFERENCE_KEYS } from '@/lib/api'
-import { parseHiddenWidgets, type DashboardWidgetId } from '@/lib/dashboard-widgets'
+import {
+  moveWidget,
+  parseHiddenWidgets,
+  parseWidgetOrder,
+  type DashboardWidgetId,
+} from '@/lib/dashboard-widgets'
 import { preferencesKeys, usePreferences, useSetPreference } from './useSummary'
 
 /**
- * Which dashboard widgets are switched on (user-wide preference)
+ * Which dashboard widgets are switched on, and in what order (user-wide preferences)
  */
 export function useDashboardWidgets(enabled: boolean = true) {
   const queryClient = useQueryClient()
@@ -17,18 +22,20 @@ export function useDashboardWidgets(enabled: boolean = true) {
     [preferences]
   )
 
-  const saveHidden = useCallback(
-    (next: DashboardWidgetId[]) => {
-      const value = JSON.stringify(next)
+  const order = useMemo(
+    () => parseWidgetOrder(preferences?.[PREFERENCE_KEYS.DASHBOARD_WIDGET_ORDER]),
+    [preferences]
+  )
+
+  const savePreference = useCallback(
+    (key: string, ids: DashboardWidgetId[]) => {
+      const value = JSON.stringify(ids)
       // Show the change straight away; saving refetches the preferences afterwards
       queryClient.setQueryData<Record<string, string>>(
         preferencesKeys.byProfile(undefined),
-        (old) => ({
-          ...old,
-          [PREFERENCE_KEYS.DASHBOARD_HIDDEN_WIDGETS]: value,
-        })
+        (old) => ({ ...old, [key]: value })
       )
-      setPreferenceMutation.mutate({ key: PREFERENCE_KEYS.DASHBOARD_HIDDEN_WIDGETS, value })
+      setPreferenceMutation.mutate({ key, value })
     },
     [queryClient, setPreferenceMutation]
   )
@@ -37,10 +44,22 @@ export function useDashboardWidgets(enabled: boolean = true) {
 
   const setVisible = useCallback(
     (id: DashboardWidgetId, visible: boolean) => {
-      saveHidden(visible ? hidden.filter((w) => w !== id) : [...hidden, id])
+      savePreference(
+        PREFERENCE_KEYS.DASHBOARD_HIDDEN_WIDGETS,
+        visible ? hidden.filter((w) => w !== id) : [...hidden, id]
+      )
     },
-    [hidden, saveHidden]
+    [hidden, savePreference]
   )
 
-  return { isVisible, setVisible, isLoading }
+  /** Put a widget where another one currently sits */
+  const reorder = useCallback(
+    (id: DashboardWidgetId, targetId: DashboardWidgetId) => {
+      const next = moveWidget(order, id, targetId)
+      if (next !== order) savePreference(PREFERENCE_KEYS.DASHBOARD_WIDGET_ORDER, next)
+    },
+    [order, savePreference]
+  )
+
+  return { isVisible, setVisible, order, reorder, isLoading }
 }
