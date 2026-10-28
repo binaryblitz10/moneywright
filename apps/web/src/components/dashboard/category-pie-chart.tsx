@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from './utils'
 import { CategoryChange } from './category-change'
 import type { CategoryComparison } from './category-comparison'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 interface CategoryPieChartProps {
   categoryBreakdown: { category: string; total: number; count: number }[]
@@ -116,11 +117,14 @@ export function CategoryPieChart({
                 <div className="min-w-0">
                   <p
                     className={cn(
-                      'truncate text-sm text-foreground',
+                      'flex items-center gap-2 text-sm text-foreground',
                       isActive ? 'font-semibold' : 'font-medium'
                     )}
                   >
-                    {s.name}
+                    <span className="shrink-0" style={{ color: s.fill }}>
+                      <CategoryIcon code={s.category} />
+                    </span>
+                    <span className="truncate">{s.name}</span>
                   </p>
                   <div className="flex items-center gap-1.5 mt-1 h-4">
                     <span

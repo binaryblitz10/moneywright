@@ -45,6 +45,7 @@ import {
 } from '@/hooks'
 import { getSubscriptions } from '@/lib/api'
 import type { DetectedSubscription, Profile } from '@/lib/api'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 export const Route = createFileRoute('/subscriptions')({
   component: SubscriptionsPage,
@@ -599,8 +600,9 @@ function SubscriptionCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            {getCategoryLabel(sub.category)}
+          <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+            <CategoryIcon code={sub.category} className="h-3 w-3" />
+            <span className="truncate">{getCategoryLabel(sub.category)}</span>
           </p>
         </div>
 
@@ -700,7 +702,8 @@ function TransactionHistoryModal({
                   <ProfileBadge profileId={sub.profileId} profiles={profiles} size="md" />
                 )}
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
+                <CategoryIcon code={sub.category} className="h-3.5 w-3.5" />
                 {getCategoryLabel(sub.category)}
               </p>
             </div>

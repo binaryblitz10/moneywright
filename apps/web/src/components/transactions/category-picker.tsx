@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { Category, CategoryKind } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 export const ROW_CLASS =
   'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground/85 transition-colors disabled:pointer-events-none disabled:opacity-50'
@@ -16,6 +17,7 @@ export const ROW_HOVER_CLASS = 'hover:bg-foreground/[0.08] hover:text-foreground
 // Full class names so Tailwind can see them
 const DOT_COLORS: Record<string, string> = {
   emerald: 'bg-emerald-500',
+  green: 'bg-green-500',
   orange: 'bg-orange-500',
   lime: 'bg-lime-500',
   blue: 'bg-blue-500',
@@ -32,6 +34,21 @@ const DOT_COLORS: Record<string, string> = {
   teal: 'bg-teal-500',
   rose: 'bg-rose-500',
   zinc: 'bg-zinc-500',
+}
+
+/** Category icon on a filled circle in the category's colour */
+function CategoryTile({ category, className }: { category: Category; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white',
+        DOT_COLORS[category.color] ?? 'bg-zinc-500',
+        className
+      )}
+    >
+      <CategoryIcon code={category.code} className="h-3 w-3" />
+    </span>
+  )
 }
 
 interface CategoryPickerBaseProps {
@@ -176,6 +193,12 @@ export function CategoryPicker(props: CategoryPickerProps) {
           : undefined))
     : categories.find((cat) => cat.code === props.value)?.label
 
+  // The icon on the trigger only makes sense when exactly one category is chosen
+  const selectedCategory =
+    selected.length === 1 && !(props.multiple && props.triggerLabel)
+      ? categories.find((cat) => cat.code === selected[0])
+      : undefined
+
   return (
     <Popover modal open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -197,7 +220,11 @@ export function CategoryPicker(props: CategoryPickerProps) {
                 !triggerText && 'text-muted-foreground'
               )}
             >
-              {props.multiple && props.triggerIcon}
+              {selectedCategory ? (
+                <CategoryTile category={selectedCategory} className="h-5 w-5" />
+              ) : (
+                props.multiple && props.triggerIcon
+              )}
               {triggerText ?? placeholder}
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -304,12 +331,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
                       }}
                       onClick={() => select(cat.code)}
                     >
-                      <span
-                        className={cn(
-                          'h-2 w-2 shrink-0 rounded-full',
-                          DOT_COLORS[cat.color] ?? 'bg-zinc-500'
-                        )}
-                      />
+                      <CategoryTile category={cat} />
                       <span className="flex-1 truncate">{cat.label}</span>
                       {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
                     </button>

@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import type { ReportMerchantTrendRow, TrendsReport } from '@/lib/api'
 import { NUM_CLASS, ReportCard, TH_CLASS } from './report-card'
 import { formatMonthName, monthDates } from './report-utils'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 const TOP_MERCHANTS = 15
 /** Share of the cell colour at a row's smallest and largest month */
@@ -107,12 +108,7 @@ function CategoryHeatmap({ report, getCategoryColor }: SpendingTrendsViewProps) 
                     search={{ category: row.key, ...range }}
                     className="flex items-center gap-2 whitespace-nowrap hover:underline"
                   >
-                    <span
-                      className={cn(
-                        'h-2 w-2 rounded-full shrink-0',
-                        getCategoryColorClasses(color).dot
-                      )}
-                    />
+                    <CategoryIcon code={row.key} className={getCategoryColorClasses(color).text} />
                     {row.label}
                   </Link>
                 </TableCell>

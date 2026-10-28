@@ -18,6 +18,7 @@ import type {
   SpendingChangesResponse,
   SpendingLargeTransaction,
 } from '@/lib/api'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 /** Category rows shown before large transactions, so at least one large transaction fits */
 const MAX_CATEGORY_ITEMS = 4
@@ -210,7 +211,10 @@ function CategoryChangeRow({
   return (
     <Link to="/transactions" search={{ category: change.category, ...range }} className={ROW_CLASS}>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{label}</p>
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <CategoryIcon code={change.category} className="text-muted-foreground" />
+          <span className="truncate">{label}</span>
+        </p>
         <p className="text-xs text-muted-foreground truncate">
           vs {formatCurrency(change.baselineAverage, currency)}
         </p>
@@ -243,6 +247,7 @@ function LargeTransactionRow({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">{txn.summary}</p>
         <p className="text-xs text-muted-foreground truncate">
+          <CategoryIcon code={txn.category} className="mr-1 inline h-3 w-3 align-[-1px]" />
           {label} · {txn.reason === 'new_merchant' ? 'New merchant' : 'Larger than usual'}
         </p>
       </div>

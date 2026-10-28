@@ -29,6 +29,7 @@ import { useSmsImportStatus } from '@/hooks/useSmsImport'
 import { getAccountShortLabel, getStatementPeriodLabel } from '@/lib/statement-display'
 import { MetaLabel } from '@/components/ui/meta-label'
 import { CategoryPicker, ROW_ACTIVE_CLASS, ROW_CLASS, ROW_HOVER_CLASS } from './category-picker'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 interface TransactionFiltersBarProps {
   filters: TransactionFilters
@@ -413,7 +414,7 @@ export function TransactionFiltersBar({
             <FilterPill
               key={cat}
               label={getCategoryLabel(cat)}
-              icon={<Tag className="h-3 w-3" />}
+              icon={<CategoryIcon code={cat} className="h-3 w-3" />}
               onRemove={() => {
                 const updated = filters.category?.filter((c) => c !== cat)
                 onFiltersChange({

@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { getAccountShortLabel } from '@/lib/statement-display'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
 import { getProfileName } from '@/components/ui/profile-badge'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 // Roomier box with a smaller tick so there's padding between the tick and the circle
 const CHECKBOX_CLASS = 'size-5 [&_svg]:size-3'
@@ -84,6 +85,8 @@ function SortIndicator({
 const colorStyles: Record<string, string> = {
   emerald:
     'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
+  green:
+    'bg-green-100 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20',
   orange:
     'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20',
   lime: 'bg-lime-100 text-lime-700 border-lime-200 dark:bg-lime-500/10 dark:text-lime-400 dark:border-lime-500/20',
@@ -499,7 +502,10 @@ function CategoryCell({
           Add category
         </>
       ) : (
-        <span className="truncate">{label}</span>
+        <>
+          <CategoryIcon code={transaction.category} className="h-3 w-3" />
+          <span className="truncate">{label}</span>
+        </>
       )}
     </button>
   )

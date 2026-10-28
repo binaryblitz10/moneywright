@@ -39,6 +39,7 @@ import type {
 import { ChangeAmount, ChangeLine, ChangePct, type GoodWhen } from './change-indicator'
 import { NUM_CLASS, ReportCard, TH_CLASS } from './report-card'
 import { formatRange } from './report-utils'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 const TOP_MERCHANTS = 15
 
@@ -296,11 +297,9 @@ function CategoryTable({
                   }}
                   className="flex items-center gap-2 hover:underline"
                 >
-                  <span
-                    className={cn(
-                      'h-2 w-2 rounded-full shrink-0',
-                      getCategoryColorClasses(getCategoryColor(row.key)).dot
-                    )}
+                  <CategoryIcon
+                    code={row.key}
+                    className={getCategoryColorClasses(getCategoryColor(row.key)).text}
                   />
                   {row.label}
                 </Link>

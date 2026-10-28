@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from './utils'
 import { CategoryChange } from './category-change'
 import type { CategoryComparison } from './category-comparison'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 interface CategoryBreakdownProps {
   categoryBreakdown: { category: string; total: number; count: number }[]
@@ -116,8 +117,9 @@ export function CategoryBreakdown({
             >
               {/* Left: Category name and progress bar */}
               <div className="min-w-0 flex-1 pr-4">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {getCategoryLabel(cat.category)}
+                <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <CategoryIcon code={cat.category} className={colors.text} />
+                  <span className="truncate">{getCategoryLabel(cat.category)}</span>
                 </p>
                 <div className="flex items-center gap-1.5 mt-1 h-4">
                   <span

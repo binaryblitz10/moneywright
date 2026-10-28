@@ -58,6 +58,8 @@ import {
 } from '@/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { transactionRuleKeys } from '@/hooks/useTransactionRules'
+import { CategoryIcon } from '@/components/ui/category-icon'
+import { getCategoryColorClasses } from '@/lib/category-colors'
 
 type Direction = 'both' | 'credit' | 'debit'
 
@@ -218,7 +220,19 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
             {rule.name ?? 'Keep name'}
           </span>
           <span className="text-muted-foreground">·</span>
-          <span className={cn(!categoryLabel && 'text-muted-foreground')}>
+          <span
+            className={cn('flex items-center gap-1.5', !categoryLabel && 'text-muted-foreground')}
+          >
+            {rule.category && (
+              <CategoryIcon
+                code={rule.category}
+                className={
+                  getCategoryColorClasses(
+                    categories.find((cat) => cat.code === rule.category)?.color ?? 'zinc'
+                  ).text
+                }
+              />
+            )}
             {categoryLabel ?? 'Keep category'}
           </span>
           <span className="text-muted-foreground">·</span>

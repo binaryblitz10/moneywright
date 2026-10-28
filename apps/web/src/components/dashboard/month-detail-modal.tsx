@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency, formatDate } from './utils'
 import { SORT_OPTIONS, type SortOption, type ViewMode } from './types'
 import type { MonthlyTrendData, MonthTransactionsResponse, Transaction } from '@/lib/api'
+import { CategoryIcon } from '@/components/ui/category-icon'
 
 interface MonthDetailModalProps {
   month: MonthlyTrendData | null
@@ -495,7 +496,11 @@ function CategoryRow({
   return (
     <div className="py-2 px-2 rounded-lg hover:bg-surface-hover transition-colors">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-medium text-foreground" title={label}>
+        <span
+          className="flex items-center gap-1.5 text-xs font-medium text-foreground"
+          title={label}
+        >
+          <CategoryIcon code={category} className="h-3 w-3 text-muted-foreground" />
           {truncatedLabel}
         </span>
         <span
