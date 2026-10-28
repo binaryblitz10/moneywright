@@ -1,10 +1,8 @@
 /**
- * Building blocks shared by the report tabs: card with a scrolling table, loading and error states
+ * Building blocks shared by the report tabs: card with a scrolling table, loading state
  */
 
 import type { ReactNode } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { SectionCard } from '@/components/ui/section-card'
 import { Skeleton, StatCardGridSkeleton } from '@/components/ui/skeleton'
@@ -52,26 +50,6 @@ export function ReportSkeleton() {
         </Card>
       ))}
     </div>
-  )
-}
-
-/** The API's own message for a rejected request, else the error's */
-function errorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const data = (error as { response?: { data?: { message?: unknown } } }).response?.data
-    if (typeof data?.message === 'string') return data.message
-  }
-  return error instanceof Error ? error.message : 'Something went wrong'
-}
-
-export function ReportError({ error }: { error: unknown }) {
-  const message = errorMessage(error)
-  return (
-    <Alert variant="destructive">
-      <AlertCircle />
-      <AlertTitle>Could not load this report</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
   )
 }
 

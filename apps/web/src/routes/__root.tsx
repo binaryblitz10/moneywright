@@ -1,5 +1,6 @@
 import { createContext, useContext, useCallback } from 'react'
-import { createRootRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createRootRoute, Link, Outlet, redirect } from '@tanstack/react-router'
+import { AlertTriangle, FileQuestion, LayoutDashboard, RotateCw } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   type User,
@@ -11,6 +12,7 @@ import {
   getPinStatus,
 } from '@/lib/api'
 import { Toaster } from '@/components/ui/sonner'
+import { Button } from '@/components/ui/button'
 import { isMacDesktop } from '@/lib/desktop'
 import { useUnlockSyncToast } from '@/hooks/useSmsImport'
 
@@ -207,7 +209,82 @@ export const Route = createRootRoute({
     }
   },
   component: RootComponent,
+  errorComponent: RootErrorComponent,
+  notFoundComponent: RootNotFoundComponent,
 })
+
+interface FullPageMessageProps {
+  icon: typeof AlertTriangle
+  iconClassName: string
+  title: string
+  description: string
+  children: React.ReactNode
+}
+
+function FullPageMessage({
+  icon: Icon,
+  iconClassName,
+  title,
+  description,
+  children,
+}: FullPageMessageProps) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div
+        role="alert"
+        className="w-full max-w-md rounded-xl border border-dashed border-border-subtle bg-card px-6 py-12 text-center"
+      >
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border-subtle bg-surface-elevated">
+          <Icon className={`h-8 w-8 ${iconClassName}`} />
+        </div>
+        <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">{description}</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function DashboardLink() {
+  return (
+    <Button variant="outline" asChild>
+      <Link to="/">
+        <LayoutDashboard className="mr-2 h-4 w-4" />
+        Go to dashboard
+      </Link>
+    </Button>
+  )
+}
+
+function RootErrorComponent({ error }: { error: Error }) {
+  return (
+    <FullPageMessage
+      icon={AlertTriangle}
+      iconClassName="text-destructive"
+      title="Something went wrong"
+      description={error.message || 'An unexpected error occurred. Try reloading the page.'}
+    >
+      <Button onClick={() => window.location.reload()}>
+        <RotateCw className="mr-2 h-4 w-4" />
+        Reload
+      </Button>
+      <DashboardLink />
+    </FullPageMessage>
+  )
+}
+
+function RootNotFoundComponent() {
+  return (
+    <FullPageMessage
+      icon={FileQuestion}
+      iconClassName="text-muted-foreground"
+      title="Page not found"
+      description="The page you are looking for does not exist or has been moved."
+    >
+      <DashboardLink />
+    </FullPageMessage>
+  )
+}
 
 function RootComponent() {
   const queryClient = useQueryClient()

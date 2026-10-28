@@ -6,7 +6,7 @@ export { PeriodPicker } from './period-picker'
 export { PeriodReportView } from './period-report'
 export { SpendingTrendsView } from './spending-trends'
 export { InvestmentsReportView } from './investments-report'
-export { ReportError, ReportSkeleton } from './report-card'
+export { ReportSkeleton } from './report-card'
 export {
   comparisonRange,
   formatRange,
