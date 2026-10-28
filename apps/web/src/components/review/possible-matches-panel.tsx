@@ -6,14 +6,23 @@
 import { Check, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { TransactionTable } from '@/components/transactions/transaction-table'
 import { usePossibleMatches, useResolvePossibleMatch } from '@/hooks'
 import type { ReviewPanelProps } from './types'
 
 export function PossibleMatchesPanel({ filters, formatAmount, ...tableProps }: ReviewPanelProps) {
-  const { data: matches = [], isLoading } = usePossibleMatches(filters.profileId, filters.enabled)
+  const {
+    data: matches = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = usePossibleMatches(filters.profileId, filters.enabled)
   const resolveMutation = useResolvePossibleMatch()
+
+  if (isError) return <QueryError error={error} onRetry={() => void refetch()} />
 
   if (isLoading) return <TableSkeleton rows={4} columns={4} />
 
@@ -41,7 +50,7 @@ export function PossibleMatchesPanel({ filters, formatAmount, ...tableProps }: R
     if (index % 2 !== 0) return null
     const { sms, candidate } = pairs[index / 2]!
     return (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Same purchase?</span>
           {' · '}

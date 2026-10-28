@@ -35,7 +35,7 @@ export function ConversationHistory({
           <History className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-80">
+      <SheetContent side="right" className="w-full max-w-80">
         <SheetHeader>
           <SheetTitle>Chat History</SheetTitle>
         </SheetHeader>

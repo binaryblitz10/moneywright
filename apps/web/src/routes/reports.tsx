@@ -15,6 +15,7 @@ import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { QueryError } from '@/components/ui/query-error'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileBarChart, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,7 +24,6 @@ import {
   MONTH_PATTERN,
   PeriodPicker,
   PeriodReportView,
-  ReportError,
   ReportSkeleton,
   SpendingTrendsView,
   comparisonRange,
@@ -72,6 +72,7 @@ function ReportsPage() {
     data: bounds,
     isLoading: boundsLoading,
     error: boundsError,
+    refetch: refetchBounds,
   } = useReportBounds(profileId, queryEnabled)
   const range = useMemo(() => (bounds ? resolveRange(from, to, bounds) : null), [bounds, from, to])
   const comparison = useMemo(
@@ -122,7 +123,7 @@ function ReportsPage() {
       />
 
       {boundsError ? (
-        <ReportError error={boundsError} />
+        <QueryError error={boundsError} onRetry={refetchBounds} />
       ) : boundsLoading || !bounds ? (
         <ReportSkeleton />
       ) : !range ? (
@@ -172,7 +173,7 @@ function QueryBody<T>({
   query: UseQueryResult<T>
   children: (data: T) => ReactNode
 }) {
-  if (query.error && !query.data) return <ReportError error={query.error} />
+  if (query.error && !query.data) return <QueryError error={query.error} onRetry={query.refetch} />
   if (!query.data) return <ReportSkeleton />
   return (
     <div className={cn('transition-opacity', query.isPlaceholderData && 'opacity-50')}>

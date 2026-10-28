@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useBulkUpdateTransactions, useReviewCounts, useTransactions } from '@/hooks'
@@ -44,7 +45,7 @@ export function CategorizationPanel({
   const confirmMutation = useBulkUpdateTransactions()
 
   const { data: counts } = useReviewCounts(filters.profileId)
-  const { data, isLoading, isPlaceholderData } = useTransactions(
+  const { data, isLoading, isPlaceholderData, isError, error, refetch } = useTransactions(
     { ...filters, reviewStatus: isLowConfidence ? 'low_confidence' : status },
     { page, limit: LIMIT, sortBy, sortOrder }
   )
@@ -68,7 +69,7 @@ export function CategorizationPanel({
   return (
     <div className={cn('space-y-4', selectedIds.size > 0 && 'pb-24')}>
       {!isLowConfidence && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {statuses.map((s) => (
             <Button
               key={s.value}
@@ -89,7 +90,7 @@ export function CategorizationPanel({
       {selectedIds.size > 0 && (
         <div className={FLOATING_BAR_CLASS}>
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isLowConfidence && (
               <Button
                 size="sm"
@@ -121,7 +122,9 @@ export function CategorizationPanel({
         </div>
       )}
 
-      {isLoading ? (
+      {isError ? (
+        <QueryError error={error} onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <TableSkeleton rows={10} columns={4} />
       ) : transactions.length > 0 ? (
         <>

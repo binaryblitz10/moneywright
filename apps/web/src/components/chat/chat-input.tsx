@@ -70,8 +70,8 @@ export function ChatInput({
               disabled={isLoading}
               className="min-h-14"
             />
-            <PromptInputFooter className="px-3 pb-3">
-              <PromptInputTools className="gap-1">
+            <PromptInputFooter className="gap-2 px-3 pb-3">
+              <PromptInputTools className="min-w-0 flex-wrap gap-1">
                 <ModelSelector
                   providers={providers}
                   currentProvider={currentProvider}

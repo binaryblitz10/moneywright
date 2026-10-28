@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CardSkeleton } from '@/components/ui/skeleton'
+import { QueryError } from '@/components/ui/query-error'
 import { ToolCallModal } from '@/components/ai-elements/tool-call-modal'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import type { ChatMessage, Profile } from '@/lib/api'
@@ -89,7 +90,13 @@ function ChatPage() {
   } = useProfileSelection()
 
   // Setup status (providers, LLM configuration)
-  const { data: setupStatus, isLoading: setupLoading } = useSetup()
+  const {
+    data: setupStatus,
+    isLoading: setupLoading,
+    isError: setupError,
+    error: setupErrorValue,
+    refetch: refetchSetup,
+  } = useSetup()
   const defaultChatConfig = getDefaultChatConfig(setupStatus)
 
   // Selected provider and model from preferences or defaults
@@ -115,9 +122,12 @@ function ChatPage() {
   const createConversation = useCreateConversation()
   const deleteConversation = useDeleteConversation()
 
-  const { data: conversation } = useConversationById(
-    isSendingRef.current ? undefined : urlConversationId
-  )
+  const {
+    data: conversation,
+    isError: conversationError,
+    error: conversationErrorValue,
+    refetch: refetchConversation,
+  } = useConversationById(isSendingRef.current ? undefined : urlConversationId)
 
   const chatStream = useChatStream(activeConversationId, activeProfileId)
 
@@ -377,6 +387,18 @@ function ChatPage() {
     )
   }
 
+  // Setup status failed to load
+  if (setupError) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <PageHeader title="Ask Penny" description="Your wise financial companion" />
+          <QueryError error={setupErrorValue} onRetry={() => void refetchSetup()} />
+        </div>
+      </AppLayout>
+    )
+  }
+
   // Not configured state
   if (!setupStatus?.llm?.isConfigured) {
     return (
@@ -480,7 +502,14 @@ function ChatPage() {
 
         {/* Only this area scrolls */}
         <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto">
-          {!showWelcome && (
+          {conversationError && (
+            <QueryError
+              title="Couldn't load this conversation"
+              error={conversationErrorValue}
+              onRetry={() => void refetchConversation()}
+            />
+          )}
+          {!conversationError && !showWelcome && (
             <div className="space-y-6 w-full">
               <ChatMessageList
                 ref={messagesEndRef}

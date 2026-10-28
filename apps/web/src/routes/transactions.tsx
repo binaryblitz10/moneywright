@@ -39,6 +39,7 @@ import {
 } from '@/components/transactions'
 import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
 import { Button } from '@/components/ui/button'
 import { ListChecks, Plus, Receipt, Upload, X } from 'lucide-react'
 
@@ -161,6 +162,9 @@ function TransactionsPage() {
     data: transactionsData,
     isLoading: transactionsLoading,
     isPlaceholderData: transactionsStale,
+    isError: transactionsError,
+    error: transactionsErrorValue,
+    refetch: refetchTransactions,
   } = useTransactions(activeFilters, { page, limit, sortBy, sortOrder })
   // activeFilters carries includeHidden / onlyHidden from `filters`, so stats match the list
   const { data: stats, isLoading: statsLoading } = useTransactionStats(activeFilters)
@@ -415,8 +419,8 @@ function TransactionsPage() {
         )}
 
         {/* Selection toggle and result count */}
-        {!transactionsLoading && transactions.length > 0 && (
-          <div className="flex items-center gap-3">
+        {!transactionsError && !transactionsLoading && transactions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               aria-pressed={selectionMode}
@@ -443,7 +447,9 @@ function TransactionsPage() {
         )}
 
         {/* Transactions Table */}
-        {transactionsLoading ? (
+        {transactionsError ? (
+          <QueryError error={transactionsErrorValue} onRetry={() => void refetchTransactions()} />
+        ) : transactionsLoading ? (
           <TableSkeleton rows={10} columns={4} />
         ) : transactions.length > 0 ? (
           // Dim the previous results while the new ones load
@@ -487,7 +493,7 @@ function TransactionsPage() {
         )}
 
         {/* Pagination - bottom of the page, centred */}
-        {!transactionsLoading && transactions.length > 0 && (
+        {!transactionsError && !transactionsLoading && transactions.length > 0 && (
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </div>

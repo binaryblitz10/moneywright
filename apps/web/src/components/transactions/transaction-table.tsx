@@ -216,8 +216,88 @@ export function TransactionTable({
     onSelectionChange(next)
   }
 
-  return (
-    <div className="rounded-xl overflow-hidden border border-border-subtle bg-card">
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+
+  const renderTitle = (txn: Transaction) => (
+    <div className="flex items-center gap-2">
+      <p className="truncate font-medium text-foreground text-sm">
+        {txn.isManuallyCategorized && txn.summary
+          ? txn.summary
+          : toTitleCase(txn.summary || txn.originalDescription)}
+      </p>
+      {/* Matched with a statement line: just a checkmark */}
+      {txn.smsVerified && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="img"
+              aria-label="Verified against your statement"
+              className="inline-flex shrink-0 transition-transform duration-200 group-hover:scale-110"
+            >
+              <BadgeCheck className="h-5 w-5 fill-emerald-500 text-white dark:text-background" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Verified against your statement
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {/* Imported from an SMS alert, not yet seen on a statement */}
+      {txn.smsSource && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
+          SMS
+        </span>
+      )}
+      {renderBadge?.(txn)}
+      {/* Subscription indicator */}
+      {txn.isSubscription && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-violet-100 border border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110">
+              <RefreshCw className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Recurring subscription
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  )
+
+  const renderMeta = (
+    txn: Transaction,
+    account: Account | undefined,
+    last4: string,
+    institutionId: string
+  ) => (
+    <div className="flex items-center gap-2 mt-0.5">
+      <AccountLabel
+        label={
+          account
+            ? getAccountShortLabel(account, institutions[institutionId] || institutionId)
+            : `••${last4}`
+        }
+        profileName={showProfileBadge && profiles ? getProfileName(txn.profileId, profiles) : null}
+      />
+      {txn.notes && (
+        <>
+          <span className="text-muted-foreground">·</span>
+          <p className="shrink-0 text-xs italic text-muted-foreground">{truncateNote(txn.notes)}</p>
+        </>
+      )}
+      {txn.summary && txn.summary !== txn.originalDescription && (
+        <>
+          <span className="text-muted-foreground">·</span>
+          <p className="truncate text-xs text-muted-foreground">{txn.originalDescription}</p>
+        </>
+      )}
+    </div>
+  )
+
+  const table = (
+    <div className="hidden overflow-hidden rounded-xl border border-border-subtle bg-card md:block">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
@@ -322,11 +402,7 @@ export function TransactionTable({
                       !selectable && 'pl-5'
                     )}
                   >
-                    {new Date(txn.date).toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: '2-digit',
-                    })}
+                    {formatDate(txn.date)}
                   </TableCell>
                   <TableCell className="overflow-hidden py-3">
                     <div className="flex items-center gap-3">
@@ -336,85 +412,8 @@ export function TransactionTable({
                         isCard={account?.type === 'credit_card'}
                       />
                       <div className="min-w-0 flex-1">
-                        {/* Title row */}
-                        <div className="flex items-center gap-2">
-                          <p className="truncate font-medium text-foreground text-sm">
-                            {txn.isManuallyCategorized && txn.summary
-                              ? txn.summary
-                              : toTitleCase(txn.summary || txn.originalDescription)}
-                          </p>
-                          {/* Matched with a statement line: just a checkmark */}
-                          {txn.smsVerified && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  role="img"
-                                  aria-label="Verified against your statement"
-                                  className="inline-flex shrink-0 transition-transform duration-200 group-hover:scale-110"
-                                >
-                                  <BadgeCheck className="h-5 w-5 fill-emerald-500 text-white dark:text-background" />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                Verified against your statement
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {/* Imported from an SMS alert, not yet seen on a statement */}
-                          {txn.smsSource && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border-subtle text-muted-foreground shrink-0">
-                              SMS
-                            </span>
-                          )}
-                          {renderBadge?.(txn)}
-                          {/* Subscription indicator */}
-                          {txn.isSubscription && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-violet-100 border border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/20 shrink-0 transition-transform duration-200 group-hover:scale-110">
-                                  <RefreshCw className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                Recurring subscription
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                        {/* Meta row */}
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <AccountLabel
-                            label={
-                              account
-                                ? getAccountShortLabel(
-                                    account,
-                                    institutions[institutionId] || institutionId
-                                  )
-                                : `••${last4}`
-                            }
-                            profileName={
-                              showProfileBadge && profiles
-                                ? getProfileName(txn.profileId, profiles)
-                                : null
-                            }
-                          />
-                          {txn.notes && (
-                            <>
-                              <span className="text-muted-foreground">·</span>
-                              <p className="shrink-0 text-xs italic text-muted-foreground">
-                                {truncateNote(txn.notes)}
-                              </p>
-                            </>
-                          )}
-                          {txn.summary && txn.summary !== txn.originalDescription && (
-                            <>
-                              <span className="text-muted-foreground">·</span>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {txn.originalDescription}
-                              </p>
-                            </>
-                          )}
-                        </div>
+                        {renderTitle(txn)}
+                        {renderMeta(txn, account, last4, institutionId)}
                       </div>
                     </div>
                   </TableCell>
@@ -447,6 +446,120 @@ export function TransactionTable({
         </TableBody>
       </Table>
     </div>
+  )
+
+  const list = (
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-card md:hidden">
+      {/* Sort and select-all controls, standing in for the table header */}
+      <div className="flex items-center gap-4 border-b border-border-subtle bg-surface-elevated px-4 py-2.5">
+        {selectable && (
+          <Checkbox
+            className={CHECKBOX_CLASS}
+            aria-label="Select all transactions on this page"
+            checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
+            onCheckedChange={(checked) => togglePage(checked === true)}
+          />
+        )}
+        <SortableHeading
+          label="Date"
+          column="date"
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={onSortChange && handleSort}
+        />
+        <SortableHeading
+          label="Amount"
+          column="amount"
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={onSortChange && handleSort}
+        />
+      </div>
+      {transactions.map((txn, index) => {
+        const account = accountMap.get(txn.accountId)
+        const last4 = (account?.accountNumber || '').slice(-4) || '****'
+        const institutionId = account?.institution || ''
+        const logoPath = institutionId ? `/institutions/${countryCode}/${institutionId}.svg` : null
+        const groupHeader = renderGroupHeader?.(txn, index)
+        const canEdit = isEditable?.(txn) ?? true
+        const canSelect = selectable && (!isSelectable || isSelectable(txn))
+
+        return (
+          <Fragment key={`${txn.id}-${index}`}>
+            {groupHeader && (
+              <div className="border-b border-border-subtle bg-surface-elevated/60 px-4 py-2">
+                {groupHeader}
+              </div>
+            )}
+            <div
+              className={cn(
+                'flex select-none items-start gap-3 border-b border-border-subtle px-4 py-3 last:border-b-0',
+                (rowClickSelects || canEdit) && 'cursor-pointer active:bg-surface-hover',
+                selectable && selectedIds.has(txn.id) && 'bg-primary/5'
+              )}
+              onClick={
+                rowClickSelects
+                  ? (e) => handleRowClick(e, index)
+                  : canEdit
+                    ? () => onEditTransaction(txn)
+                    : undefined
+              }
+            >
+              {canSelect && (
+                <Checkbox
+                  className={cn(CHECKBOX_CLASS, 'mt-2.5')}
+                  aria-label="Select transaction"
+                  checked={selectedIds.has(txn.id)}
+                />
+              )}
+              <AccountAvatar
+                logoPath={logoPath}
+                institutionId={institutionId || 'other'}
+                isCard={account?.type === 'credit_card'}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">{renderTitle(txn)}</div>
+                  <span
+                    className={cn(
+                      'shrink-0 text-sm font-semibold tabular-nums',
+                      txn.type === 'credit' ? 'text-positive' : 'text-foreground'
+                    )}
+                  >
+                    {txn.type === 'credit' ? '+' : '-'}
+                    {formatAmount(txn.amount, txn.currency)}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+                    <CategoryCell
+                      transaction={txn}
+                      categories={categories}
+                      label={getCategoryLabel(txn.category)}
+                      colorClass={getCategoryColor(txn.category)}
+                      onChange={(category) =>
+                        updateTransaction.mutate({ transactionId: txn.id, data: { category } })
+                      }
+                    />
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatDate(txn.date)}
+                  </span>
+                </div>
+                <div className="mt-1">{renderMeta(txn, account, last4, institutionId)}</div>
+              </div>
+            </div>
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <>
+      {list}
+      {table}
+    </>
   )
 }
 

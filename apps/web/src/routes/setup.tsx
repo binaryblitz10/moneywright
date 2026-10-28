@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { getSetupStatus, updateSetup, testLLMConnection } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { QueryError } from '@/components/ui/query-error'
 import {
   Loader2,
   ExternalLink,
@@ -49,7 +50,13 @@ function SetupPage() {
   const [showOllamaModelsModal, setShowOllamaModelsModal] = useState(false)
 
   // Fetch setup status (includes providers with isConfigured status)
-  const { data: setupStatus, isLoading: statusLoading } = useQuery({
+  const {
+    data: setupStatus,
+    isLoading: statusLoading,
+    isError: statusError,
+    error: statusErrorValue,
+    refetch: refetchStatus,
+  } = useQuery({
     queryKey: ['setup-status'],
     queryFn: getSetupStatus,
   })
@@ -180,6 +187,18 @@ function SetupPage() {
     navigate({ to: '/onboarding/country', search: { redirect: redirectTo }, replace: true })
   }
 
+  if (statusError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#141414] p-4">
+        <QueryError
+          className="w-full max-w-md"
+          error={statusErrorValue}
+          onRetry={() => void refetchStatus()}
+        />
+      </div>
+    )
+  }
+
   if (statusLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#141414]">
@@ -241,7 +260,7 @@ function SetupPage() {
         <div className="space-y-6">
           {/* Provider Selection - Grid */}
           <motion.div
-            className="grid grid-cols-3 gap-2.5"
+            className="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -352,7 +371,7 @@ function SetupPage() {
                   {/* API Key Input */}
                   {expandedProviderDetails?.requiresApiKey && (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3">
                         <label className="text-sm font-medium text-zinc-400">
                           API Key{' '}
                           {isProviderConfigured(expandedProvider) && (
@@ -444,7 +463,7 @@ function SetupPage() {
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Button
                       type="button"
                       variant="outline"

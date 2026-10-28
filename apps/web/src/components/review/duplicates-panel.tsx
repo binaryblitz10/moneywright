@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { EmptyState } from '@/components/ui/empty-state'
+import { QueryError } from '@/components/ui/query-error'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
@@ -39,7 +40,14 @@ import type { ReviewPanelProps } from './types'
 const GROUPS_PER_PAGE = 10
 
 export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: ReviewPanelProps) {
-  const { data: groups = [], isLoading, isPlaceholderData } = useDuplicateGroups(filters)
+  const {
+    data: groups = [],
+    isLoading,
+    isPlaceholderData,
+    isError,
+    error,
+    refetch,
+  } = useDuplicateGroups(filters)
   const { data: dismissedGroups = [] } = useDuplicateGroups({ ...filters, dismissed: true })
   const dismissMutation = useDismissDuplicates()
   const deleteMutation = useBulkDeleteTransactions()
@@ -79,7 +87,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
     const group = list.find((g) => g.transactions[0]?.id === txn.id)
     if (!group) return null
     return (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">
             {group.transactions.length} transactions
@@ -104,6 +112,8 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       </div>
     )
   }
+
+  if (isError) return <QueryError error={error} onRetry={() => void refetch()} />
 
   if (isLoading) return <TableSkeleton rows={6} columns={4} />
 
@@ -153,7 +163,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       {selectedIds.size > 0 && (
         <div className={FLOATING_BAR_CLASS}>
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={handleHide}>
               <EyeOff className="mr-2 h-4 w-4" />
               Hide

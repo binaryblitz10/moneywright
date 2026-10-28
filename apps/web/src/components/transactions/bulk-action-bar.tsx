@@ -80,7 +80,7 @@ export function BulkActionBar({
             )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <CategoryPicker
             categories={categories}
             value=""
@@ -93,13 +93,14 @@ export function BulkActionBar({
             }}
           />
         </div>
-        <Button size="sm" variant="outline" disabled={busy} onClick={onEdit}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
+        <Button size="sm" variant="outline" aria-label="Edit" disabled={busy} onClick={onEdit}>
+          <Pencil className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Edit</span>
         </Button>
         <Button
           size="sm"
           variant="outline"
+          aria-label={showingHidden ? 'Unhide' : 'Hide'}
           disabled={busy}
           onClick={() =>
             updateMutation.mutate(
@@ -108,22 +109,27 @@ export function BulkActionBar({
             )
           }
         >
-          {showingHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-          {showingHidden ? 'Unhide' : 'Hide'}
+          {showingHidden ? (
+            <Eye className="h-4 w-4 sm:mr-2" />
+          ) : (
+            <EyeOff className="h-4 w-4 sm:mr-2" />
+          )}
+          <span className="hidden sm:inline">{showingHidden ? 'Unhide' : 'Hide'}</span>
         </Button>
         <Button
           size="sm"
           variant="outline"
           className="text-destructive hover:text-destructive"
+          aria-label="Delete"
           disabled={busy}
           onClick={() => setConfirmDelete(true)}
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
+          <Trash2 className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Delete</span>
         </Button>
-        <Button size="sm" variant="ghost" onClick={onClear}>
-          <X className="mr-2 h-4 w-4" />
-          Clear
+        <Button size="sm" variant="ghost" aria-label="Clear selection" onClick={onClear}>
+          <X className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Clear</span>
         </Button>
       </div>
 

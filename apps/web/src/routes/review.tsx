@@ -125,7 +125,7 @@ function ReviewPage() {
             })
           }
         >
-          <TabsList>
+          <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsTrigger value="duplicates">
               Duplicates
               {counts && (
