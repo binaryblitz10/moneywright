@@ -1,6 +1,6 @@
 /**
  * Category color mapping for Tailwind classes
- * Uses muted colors appropriate for dark themes
+ * Uses bright colors that stay readable on dark themes
  */
 
 export interface CategoryColorClasses {
@@ -15,101 +15,106 @@ export interface CategoryColorClasses {
 }
 
 /**
- * Muted color palette for dark theme
- * Uses -600 shades which are subtle but still distinguishable
+ * Bright color palette: -500 for fills, -400 for text
  */
 export const CATEGORY_COLOR_MAP: Record<string, CategoryColorClasses> = {
   orange: {
-    dot: 'bg-orange-700',
-    bg: 'bg-orange-500/10',
-    text: 'text-orange-600/70',
-    bar: 'bg-orange-600/60',
+    dot: 'bg-orange-500',
+    bg: 'bg-orange-500/15',
+    text: 'text-orange-400',
+    bar: 'bg-orange-500',
   },
   lime: {
-    dot: 'bg-lime-700',
-    bg: 'bg-lime-500/10',
-    text: 'text-lime-600/70',
-    bar: 'bg-lime-600/60',
+    dot: 'bg-lime-500',
+    bg: 'bg-lime-500/15',
+    text: 'text-lime-400',
+    bar: 'bg-lime-500',
   },
   blue: {
-    dot: 'bg-blue-700',
-    bg: 'bg-blue-500/10',
-    text: 'text-blue-500/70',
-    bar: 'bg-blue-500/60',
+    dot: 'bg-blue-500',
+    bg: 'bg-blue-500/15',
+    text: 'text-blue-400',
+    bar: 'bg-blue-500',
   },
   cyan: {
-    dot: 'bg-cyan-700',
-    bg: 'bg-cyan-500/10',
-    text: 'text-cyan-500/70',
-    bar: 'bg-cyan-500/60',
+    dot: 'bg-cyan-500',
+    bg: 'bg-cyan-500/15',
+    text: 'text-cyan-400',
+    bar: 'bg-cyan-500',
   },
   rose: {
-    dot: 'bg-rose-700',
-    bg: 'bg-rose-500/10',
-    text: 'text-rose-500/70',
-    bar: 'bg-rose-500/60',
+    dot: 'bg-rose-500',
+    bg: 'bg-rose-500/15',
+    text: 'text-rose-400',
+    bar: 'bg-rose-500',
   },
   purple: {
-    dot: 'bg-purple-700',
-    bg: 'bg-purple-500/10',
-    text: 'text-purple-500/70',
-    bar: 'bg-purple-500/60',
+    dot: 'bg-purple-500',
+    bg: 'bg-purple-500/15',
+    text: 'text-purple-400',
+    bar: 'bg-purple-500',
   },
   amber: {
-    dot: 'bg-amber-700',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-500/70',
-    bar: 'bg-amber-500/60',
+    dot: 'bg-amber-500',
+    bg: 'bg-amber-500/15',
+    text: 'text-amber-400',
+    bar: 'bg-amber-500',
   },
   pink: {
-    dot: 'bg-pink-700',
-    bg: 'bg-pink-500/10',
-    text: 'text-pink-500/70',
-    bar: 'bg-pink-500/60',
+    dot: 'bg-pink-500',
+    bg: 'bg-pink-500/15',
+    text: 'text-pink-400',
+    bar: 'bg-pink-500',
   },
-  sky: { dot: 'bg-sky-700', bg: 'bg-sky-500/10', text: 'text-sky-500/70', bar: 'bg-sky-500/60' },
-  red: { dot: 'bg-red-700', bg: 'bg-red-500/10', text: 'text-red-500/70', bar: 'bg-red-500/60' },
+  sky: { dot: 'bg-sky-500', bg: 'bg-sky-500/15', text: 'text-sky-400', bar: 'bg-sky-500' },
+  red: { dot: 'bg-red-500', bg: 'bg-red-500/15', text: 'text-red-400', bar: 'bg-red-500' },
   fuchsia: {
-    dot: 'bg-fuchsia-700',
-    bg: 'bg-fuchsia-500/10',
-    text: 'text-fuchsia-500/70',
-    bar: 'bg-fuchsia-500/60',
+    dot: 'bg-fuchsia-500',
+    bg: 'bg-fuchsia-500/15',
+    text: 'text-fuchsia-400',
+    bar: 'bg-fuchsia-500',
   },
   indigo: {
-    dot: 'bg-indigo-700',
-    bg: 'bg-indigo-500/10',
-    text: 'text-indigo-500/70',
-    bar: 'bg-indigo-500/60',
+    dot: 'bg-indigo-500',
+    bg: 'bg-indigo-500/15',
+    text: 'text-indigo-400',
+    bar: 'bg-indigo-500',
   },
   slate: {
-    dot: 'bg-slate-600',
-    bg: 'bg-slate-500/10',
-    text: 'text-slate-500/70',
-    bar: 'bg-slate-500/60',
+    dot: 'bg-slate-500',
+    bg: 'bg-slate-500/15',
+    text: 'text-slate-400',
+    bar: 'bg-slate-500',
   },
   violet: {
-    dot: 'bg-violet-700',
-    bg: 'bg-violet-500/10',
-    text: 'text-violet-500/70',
-    bar: 'bg-violet-500/60',
+    dot: 'bg-violet-500',
+    bg: 'bg-violet-500/15',
+    text: 'text-violet-400',
+    bar: 'bg-violet-500',
   },
   zinc: {
-    dot: 'bg-zinc-600',
-    bg: 'bg-zinc-500/10',
-    text: 'text-zinc-500/70',
-    bar: 'bg-zinc-500/60',
+    dot: 'bg-zinc-500',
+    bg: 'bg-zinc-500/15',
+    text: 'text-zinc-400',
+    bar: 'bg-zinc-500',
+  },
+  green: {
+    dot: 'bg-green-500',
+    bg: 'bg-green-500/15',
+    text: 'text-green-400',
+    bar: 'bg-green-500',
   },
   emerald: {
-    dot: 'bg-emerald-700',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-500/70',
-    bar: 'bg-emerald-500/60',
+    dot: 'bg-emerald-500',
+    bg: 'bg-emerald-500/15',
+    text: 'text-emerald-400',
+    bar: 'bg-emerald-500',
   },
   teal: {
-    dot: 'bg-teal-700',
-    bg: 'bg-teal-500/10',
-    text: 'text-teal-500/70',
-    bar: 'bg-teal-500/60',
+    dot: 'bg-teal-500',
+    bg: 'bg-teal-500/15',
+    text: 'text-teal-400',
+    bar: 'bg-teal-500',
   },
 }
 
