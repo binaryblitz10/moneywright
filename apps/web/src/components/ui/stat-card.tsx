@@ -113,7 +113,7 @@ export function StatCard({
       className={cn(
         // py-0: the vertical padding lives in CardContent so the card isn't padded twice
         'relative overflow-hidden py-0 hover:border-border-hover transition-all duration-200 animate-fade-in',
-        transactionsLink && 'h-full cursor-pointer',
+        transactionsLink && 'group h-full cursor-pointer',
         className
       )}
     >
@@ -171,6 +171,11 @@ export function StatCard({
         {/* Subtitle */}
         {subtitle && <div className="text-xs text-muted-foreground mt-1.5">{subtitle}</div>}
       </CardContent>
+
+      {/* Hover arrow, only on cards that link to transactions */}
+      {transactionsLink && (
+        <ArrowUpRight className="absolute bottom-3 right-3 h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      )}
     </Card>
   )
 
