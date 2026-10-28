@@ -7,6 +7,7 @@ import {
   getStatementStatus,
   createStatement,
   deleteStatement,
+  bulkDeleteStatements,
   updateStatementDetails,
   queueStatements,
   type StatementInput,
@@ -335,6 +336,39 @@ statementRoutes.post('/upload', async (c) => {
     logger.error('[Statement] Upload error:', error)
     const message = error instanceof Error ? error.message : 'Failed to upload statement'
     return c.json({ error: 'upload_failed', message }, 500)
+  }
+})
+
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Select at least one statement').max(500),
+})
+
+/**
+ * POST /statements/bulk-delete
+ * Delete multiple statements and their transactions
+ */
+statementRoutes.post('/bulk-delete', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const result = bulkDeleteSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  try {
+    const deletedCount = await bulkDeleteStatements([...new Set(result.data.ids)], userId)
+    return c.json({ deletedCount })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete statements'
+    logger.error('[Statement] Bulk delete error:', error)
+    return c.json({ error: 'delete_failed', message }, 400)
   }
 })
 

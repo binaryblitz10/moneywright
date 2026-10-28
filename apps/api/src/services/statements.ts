@@ -436,6 +436,23 @@ export async function deleteStatement(statementId: string, userId: string): Prom
   await db.delete(tables.statements).where(eq(tables.statements.id, statementId))
 }
 
+/**
+ * Delete several statements (and their transactions) in one transaction.
+ * Ids the user does not own are ignored; returns how many were deleted.
+ */
+export async function bulkDeleteStatements(
+  statementIds: string[],
+  userId: string
+): Promise<number> {
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(tables.statements)
+      .where(and(inArray(tables.statements.id, statementIds), eq(tables.statements.userId, userId)))
+      .returning({ id: tables.statements.id })
+    return deleted.length
+  })
+}
+
 // ============================================================================
 // SIMPLE ASYNC PROCESSING
 // ============================================================================

@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Loader2,
@@ -42,6 +43,8 @@ interface StatementCardProps {
   formatFileSize: (bytes: number | null) => string
   formatPeriod: (start: string | null, end: string | null) => string | null
   onDelete: () => void
+  selected?: boolean
+  onSelectedChange?: (selected: boolean) => void
   onEdit?: () => void
   onRecategorize?: () => void
   /** Profiles list for showing profile badge in family view */
@@ -58,6 +61,8 @@ export function StatementCard({
   formatFileSize,
   formatPeriod,
   onDelete,
+  selected,
+  onSelectedChange,
   onEdit,
   onRecategorize,
   profiles,
@@ -137,6 +142,7 @@ export function StatementCard({
           'bg-card border border-border-subtle',
           'hover:border-border-hover',
           isFailed && 'border-negative/30',
+          selected && 'border-primary/50 bg-primary/5',
           canViewTransactions && 'cursor-pointer'
         )}
         onClick={canViewTransactions ? viewTransactions : undefined}
@@ -144,6 +150,15 @@ export function StatementCard({
         <div className="p-4">
           {/* Header: Logo + Info + Menu */}
           <div className="flex items-center gap-3">
+            {onSelectedChange && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={!!selected}
+                  onCheckedChange={(checked) => onSelectedChange(checked === true)}
+                  aria-label={`Select ${displayName} statement`}
+                />
+              </div>
+            )}
             {/* Logo */}
             <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden bg-surface-elevated border border-border-subtle">
               {logoPath && !logoError ? (

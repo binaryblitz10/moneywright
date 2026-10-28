@@ -6,6 +6,7 @@ import {
   getStatementStatus,
   uploadStatements,
   deleteStatement,
+  bulkDeleteStatements,
   updateStatement,
 } from '@/lib/api'
 import { accountKeys } from './useAccounts'
@@ -151,6 +152,27 @@ export function useDeleteStatement(profileId?: string) {
     },
     onError: () => {
       toast.error('Failed to delete statement')
+    },
+  })
+}
+
+/**
+ * Delete several statements at once
+ */
+export function useBulkDeleteStatements() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: bulkDeleteStatements,
+    onSuccess: ({ deletedCount }) => {
+      queryClient.invalidateQueries({ queryKey: statementKeys.all })
+      queryClient.invalidateQueries({ queryKey: accountKeys.all })
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+      queryClient.invalidateQueries({ queryKey: investmentKeys.all })
+      toast.success(`Deleted ${deletedCount} statement${deletedCount === 1 ? '' : 's'}`)
+    },
+    onError: () => {
+      toast.error('Failed to delete statements')
     },
   })
 }

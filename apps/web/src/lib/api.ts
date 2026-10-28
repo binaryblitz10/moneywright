@@ -808,6 +808,14 @@ export async function deleteStatement(statementId: string): Promise<void> {
   await api.delete(`/statements/${statementId}`)
 }
 
+/**
+ * Delete several statements and their transactions
+ */
+export async function bulkDeleteStatements(ids: string[]): Promise<{ deletedCount: number }> {
+  const response = await api.post('/statements/bulk-delete', { ids })
+  return response.data
+}
+
 // ============================================
 // Transactions API
 // ============================================
@@ -2164,6 +2172,8 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   // Dashboard widgets switched off in Settings (JSON array of widget ids)
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
+  // Dashboard widget display order (JSON array of widget ids)
+  DASHBOARD_WIDGET_ORDER: 'dashboard.widget_order',
   // Data health checks the user chose to ignore (JSON array of issue keys)
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   // Profile selection

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Upload } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { QueryError } from '@/components/ui/query-error'
 import {
   useAuth,
   useStatements,
@@ -20,6 +21,7 @@ import {
 } from '@/hooks'
 import {
   StatementCard,
+  BulkActionBar,
   StatementEditDialog,
   FilterBar,
   StatementGroup,
@@ -105,6 +107,7 @@ function StatementsPage() {
   const knownIdsRef = useRef<Set<string> | null>(null)
   const scrollToGroupRef = useRef<string | null>(null)
   const statusesRef = useRef<Map<string, string>>(new Map())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editStatement, setEditStatement] = useState<Statement | null>(null)
   const [recategorizeStatement, setRecategorizeStatement] = useState<Statement | null>(null)
 
@@ -130,7 +133,13 @@ function StatementsPage() {
   const queryEnabled = !!activeProfileId || showFamilyView
 
   // Query hooks
-  const { data: statements, isLoading: statementsLoading } = useStatements(activeProfileId, {
+  const {
+    data: statements,
+    isLoading: statementsLoading,
+    isError,
+    error,
+    refetch,
+  } = useStatements(activeProfileId, {
     enabled: queryEnabled,
     refetchInterval: (query) => {
       // Poll for updates when any statement is pending or parsing
@@ -256,6 +265,19 @@ function StatementsPage() {
     }
     return [...groups.entries()].sort(([, a], [, b]) => a.sortKey - b.sortKey)
   })()
+
+  // Only statements still on screen stay selected (filters and deletes can drop some)
+  const visibleSelectedIds = new Set(
+    (filteredAndSortedStatements ?? []).filter((s) => selectedIds.has(s.id)).map((s) => s.id)
+  )
+
+  const setStatementSelected = (id: string, selected: boolean) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) next.add(id)
+      else next.delete(id)
+      return next
+    })
 
   const setGroupOpen = (key: string, open: boolean) =>
     setOpenGroups((prev) => {
@@ -401,7 +423,9 @@ function StatementsPage() {
         </Dialog>
 
         {/* Statements Grid */}
-        {statementsLoading ? (
+        {isError ? (
+          <QueryError error={error} onRetry={refetch} />
+        ) : statementsLoading ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-24 w-full rounded-2xl" />
@@ -454,6 +478,10 @@ function StatementsPage() {
                               formatFileSize={formatFileSize}
                               formatPeriod={formatPeriod}
                               onDelete={() => deleteMutation.mutate(statement.id)}
+                              selected={visibleSelectedIds.has(statement.id)}
+                              onSelectedChange={(selected) =>
+                                setStatementSelected(statement.id, selected)
+                              }
                               onEdit={() => setEditStatement(statement)}
                               onRecategorize={() => setRecategorizeStatement(statement)}
                               profiles={profiles}
@@ -482,6 +510,17 @@ function StatementsPage() {
               onClick: () => setShowUploadDialog(true),
               icon: UploadIcon,
             }}
+          />
+        )}
+
+        {visibleSelectedIds.size > 0 && (
+          <BulkActionBar
+            selectedIds={visibleSelectedIds}
+            totalVisible={filteredAndSortedStatements?.length ?? 0}
+            onSelectAll={() =>
+              setSelectedIds(new Set(filteredAndSortedStatements?.map((s) => s.id)))
+            }
+            onClear={() => setSelectedIds(new Set())}
           />
         )}
 
