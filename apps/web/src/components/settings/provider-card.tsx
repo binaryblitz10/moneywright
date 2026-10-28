@@ -275,7 +275,7 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
             )}
             <div className="flex gap-2">
               {isEditing && (
-                <Button variant="ghost" size="sm" className="flex-1 h-8" onClick={handleCancel}>
+                <Button variant="outline" className="flex-1" onClick={handleCancel}>
                   Cancel
                 </Button>
               )}

@@ -457,7 +457,7 @@ export function RecategorizeModal({
         <DialogFooter>
           {!isProcessing && !isCompleted && !isFailed && (
             <>
-              <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
+              <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
                 Cancel
               </Button>
               <Button onClick={handleSubmit} disabled={isSubmitting || !modelValue}>
@@ -484,7 +484,7 @@ export function RecategorizeModal({
 
           {isFailed && (
             <>
-              <Button variant="ghost" onClick={handleClose}>
+              <Button variant="outline" onClick={handleClose}>
                 Close
               </Button>
               <Button variant="outline" onClick={() => resetState()}>

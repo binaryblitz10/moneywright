@@ -895,7 +895,7 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={isUploading}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isUploading}>
               Cancel
             </Button>
             {currentStep === 'upload' && (

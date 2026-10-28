@@ -132,7 +132,7 @@ export function OllamaModelsModal({ open, onOpenChange, models }: OllamaModelsMo
                 </label>
               </div>
               <div className="flex gap-2 pt-2">
-                <Button variant="ghost" className="flex-1" onClick={resetForm}>
+                <Button variant="outline" className="flex-1" onClick={resetForm}>
                   Cancel
                 </Button>
                 <Button

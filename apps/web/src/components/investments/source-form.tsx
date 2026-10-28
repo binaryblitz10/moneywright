@@ -162,7 +162,7 @@ export function SourceForm({
       </div>
 
       <div className="flex justify-end gap-3 pt-4">
-        <Button type="button" variant="outline" onClick={onClose} className="px-6">
+        <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending} className="px-6">

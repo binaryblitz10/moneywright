@@ -335,11 +335,7 @@ export function DateRangePicker({
               />
             </div>
             <div className="mt-auto flex justify-end gap-2 border-t border-border-subtle p-4">
-              <Button
-                variant="ghost"
-                onClick={() => setOpen(false)}
-                className="bg-muted-foreground/15 hover:bg-muted-foreground/25 active:scale-95"
-              >
+              <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button

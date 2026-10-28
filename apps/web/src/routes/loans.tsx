@@ -1159,7 +1159,7 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
           <div className="flex items-center justify-end gap-3">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isUploading}
             >
