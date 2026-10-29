@@ -384,6 +384,12 @@ OLLAMA_BASE_URL=       # Local LLM (default: http://localhost:11434/api)
 2. Generate migration: `bun run db:generate`
 3. Apply migration: `bun run db:migrate`
 
+## Adding a New Feature
+
+Whenever a new feature is added, **ask the user explicitly** whether it should also be added as a tool for the AI chat assistant, so Ask Penny can read and answer questions about it. Don't add it, or skip it, without asking.
+
+If yes, add the tool in `apps/api/src/services/chat/tools.ts`, reusing the feature's existing service functions, and mention it in the "Picking the right tool" list in `apps/api/src/services/chat/prompt.ts`.
+
 ## Adding a UI Component
 
 1. Check if shadcn/ui has it: https://ui.shadcn.com
