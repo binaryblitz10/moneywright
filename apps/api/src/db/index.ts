@@ -161,6 +161,8 @@ export type {
   NewStatement,
   Transaction,
   NewTransaction,
+  Budget,
+  NewBudget,
   TransactionRule,
   NewTransactionRule,
   InvestmentSource,
@@ -200,6 +202,7 @@ const tablesImpl = isPostgres
       accounts: pgSchema.accounts,
       statements: pgSchema.statements,
       transactions: pgSchema.transactions,
+      budgets: pgSchema.budgets,
       transactionRules: pgSchema.transactionRules,
       subscriptionOverrides: pgSchema.subscriptionOverrides,
       investmentSources: pgSchema.investmentSources,
@@ -223,6 +226,7 @@ const tablesImpl = isPostgres
       accounts: sqliteSchema.accounts,
       statements: sqliteSchema.statements,
       transactions: sqliteSchema.transactions,
+      budgets: sqliteSchema.budgets,
       transactionRules: sqliteSchema.transactionRules,
       subscriptionOverrides: sqliteSchema.subscriptionOverrides,
       investmentSources: sqliteSchema.investmentSources,
@@ -247,6 +251,7 @@ export const tables = tablesImpl as {
   accounts: typeof pgSchema.accounts
   statements: typeof pgSchema.statements
   transactions: typeof pgSchema.transactions
+  budgets: typeof pgSchema.budgets
   transactionRules: typeof pgSchema.transactionRules
   subscriptionOverrides: typeof pgSchema.subscriptionOverrides
   investmentSources: typeof pgSchema.investmentSources

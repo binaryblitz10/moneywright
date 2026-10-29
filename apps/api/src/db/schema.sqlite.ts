@@ -708,6 +708,39 @@ export const loans = sqliteTable(
 )
 
 /**
+ * Budgets table - a monthly spending limit for one expense category of a profile
+ */
+export const budgets = sqliteTable(
+  'budgets',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    profileId: text('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    category: text('category').notNull(), // expense category code
+    monthlyAmount: real('monthly_amount').notNull(),
+    rollover: integer('rollover', { mode: 'boolean' }).notNull().default(false), // unspent amount carries into the next month
+
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index('budgets_user_id_idx').on(table.userId),
+    unique('budgets_profile_category_unique').on(table.profileId, table.category),
+  ]
+)
+
+/**
  * Transaction rules table - user-defined rules that set the name and/or category of matching transactions
  */
 export const transactionRules = sqliteTable(
@@ -793,6 +826,9 @@ export type NewTransaction = typeof transactions.$inferInsert
 
 export type SubscriptionOverride = typeof subscriptionOverrides.$inferSelect
 export type NewSubscriptionOverride = typeof subscriptionOverrides.$inferInsert
+
+export type Budget = typeof budgets.$inferSelect
+export type NewBudget = typeof budgets.$inferInsert
 
 export type TransactionRule = typeof transactionRules.$inferSelect
 export type NewTransactionRule = typeof transactionRules.$inferInsert

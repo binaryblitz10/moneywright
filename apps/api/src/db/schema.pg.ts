@@ -679,6 +679,35 @@ export const smsMessages = pgTable(
 )
 
 /**
+ * Budgets table - a monthly spending limit for one expense category of a profile
+ */
+export const budgets = pgTable(
+  'budgets',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    profileId: varchar('profile_id', { length: 21 })
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    category: varchar('category', { length: 50 }).notNull(), // expense category code
+    monthlyAmount: decimal('monthly_amount', { precision: 15, scale: 2 }).notNull(),
+    rollover: boolean('rollover').notNull().default(false), // unspent amount carries into the next month
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('budgets_user_id_idx').on(table.userId),
+    unique('budgets_profile_category_unique').on(table.profileId, table.category),
+  ]
+)
+
+/**
  * Transaction rules table - user-defined rules that set the name and/or category of matching transactions
  */
 export const transactionRules = pgTable(
@@ -756,6 +785,9 @@ export const subscriptionOverrides = pgTable(
 
 export type SubscriptionOverride = typeof subscriptionOverrides.$inferSelect
 export type NewSubscriptionOverride = typeof subscriptionOverrides.$inferInsert
+
+export type Budget = typeof budgets.$inferSelect
+export type NewBudget = typeof budgets.$inferInsert
 
 export type TransactionRule = typeof transactionRules.$inferSelect
 export type NewTransactionRule = typeof transactionRules.$inferInsert
