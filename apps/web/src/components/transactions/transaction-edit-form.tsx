@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, EyeOff, Link2, Trash2, Unlink } from 'lucide-react'
+import { Loader2, EyeOff, Link2, Plus, Trash2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ToggleCard } from '@/components/ui/toggle-card'
 import { Textarea } from '@/components/ui/textarea'
 import {
   AlertDialog,
@@ -66,10 +68,15 @@ type TransactionEditFormProps = {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
+  /**
+   * For a dialog that lays out its own height: the fields scroll while the buttons stay in view.
+   * The form then fills its parent (a flex column) and pads itself.
+   */
+  pinnedFooter?: boolean
 } & ({ transaction: Transaction } | { transactionIds: string[] })
 
 export function TransactionEditForm(props: TransactionEditFormProps) {
-  const { categories, onClose, onSuccess } = props
+  const { categories, onClose, onSuccess, pinnedFooter = false } = props
   const single = 'transaction' in props ? props.transaction : null
   const transactionIds = single
     ? [single.id]
@@ -124,6 +131,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
     amount: ANY_AMOUNT,
     updateExisting: true,
   })
+  // The rule block stays folded behind a button until asked for
+  const [ruleOpen, setRuleOpen] = useState(false)
   const suggestedTerm = single ? suggestTerm(single.originalDescription, single.summary) : ''
   const hasTerms = applyState.terms.length > 0
   // Null while the amount filter is incomplete; the rule can't be saved until it is
@@ -303,138 +312,164 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   }
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="summary">Summary</Label>
-        <Input
-          id="summary"
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          placeholder={single ? 'Brief description' : 'Leave empty to keep existing summaries'}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="category">Category</Label>
-        <CategoryPicker
-          id="category"
-          categories={categories}
-          value={category}
-          onChange={handleCategoryChange}
-          triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
-          {...(!single && { noneLabel: 'Keep existing', placeholder: 'Keep existing' })}
-        />
-        {!single && category && (
-          <p className="text-xs text-muted-foreground">
-            Loan, insurance and card payment links are removed from transactions whose category
-            changes.
-          </p>
+    <div className={cn('min-w-0', pinnedFooter ? 'flex min-h-0 flex-1 flex-col' : 'space-y-4')}>
+      <div
+        className={cn(
+          'min-w-0 space-y-4',
+          pinnedFooter &&
+            // Content fades out under the title and the buttons; the padding keeps it clear of the fade at rest
+            'min-h-0 flex-1 overflow-y-auto px-6 py-4 [mask-image:linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%-1rem),transparent)]'
         )}
-      </div>
-
-      {single && (
+      >
         <div className="space-y-2">
-          <TransactionMoneyFields values={money} onChange={setMoney} idPrefix="edit" />
-          {hasMoneyChange && (
+          <Label htmlFor="summary">Summary</Label>
+          <Input
+            id="summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder={single ? 'Brief description' : 'Leave empty to keep existing summaries'}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="category">Category</Label>
+          <CategoryPicker
+            id="category"
+            categories={categories}
+            value={category}
+            onChange={handleCategoryChange}
+            triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
+            {...(!single && { noneLabel: 'Keep existing', placeholder: 'Keep existing' })}
+          />
+          {!single && category && (
             <p className="text-xs text-muted-foreground">
-              Date, amount or type differ from the imported statement. Totals and reports will use
-              the new values.
+              Loan, insurance and card payment links are removed from transactions whose category
+              changes.
             </p>
           )}
         </div>
-      )}
 
-      {single && (
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes</Label>
-          <Textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add a note about this transaction"
-            maxLength={2000}
-            rows={3}
-          />
-        </div>
-      )}
+        {single && (
+          <div className="space-y-2">
+            <TransactionMoneyFields values={money} onChange={setMoney} idPrefix="edit" />
+            {hasMoneyChange && (
+              <p className="text-xs text-muted-foreground">
+                Date, amount or type differ from the imported statement. Totals and reports will use
+                the new values.
+              </p>
+            )}
+          </div>
+        )}
 
-      {/* Card payments are linked to the card statement's payment line, or to the card only */}
-      {single && cardPanelOwnsLink && (
-        <CardPaymentLinkPanel transaction={single} category={category} />
-      )}
+        {single && (
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add a note about this transaction"
+              maxLength={2000}
+              rows={3}
+            />
+          </div>
+        )}
 
-      {/* Loan and insurance linking - only shown for linkable categories */}
-      {isLinkableCategory && (
-        <div className="space-y-2">
-          <Label htmlFor="linked-entity" className="flex items-center gap-2">
-            <Link2 className="h-4 w-4" />
-            Link to {entityTypeLabel}
-          </Label>
-          <Select
-            value={linkedEntityId || '__none__'}
-            onValueChange={(value) => setLinkedEntityId(value === '__none__' ? null : value)}
-            disabled={isLoadingEntities}
-          >
-            <SelectTrigger id="linked-entity">
-              <SelectValue
-                placeholder={isLoadingEntities ? 'Loading...' : `Select ${entityTypeLabel}`}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <Unlink className="h-4 w-4" />
-                  Not linked
-                </span>
-              </SelectItem>
-              {entityOptions.map((entity) => (
-                <SelectItem key={entity.id} value={entity.id}>
-                  <span className="flex items-center gap-2">
-                    {entity.label}
-                    {entity.sublabel && (
-                      <span className="text-muted-foreground text-xs">{entity.sublabel}</span>
-                    )}
+        {/* Card payments are linked to the card statement's payment line, or to the card only */}
+        {single && cardPanelOwnsLink && (
+          <CardPaymentLinkPanel transaction={single} category={category} />
+        )}
+
+        {/* Loan and insurance linking - only shown for linkable categories */}
+        {isLinkableCategory && (
+          <div className="space-y-2">
+            <Label htmlFor="linked-entity" className="flex items-center gap-2">
+              <Link2 className="h-4 w-4" />
+              Link to {entityTypeLabel}
+            </Label>
+            <Select
+              value={linkedEntityId || '__none__'}
+              onValueChange={(value) => setLinkedEntityId(value === '__none__' ? null : value)}
+              disabled={isLoadingEntities}
+            >
+              <SelectTrigger id="linked-entity">
+                <SelectValue
+                  placeholder={isLoadingEntities ? 'Loading...' : `Select ${entityTypeLabel}`}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Unlink className="h-4 w-4" />
+                    Not linked
                   </span>
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Linking helps track payments and calculate outstanding balances.
-          </p>
-        </div>
-      )}
-
-      {hasNameOrCategoryChange && (
-        <ApplyToMatching
-          state={applyState}
-          onChange={setApplyState}
-          suggestedTerm={suggestedTerm}
-          totalCount={hasTerms ? (preview?.count ?? 0) : 0}
-          count={matchingCount}
-          samples={matchingSamples}
-          isFetching={isPreviewFetching}
-        />
-      )}
-
-      <div className="flex items-center justify-between rounded-lg border p-4 mt-4">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <EyeOff className="h-4 w-4 text-muted-foreground" />
-            <Label htmlFor="hide-transaction" className="font-medium">
-              {single ? 'Hide Transaction' : 'Hide Transactions'}
-            </Label>
+                {entityOptions.map((entity) => (
+                  <SelectItem key={entity.id} value={entity.id}>
+                    <span className="flex items-center gap-2">
+                      {entity.label}
+                      {entity.sublabel && (
+                        <span className="text-muted-foreground text-xs">{entity.sublabel}</span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Linking helps track payments and calculate outstanding balances.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {isHidden === null
+        )}
+
+        {hasNameOrCategoryChange && (
+          <Collapsible open={ruleOpen} onOpenChange={setRuleOpen}>
+            {!ruleOpen && (
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border-hover px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create rule
+                </button>
+              </CollapsibleTrigger>
+            )}
+            <CollapsibleContent>
+              <ApplyToMatching
+                state={applyState}
+                onChange={setApplyState}
+                suggestedTerm={suggestedTerm}
+                totalCount={hasTerms ? (preview?.count ?? 0) : 0}
+                count={matchingCount}
+                samples={matchingSamples}
+                isFetching={isPreviewFetching}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        <ToggleCard
+          id="hide-transaction"
+          className="mt-4"
+          icon={EyeOff}
+          title={single ? 'Hide Transaction' : 'Hide Transactions'}
+          description={
+            isHidden === null
               ? 'Leave untouched to keep each transaction as it is.'
-              : 'Hidden transactions are excluded from all reports, charts, and calculations.'}
-          </p>
-        </div>
-        <Switch id="hide-transaction" checked={isHidden ?? false} onCheckedChange={setIsHidden} />
+              : 'Hidden transactions are excluded from all reports, charts, and calculations.'
+          }
+          checked={isHidden ?? false}
+          onCheckedChange={setIsHidden}
+        />
       </div>
 
-      <div className="flex items-center justify-between gap-2 pt-4">
+      <div
+        className={cn(
+          'flex items-center justify-between gap-2',
+          pinnedFooter ? 'px-6 py-4' : 'pt-4'
+        )}
+      >
         <Button
           variant="ghost"
           className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"

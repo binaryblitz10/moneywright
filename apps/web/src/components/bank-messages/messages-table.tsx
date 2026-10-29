@@ -332,7 +332,7 @@ export function MessagesTable({
       </Dialog>
 
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit {selectedIds.size} Transactions</DialogTitle>
             <DialogDescription>
