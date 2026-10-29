@@ -9,6 +9,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/statements': 'Statements',
   '/transactions': 'Transactions',
   '/review': 'Review',
+  '/budgets': 'Budgets',
   '/subscriptions': 'Subscriptions',
   '/investments': 'Investments',
   '/insurance': 'Insurance',
@@ -40,11 +41,13 @@ export function trackBackNavigation(router: AnyRouter): void {
     const isPush = index > currentIndex
     currentIndex = index
 
-    if (!pathChanged || !isPush) return
-    const label = fromLocation && PAGE_LABELS[fromLocation.pathname]
-    if (label && !sidebarNavigation) originByIndex.set(index, label)
-    else originByIndex.delete(index)
-    sidebarNavigation = false
+    if (pathChanged && isPush) {
+      const label = fromLocation && PAGE_LABELS[fromLocation.pathname]
+      if (label && !sidebarNavigation) originByIndex.set(index, label)
+      else originByIndex.delete(index)
+      sidebarNavigation = false
+    }
+    // Also after going Back/Forward: the page that just mounted may have read the old index
     emit()
   })
 }

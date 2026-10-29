@@ -133,6 +133,15 @@ export {
   useLoanOutstanding,
 } from './useLoans'
 
+// Budget hooks
+export {
+  budgetKeys,
+  useBudgets,
+  useCreateBudget,
+  useUpdateBudget,
+  useDeleteBudget,
+} from './useBudgets'
+
 // Summary hooks
 export {
   summaryKeys,

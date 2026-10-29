@@ -61,6 +61,8 @@ interface CategoryPickerBaseProps {
   contentAlign?: 'start' | 'end'
   /** Extra classes for the trigger button */
   triggerClassName?: string
+  /** Hides the kind chips, for lists that only hold one kind */
+  hideKindFilter?: boolean
 }
 
 interface SingleCategoryPickerProps extends CategoryPickerBaseProps {
@@ -97,6 +99,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
     placeholder = 'Select a category',
     contentClassName,
     contentAlign = 'start',
+    hideKindFilter = false,
   } = props
   const selected = props.multiple ? props.values : props.value ? [props.value] : []
   const noneLabel = props.multiple ? undefined : props.noneLabel
@@ -221,7 +224,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
               )}
             >
               {selectedCategory ? (
-                <CategoryTile category={selectedCategory} className="h-5 w-5" />
+                <CategoryTile category={selectedCategory} />
               ) : (
                 props.multiple && props.triggerIcon
               )}
@@ -251,37 +254,41 @@ export function CategoryPicker(props: CategoryPickerProps) {
             className="h-11 rounded-none border-0 bg-transparent pl-10 text-sm shadow-none focus-visible:ring-0"
           />
         </div>
-        {/* Kind chips: single-select shows one kind, multi-select selects or clears a kind */}
-        <div className="flex flex-wrap gap-1.5 border-b border-border-subtle px-3 py-2.5">
-          {CATEGORY_KIND_ORDER.map((kind) => {
-            const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
-            const isActive = props.multiple
-              ? kindCodes.length > 0 && kindCodes.every((code) => selected.includes(code))
-              : kindFilter === kind
-            return (
-              <button
-                key={kind}
-                type="button"
-                disabled={disabled || (props.multiple && kindCodes.length === 0)}
-                aria-pressed={isActive}
-                onClick={() => {
-                  if (props.multiple) return toggleKind(kind)
-                  setKindFilter(isActive ? null : kind)
-                  setActiveCode(null)
-                }}
-                className={cn(
-                  'cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                  'disabled:pointer-events-none disabled:opacity-50',
-                  isActive
-                    ? 'border-primary/40 bg-primary/15 text-primary'
-                    : 'border-border-subtle text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground'
-                )}
-              >
-                {CATEGORY_KIND_LABELS[kind]}
-              </button>
-            )
-          })}
-        </div>
+        {!hideKindFilter && (
+          <>
+            {/* Kind chips: single-select shows one kind, multi-select selects or clears a kind */}
+            <div className="flex flex-wrap gap-1.5 border-b border-border-subtle px-3 py-2.5">
+              {CATEGORY_KIND_ORDER.map((kind) => {
+                const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
+                const isActive = props.multiple
+                  ? kindCodes.length > 0 && kindCodes.every((code) => selected.includes(code))
+                  : kindFilter === kind
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    disabled={disabled || kindCodes.length === 0}
+                    aria-pressed={isActive}
+                    onClick={() => {
+                      if (props.multiple) return toggleKind(kind)
+                      setKindFilter(isActive ? null : kind)
+                      setActiveCode(null)
+                    }}
+                    className={cn(
+                      'cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      'disabled:pointer-events-none disabled:opacity-50',
+                      isActive
+                        ? 'border-primary/40 bg-primary/15 text-primary'
+                        : 'border-border-subtle text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground'
+                    )}
+                  >
+                    {CATEGORY_KIND_LABELS[kind]}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
         <div
           ref={listRef}
           className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 [scrollbar-width:thin]"

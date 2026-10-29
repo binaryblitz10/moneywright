@@ -3527,3 +3527,64 @@ export async function getSyncedSms(): Promise<SyncedSms[]> {
 export async function openSmsPermissionSettings(): Promise<void> {
   await api.post('/sms-import/open-settings')
 }
+
+// ---------------------------------------------------------------------------
+// Budgets
+// ---------------------------------------------------------------------------
+
+export interface BudgetProgress {
+  budget: number
+  /** Unspent money carried over from last month (rollover only) */
+  carriedOver: number
+  /** The limit for the month: budget plus carried over */
+  available: number
+  spent: number
+  /** Negative when over the limit */
+  remaining: number
+  percentUsed: number
+  status: 'ok' | 'warning' | 'over'
+}
+
+export interface Budget extends BudgetProgress {
+  id: string
+  profileId: string
+  category: string
+  categoryLabel: string
+  monthlyAmount: number
+  rollover: boolean
+}
+
+export interface BudgetSummary {
+  /** YYYY-MM */
+  month: string
+  currency: string
+  budgets: Budget[]
+  totalAvailable: number
+  totalSpent: number
+}
+
+export interface BudgetInput {
+  category: string
+  monthlyAmount: number
+  rollover: boolean
+}
+
+export async function getBudgets(profileId: string, month: string): Promise<BudgetSummary> {
+  const response = await api.get(`/budgets/profiles/${profileId}`, { params: { month } })
+  return response.data
+}
+
+export async function createBudget(profileId: string, data: BudgetInput): Promise<void> {
+  await api.post(`/budgets/profiles/${profileId}`, data)
+}
+
+export async function updateBudget(
+  id: string,
+  data: Partial<Pick<BudgetInput, 'monthlyAmount' | 'rollover'>>
+): Promise<void> {
+  await api.patch(`/budgets/${id}`, data)
+}
+
+export async function deleteBudget(id: string): Promise<void> {
+  await api.delete(`/budgets/${id}`)
+}

@@ -125,6 +125,8 @@
 }
 
 .dark {
+  /* Native controls (number spinners, date pickers) draw in their dark form */
+  color-scheme: dark;
   /* Logo inversion for dark mode (make dark logos visible on dark bg) */
   --logo-invert: invert(1);
   /* Base backgrounds */

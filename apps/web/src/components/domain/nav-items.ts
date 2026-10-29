@@ -13,6 +13,7 @@ import {
   Landmark,
   ClipboardCheck,
   MessageSquareText,
+  PiggyBank,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -58,6 +59,7 @@ export function getNavGroups(smsEnabled: boolean): NavGroup[] {
       label: 'Money',
       items: [
         { title: 'Transactions', icon: Wallet, href: '/transactions' },
+        { title: 'Budgets', icon: PiggyBank, href: '/budgets' },
         { title: 'Accounts', icon: Building2, href: '/accounts' },
         { title: 'Subscriptions', icon: Repeat, href: '/subscriptions' },
       ],
