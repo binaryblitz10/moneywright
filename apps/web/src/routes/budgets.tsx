@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { BudgetDialog } from '@/components/budgets/budget-dialog'
 import { BudgetCard } from '@/components/budgets/budget-card'
-import { BudgetOverview } from '@/components/budgets/budget-overview'
+import { BudgetGlance } from '@/components/budgets/budget-glance'
 import { getMonthPace, monthTitle, shiftMonth } from '@/components/budgets/format'
 import {
   useBudgets,
@@ -170,7 +170,7 @@ function BudgetsPage() {
             ) : (
               data && (
                 <div className="space-y-6">
-                  <BudgetOverview summary={data} pace={pace} />
+                  <BudgetGlance summary={data} pace={pace} month={month} />
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {budgets.map((budget) => (
                       <BudgetCard
