@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import {
@@ -47,7 +47,7 @@ export function BudgetCard({
     pace.isCurrent && !over && pace.daysLeft > 0 ? budget.remaining / pace.daysLeft : null
 
   return (
-    <div className="group flex flex-col gap-5 rounded-xl border border-border-subtle bg-card p-5 shadow-sm transition-colors hover:border-border-hover animate-fade-in">
+    <div className="group relative flex flex-col gap-5 rounded-xl border border-border-subtle bg-card p-5 shadow-sm transition-colors hover:border-border-hover animate-fade-in">
       <div className="flex items-center gap-3">
         <span
           className={cn(
@@ -59,22 +59,39 @@ export function BudgetCard({
           <CategoryIcon code={budget.category} className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{budget.categoryLabel}</p>
-          <span
-            className={cn(
-              'mt-0.5 inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-tight',
-              pill.className
-            )}
+          <Link
+            to="/transactions"
+            search={{ category: budget.category, ...monthRangeOf(month) }}
+            className="block truncate font-medium after:absolute after:inset-0 after:z-[1] after:content-['']"
           >
-            {pill.label}
-          </span>
+            {budget.categoryLabel}
+          </Link>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            <span
+              className={cn(
+                'inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-tight',
+                pill.className
+              )}
+            >
+              {pill.label}
+            </span>
+            {budget.rollover && (
+              <span
+                title="Unspent money carries over to next month"
+                className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-tight text-muted-foreground"
+              >
+                <RefreshCw className="h-2.5 w-2.5" />
+                Rollover
+              </span>
+            )}
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground"
+              className="relative z-10 h-8 w-8 text-muted-foreground"
               aria-label={`${budget.categoryLabel} budget options`}
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -105,6 +122,12 @@ export function BudgetCard({
             of {formatBudgetAmount(budget.available, currency)}
           </p>
         </div>
+        {budget.carriedOver > 0 && (
+          <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <RefreshCw className="h-3 w-3" />
+            Includes {formatBudgetAmount(budget.carriedOver, currency)} carried over
+          </p>
+        )}
         <BudgetProgressBar
           percentUsed={budget.percentUsed}
           status={budget.status}
@@ -113,29 +136,31 @@ export function BudgetCard({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3 text-sm">
-        <div className="min-w-0">
-          <p className={cn('font-medium tabular-nums', over ? 'text-negative' : 'text-foreground')}>
-            {over
-              ? `${formatBudgetAmount(-budget.remaining, currency)} over`
-              : `${formatBudgetAmount(budget.remaining, currency)} left`}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {perDay !== null
-              ? `About ${formatBudgetAmount(perDay, currency)} a day`
-              : budget.carriedOver > 0
-                ? `Includes ${formatBudgetAmount(budget.carriedOver, currency)} carried over`
-                : `${Math.round(budget.percentUsed)}% used`}
-          </p>
-        </div>
-        <Link
-          to="/transactions"
-          search={{ category: budget.category, ...monthRangeOf(month) }}
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      <div className="flex items-baseline justify-between gap-3">
+        <p
+          className={cn(
+            'text-sm font-medium tabular-nums',
+            over ? 'text-negative' : 'text-foreground'
+          )}
         >
-          Transactions
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
+          {over
+            ? `${formatBudgetAmount(-budget.remaining, currency)} over`
+            : `${formatBudgetAmount(budget.remaining, currency)} left`}
+        </p>
+        <p className="truncate text-xs text-muted-foreground tabular-nums">
+          {perDay !== null
+            ? `About ${formatBudgetAmount(perDay, currency)} a day`
+            : `${Math.round(budget.percentUsed)}% used`}
+        </p>
+      </div>
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <span className="rounded-full border border-border-subtle bg-white px-3 py-1.5 text-xs font-medium text-neutral-900 shadow-lg">
+          Show transactions
+        </span>
       </div>
     </div>
   )
