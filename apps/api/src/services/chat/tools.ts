@@ -37,6 +37,9 @@ import {
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
+import { getBudgetSummary, type BudgetSummary } from '../budgets'
+import { isMonth } from '../../lib/budgets'
+import { getProfilesByUserId } from '../profiles'
 import { comparePeriods, daysInRange, getTotals } from '../transaction-totals'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
@@ -1061,6 +1064,58 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
           month: params.month,
           baselineMonths: params.baselineMonths,
         })
+      },
+    }),
+
+    getBudgets: tool({
+      description: `Get the user's monthly budgets (spending limits per category) and how much of each is used in a month. The app does the adding - quote these figures as given, never recompute them.
+Each budget has: budget (monthly limit), carriedOver (unspent money from last month, only when the budget carries over), available (budget + carriedOver), spent, remaining (negative when over), percentUsed, and status: 'ok' | 'warning' (80% or more used) | 'over'.
+Returns an empty list when no budgets are set - say so, and suggest the Budgets page.
+In family view the budgets come grouped by profile. Budgets only cover spending categories.`,
+      inputSchema: z.object({
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional()
+          .describe('Month as YYYY-MM (default: the current month)'),
+      }),
+      execute: async (params) => {
+        const month = params.month ?? new Date().toISOString().substring(0, 7)
+        if (!isMonth(month)) return { error: 'month must be YYYY-MM' }
+
+        const toResult = (summary: BudgetSummary) => ({
+          currency: summary.currency,
+          totalAvailable: summary.totalAvailable,
+          totalSpent: summary.totalSpent,
+          budgets: summary.budgets.map((b) => ({
+            category: b.category,
+            categoryLabel: b.categoryLabel,
+            budget: b.monthlyAmount,
+            carriedOver: b.carriedOver,
+            available: b.available,
+            spent: b.spent,
+            remaining: b.remaining,
+            percentUsed: Math.round(b.percentUsed),
+            status: b.status,
+          })),
+        })
+
+        if (profileIdForQuery) {
+          return { month, ...toResult(await getBudgetSummary(userId, profileIdForQuery, month)) }
+        }
+        const profiles = await getProfilesByUserId(userId)
+        const summaries = await Promise.all(
+          profiles.map(async (profile) => ({
+            profile: profile.name,
+            summary: await getBudgetSummary(userId, profile.id, month),
+          }))
+        )
+        return {
+          month,
+          profiles: summaries
+            .filter(({ summary }) => summary.budgets.length > 0)
+            .map(({ profile, summary }) => ({ profile, ...toResult(summary) })),
+        }
       },
     }),
 

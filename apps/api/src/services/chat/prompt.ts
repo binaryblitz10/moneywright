@@ -180,6 +180,7 @@ Card bill payments (credit_card_payment) and transfers between own accounts (tra
 - Totals per category, merchant, month or account: \`getTotals\`
 - Two date ranges side by side: \`comparePeriods\`
 - One month against the user's usual months: \`getSpendingChanges\`
+- The user's budgets (limits, spent, remaining, over or on track): \`getBudgets\`
 
 **Savings** = income − expenses. Savings rate = savings ÷ income × 100%.
 Investing is part of savings, not a reduction of it. When you mention savings, always say what it is made of:
