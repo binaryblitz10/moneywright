@@ -10,7 +10,13 @@ import {
   type Month,
 } from '../lib/budgets'
 import { categoryLabel } from './spending-changes'
-import { getTotals } from './transaction-totals'
+import {
+  computeTotals,
+  dailyTotals,
+  loadTotalsTransactions,
+  type TotalsResult,
+  type TotalsTransaction,
+} from './transaction-totals'
 import { findUserById } from './user'
 
 /**
@@ -44,6 +50,10 @@ export interface BudgetSummary {
   /** Sums across all budgets of the month */
   totalAvailable: number
   totalSpent: number
+  /** Spending in the budgeted categories on each day of the month, the 1st first */
+  daily: number[]
+  /** The same for the month before, to compare against */
+  previousDaily: number[]
 }
 
 /** Thrown when a budget fails validation; routes turn it into a 400 */
@@ -103,18 +113,26 @@ export async function getBudgetSummary(
   month: Month
 ): Promise<BudgetSummary> {
   const budgets = await listBudgets(userId, profileId)
-  const needsPrevious = budgets.some((b) => b.rollover)
   const previous = previousMonth(month)
+  const budgeted = new Set(budgets.map((b) => b.category))
 
-  const totalsFor = (m: Month) =>
-    getTotals(userId, { profileId, kind: 'expense', groupBy: 'category', ...monthRange(m) })
-  const [current, last] = await Promise.all([
-    totalsFor(month),
-    needsPrevious ? totalsFor(previous) : undefined,
-  ])
+  // Last month is loaded for rollovers and for the comparison with this month
+  const load = (m: Month) =>
+    loadTotalsTransactions(userId, { profileId, kind: 'expense', ...monthRange(m) })
+  const [current, last] = await Promise.all([load(month), load(previous)])
+  const byCategory = (transactions: TotalsTransaction[]) =>
+    computeTotals(transactions, { kind: 'expense', groupBy: 'category' })
+  const currentTotals = byCategory(current.transactions)
+  const lastTotals = byCategory(last.transactions)
+  const dailyFor = (transactions: TotalsTransaction[], m: Month) =>
+    dailyTotals(
+      transactions.filter((t) => budgeted.has(t.category)),
+      'expense',
+      monthRange(m)
+    )
 
-  const spentIn = (result: typeof current | undefined, category: string): number =>
-    result?.groups.find((g) => g.key === category)?.total ?? 0
+  const spentIn = (result: TotalsResult, category: string): number =>
+    result.groups.find((g) => g.key === category)?.total ?? 0
 
   const withProgress = budgets.map((budget) => {
     // Last month only counts when the budget already existed then
@@ -123,8 +141,8 @@ export async function getBudgetSummary(
       ...budget,
       ...computeBudgetProgress(
         budget,
-        spentIn(current, budget.category),
-        existedLastMonth ? spentIn(last, budget.category) : null
+        spentIn(currentTotals, budget.category),
+        existedLastMonth ? spentIn(lastTotals, budget.category) : null
       ),
     }
   })
@@ -135,6 +153,8 @@ export async function getBudgetSummary(
     budgets: withProgress,
     totalAvailable: withProgress.reduce((sum, b) => sum + b.available, 0),
     totalSpent: withProgress.reduce((sum, b) => sum + b.spent, 0),
+    daily: dailyFor(current.transactions, month),
+    previousDaily: dailyFor(last.transactions, previous),
   }
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   comparePeriodTotals,
   computeTotals,
+  dailyTotals,
   daysInRange,
   signedForKind,
   type TotalsTransaction,
@@ -126,5 +127,22 @@ describe('daysInRange', () => {
   test('counts both ends', () => {
     expect(daysInRange({ startDate: '2026-09-01', endDate: '2026-09-30' })).toBe(30)
     expect(daysInRange({ startDate: '2026-10-01', endDate: '2026-10-01' })).toBe(1)
+  })
+})
+
+describe('dailyTotals', () => {
+  test('sums each day with refunds subtracted and skips days outside the range', () => {
+    const days = dailyTotals(
+      [
+        txn('2026-09-01', 500, 'Swiggy'),
+        txn('2026-09-01', 200, 'Zomato'),
+        txn('2026-09-03', 2000, 'Amazon order', 'shopping'),
+        txn('2026-09-03', 400, 'Amazon refund', 'shopping', 'credit'),
+        txn('2026-08-31', 999, 'Last month'),
+      ],
+      'expense',
+      { startDate: '2026-09-01', endDate: '2026-09-05' }
+    )
+    expect(days).toEqual([700, 0, 1600, 0, 0])
   })
 })

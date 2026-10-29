@@ -209,7 +209,7 @@ function accountLabel(account: AccountResponse): string {
 const MAX_ROWS = 1_000_000
 
 /** Load the period's transactions of one kind */
-async function loadTotalsTransactions(
+export async function loadTotalsTransactions(
   userId: string,
   filters: TotalsFilters & { startDate?: string; endDate?: string }
 ): Promise<{ transactions: TotalsTransaction[]; currency: string }> {
@@ -259,6 +259,24 @@ export interface DateRange {
 export function daysInRange(range: DateRange): number {
   const ms = Date.parse(range.endDate) - Date.parse(range.startDate)
   return Math.round(ms / 86_400_000) + 1
+}
+
+/**
+ * Pure calculation - no DB access (unit tested)
+ * Total for each day of `range`, first day first. Days outside the range are ignored.
+ */
+export function dailyTotals(
+  transactions: TotalsTransaction[],
+  kind: CategoryKind,
+  range: DateRange
+): number[] {
+  const days = new Array<number>(daysInRange(range)).fill(0)
+  const start = Date.parse(range.startDate)
+  for (const txn of transactions) {
+    const index = Math.round((Date.parse(txn.date) - start) / 86_400_000)
+    if (index >= 0 && index < days.length) days[index]! += signedForKind(kind, txn.type, txn.amount)
+  }
+  return days
 }
 
 /** Compare two periods' totals, grouped by category, merchant or account */
