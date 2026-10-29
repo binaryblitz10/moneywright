@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, PiggyBank, Plus } from 'lucide-react'
+import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus } from 'lucide-react'
 import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
@@ -83,6 +83,47 @@ function BudgetsPage() {
           description="Set a monthly limit for each spending category"
           actions={
             <div className="flex items-center gap-3">
+              {!showFamilyView && (
+                <>
+                  <div className="inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-card p-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Previous month"
+                      onClick={() => setMonth(shiftMonth(month, -1))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="min-w-44 text-center text-sm font-medium">
+                      <span className="relative inline-block">
+                        {monthTitle(month)}
+                        {!isCurrentMonth && (
+                          <button
+                            type="button"
+                            aria-label="Back to this month"
+                            title="Back to this month"
+                            className="absolute left-full top-1/2 ml-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-primary transition-colors hover:bg-muted"
+                            onClick={() => setMonth(currentMonth())}
+                          >
+                            <CornerUpLeft className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Next month"
+                      disabled={isCurrentMonth}
+                      onClick={() => setMonth(shiftMonth(month, 1))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
               <Button
                 onClick={() => setAddOpen(true)}
                 disabled={showFamilyView || availableCategories.length === 0}
@@ -108,38 +149,6 @@ function BudgetsPage() {
           />
         ) : (
           <>
-            <div className="flex items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-card p-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label="Previous month"
-                  onClick={() => setMonth(shiftMonth(month, -1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="min-w-36 text-center text-sm font-medium">
-                  {monthTitle(month)}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label="Next month"
-                  disabled={isCurrentMonth}
-                  onClick={() => setMonth(shiftMonth(month, 1))}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              {!isCurrentMonth && (
-                <Button variant="ghost" size="sm" onClick={() => setMonth(currentMonth())}>
-                  Back to this month
-                </Button>
-              )}
-            </div>
-
             {isLoading ? (
               <div className="space-y-4">
                 <StatCardGridSkeleton />
