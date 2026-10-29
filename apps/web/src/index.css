@@ -261,6 +261,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Rupee Sign', 'DM Sans', system-ui, sans-serif;
