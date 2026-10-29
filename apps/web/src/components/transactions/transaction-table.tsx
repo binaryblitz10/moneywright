@@ -362,7 +362,7 @@ export function TransactionTable({
                 )}
                 <TableRow
                   className={cn(
-                    'group transition-all duration-200 border-b border-border-subtle last:border-b-0',
+                    'group transition-colors duration-200 border-b border-border-subtle last:border-b-0',
                     'hover:bg-surface-hover select-none',
                     (rowClickSelects || canEdit) && 'cursor-pointer',
                     selectable && selectedIds.has(txn.id) && 'bg-primary/5'
