@@ -160,7 +160,11 @@ export function BankAccountCard({
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-3 text-xs text-destructive">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs text-destructive hover:text-destructive"
+              >
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                 Delete
               </Button>
@@ -256,7 +260,10 @@ export function BankAccountCard({
             <DropdownMenuSeparator />
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={(e) => e.preventDefault()}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
                 </DropdownMenuItem>

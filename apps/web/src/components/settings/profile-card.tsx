@@ -102,7 +102,7 @@ export function ProfileCard({ profile, onEdit, canDelete = false }: ProfileCardP
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive"
+                    className="text-destructive focus:text-destructive"
                     onClick={() => setShowDeleteDialog(true)}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />

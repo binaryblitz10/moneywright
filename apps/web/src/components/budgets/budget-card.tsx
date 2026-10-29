@@ -85,7 +85,10 @@ export function BudgetCard({
               <Pencil className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDelete} className="text-destructive">
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
               <Trash2 className="h-4 w-4 mr-2" />
               Remove
             </DropdownMenuItem>

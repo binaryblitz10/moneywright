@@ -256,7 +256,7 @@ export function InvestmentSourceCard({
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem
-                    className="text-destructive"
+                    className="text-destructive focus:text-destructive"
                     onSelect={(e) => e.preventDefault()}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />

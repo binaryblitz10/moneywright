@@ -197,7 +197,10 @@ export function ProviderCard({ code, settings, providers }: ProviderCardProps) {
                 Update Key
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={handleRemove}>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={handleRemove}
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Remove
               </DropdownMenuItem>
