@@ -10,6 +10,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -116,10 +117,10 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
         className="px-2 py-2 gap-0"
       >
         {navGroups.map((group, i) => (
-          <SidebarGroup
-            key={group.label}
-            className={cn('py-1', i > 0 && 'border-t border-(--border-subtle) mt-1 pt-2')}
-          >
+          <SidebarGroup key={group.label} className={cn('py-1', i > 0 && 'mt-1')}>
+            <SidebarGroupLabel className="h-6 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              {group.label}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5" aria-label={group.label}>
                 {group.items.map(renderNavItem)}
