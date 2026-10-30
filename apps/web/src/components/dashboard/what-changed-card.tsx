@@ -1,5 +1,5 @@
 /**
- * What Changed card component
+ * Spending Changes card component
  * Spending changes for one month against the average of the previous months
  */
 
@@ -70,7 +70,7 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
 
   return (
     <SectionCard
-      title="What Changed"
+      title="Spending Changes"
       description={data && shownMonth ? getSubtitle(data) : undefined}
       className="h-full"
       action={
