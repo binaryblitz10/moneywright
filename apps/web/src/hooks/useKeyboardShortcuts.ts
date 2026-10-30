@@ -12,6 +12,7 @@ export interface GoToShortcut {
 export const GO_TO_SHORTCUTS: GoToShortcut[] = [
   { key: 'd', label: 'Dashboard', href: '/' },
   { key: 't', label: 'Transactions', href: '/transactions' },
+  { key: 'b', label: 'Budgets', href: '/budgets' },
   { key: 'r', label: 'Reports', href: '/reports' },
   { key: 'a', label: 'Accounts', href: '/accounts' },
   { key: 's', label: 'Statements', href: '/statements' },
