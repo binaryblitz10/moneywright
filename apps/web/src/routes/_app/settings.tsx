@@ -7,7 +7,6 @@ import { z } from 'zod'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks'
 import { getLLMSettings, getLLMProviders, getProfiles, getUserSessions } from '@/lib/api'
-import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
 import { QueryError } from '@/components/ui/query-error'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,7 +34,7 @@ const searchSchema = z.object({
   section: z.enum(SETTINGS_SECTIONS).catch('general'),
 })
 
-export const Route = createFileRoute('/settings')({
+export const Route = createFileRoute('/_app/settings')({
   validateSearch: searchSchema,
   component: SettingsPage,
 })
@@ -86,7 +85,7 @@ function SettingsPage() {
   })
 
   return (
-    <AppLayout>
+    <>
       <PageHeader
         title="Settings"
         description="Manage your profiles, security, data, rules, AI providers and dashboard"
@@ -162,6 +161,6 @@ function SettingsPage() {
           )}
         </div>
       </div>
-    </AppLayout>
+    </>
   )
 }

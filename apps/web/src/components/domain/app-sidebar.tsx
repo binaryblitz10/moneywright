@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -21,10 +20,6 @@ import { Download, Search, X } from 'lucide-react'
 import { MOD_KEY } from '@/lib/platform'
 import { askPennyNavItem, getNavGroups, settingsNavItem, type NavItem } from './nav-items'
 
-// Every page renders its own layout, so the sidebar remounts on navigation.
-// Keep its scroll position here so it survives that.
-let savedNavScroll = 0
-
 interface AppSidebarProps {
   onOpenSearch: () => void
 }
@@ -33,11 +28,6 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { updateAvailable, isReady, restartToUpdate, dismissUpdate } = useUpdateChecker()
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (contentRef.current) contentRef.current.scrollTop = savedNavScroll
-  }, [])
 
   // Items waiting in the Review queues
   const { activeProfileId } = useProfileSelection()
@@ -109,13 +99,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 
       <SidebarSeparator className="mx-0 w-full bg-(--border-subtle)" />
 
-      <SidebarContent
-        ref={contentRef}
-        onScroll={(e) => {
-          savedNavScroll = e.currentTarget.scrollTop
-        }}
-        className="px-2 py-2 gap-0"
-      >
+      <SidebarContent className="px-2 py-2 gap-0">
         {navGroups.map((group, i) => (
           <SidebarGroup key={group.label} className={cn('py-1', i > 0 && 'mt-1')}>
             <SidebarGroupLabel className="h-6 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">

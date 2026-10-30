@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
@@ -53,7 +52,7 @@ type SubscriptionsSearchParams = {
   add?: boolean
 }
 
-export const Route = createFileRoute('/subscriptions')({
+export const Route = createFileRoute('/_app/subscriptions')({
   component: SubscriptionsPage,
   validateSearch: (search: Record<string, unknown>): SubscriptionsSearchParams => ({
     add: search.add === true || search.add === 'true' ? true : undefined,
@@ -150,7 +149,7 @@ type StatusFilter = 'all' | 'active' | 'inactive'
 
 function SubscriptionsPage() {
   const navigate = useNavigate()
-  const searchParams = useSearch({ from: '/subscriptions' })
+  const searchParams = useSearch({ from: '/_app/subscriptions' })
   const { user, profiles } = useAuth()
   const {
     activeProfileId,
@@ -271,274 +270,270 @@ function SubscriptionsPage() {
   }, [subscriptions, statusFilter, frequencyFilter, searchQuery, getCategoryLabel])
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          title="Subscriptions"
-          description="Track and manage your recurring payments"
-          actions={
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowAddDialog(true)}>
-                <Plus className="h-4 w-4" />
-                Add subscription
-              </Button>
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChange}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChange}
-              />
+    <div className="space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title="Subscriptions"
+        description="Track and manage your recurring payments"
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4" />
+              Add subscription
+            </Button>
+            <ProfileSelector
+              selectedProfileId={selectorProfileId}
+              onProfileChange={handleProfileChange}
+              showFamilyView={showFamilyView}
+              onFamilyViewChange={handleFamilyViewChange}
+            />
+          </div>
+        }
+      />
+
+      {/* Stats Cards */}
+      <StatCardGrid className="lg:grid-cols-3">
+        <StatCard
+          label="Monthly Cost"
+          value={stats.totalMonthly}
+          currency={currency}
+          subtitle={`${stats.activeCount} active subscriptions`}
+          icon={Calendar}
+        />
+        <StatCard
+          label="Yearly Equivalent"
+          value={stats.yearlyEquivalent}
+          currency={currency}
+          subtitle="If all active subscriptions continue"
+          icon={TrendingUp}
+        />
+        <StatCard
+          label="Active Subscriptions"
+          value={stats.activeCount}
+          isCount
+          subtitle={
+            <div className="-my-0.5 flex flex-wrap items-center gap-1.5">
+              {(['monthly', 'quarterly', 'yearly'] as const).map((frequency) => {
+                const count = stats[`${frequency}Count`]
+                return count > 0 ? (
+                  <span
+                    key={frequency}
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                      FREQUENCY_PILL_STYLES[frequency]
+                    )}
+                  >
+                    {count} {getFrequencyLabel(frequency)}
+                  </span>
+                ) : null
+              })}
+              {stats.inactiveCount > 0 && <span>{stats.inactiveCount} inactive</span>}
+              {stats.activeCount === 0 && stats.inactiveCount === 0 && (
+                <span>No subscriptions yet</span>
+              )}
             </div>
           }
+          icon={Repeat}
         />
+      </StatCardGrid>
 
-        {/* Stats Cards */}
-        <StatCardGrid className="lg:grid-cols-3">
-          <StatCard
-            label="Monthly Cost"
-            value={stats.totalMonthly}
-            currency={currency}
-            subtitle={`${stats.activeCount} active subscriptions`}
-            icon={Calendar}
-          />
-          <StatCard
-            label="Yearly Equivalent"
-            value={stats.yearlyEquivalent}
-            currency={currency}
-            subtitle="If all active subscriptions continue"
-            icon={TrendingUp}
-          />
-          <StatCard
-            label="Active Subscriptions"
-            value={stats.activeCount}
-            isCount
-            subtitle={
-              <div className="-my-0.5 flex flex-wrap items-center gap-1.5">
-                {(['monthly', 'quarterly', 'yearly'] as const).map((frequency) => {
-                  const count = stats[`${frequency}Count`]
-                  return count > 0 ? (
-                    <span
-                      key={frequency}
-                      className={cn(
-                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
-                        FREQUENCY_PILL_STYLES[frequency]
-                      )}
-                    >
-                      {count} {getFrequencyLabel(frequency)}
-                    </span>
-                  ) : null
-                })}
-                {stats.inactiveCount > 0 && <span>{stats.inactiveCount} inactive</span>}
-                {stats.activeCount === 0 && stats.inactiveCount === 0 && (
-                  <span>No subscriptions yet</span>
-                )}
-              </div>
-            }
-            icon={Repeat}
-          />
-        </StatCardGrid>
-
-        {/* Filters */}
-        <div
-          className={cn(
-            'relative flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300',
-            'bg-linear-to-b from-card to-card/80',
-            'border border-border-subtle',
-            'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
-            'dark:shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]'
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative flex-1 min-w-60">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                data-page-search
-                placeholder="Search subscriptions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  'pl-10 pr-4 h-11 rounded-xl border border-border-subtle',
-                  'bg-surface-elevated',
-                  'placeholder:text-muted-foreground/60',
-                  'focus-visible:ring-2 focus-visible:ring-primary/20'
-                )}
-              />
-            </div>
-
-            {/* Status Filter */}
-            <div
+      {/* Filters */}
+      <div
+        className={cn(
+          'relative flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300',
+          'bg-linear-to-b from-card to-card/80',
+          'border border-border-subtle',
+          'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
+          'dark:shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]'
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="relative flex-1 min-w-60">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              data-page-search
+              placeholder="Search subscriptions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className={cn(
-                'flex items-center p-1 rounded-xl',
+                'pl-10 pr-4 h-11 rounded-xl border border-border-subtle',
                 'bg-surface-elevated',
-                'border border-border-subtle'
+                'placeholder:text-muted-foreground/60',
+                'focus-visible:ring-2 focus-visible:ring-primary/20'
+              )}
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div
+            className={cn(
+              'flex items-center p-1 rounded-xl',
+              'bg-surface-elevated',
+              'border border-border-subtle'
+            )}
+          >
+            <button
+              onClick={() => setStatusFilter('active')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                statusFilter === 'active'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  statusFilter === 'active'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => setStatusFilter('inactive')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  statusFilter === 'inactive'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Inactive
-              </button>
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  statusFilter === 'all'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                All
-              </button>
-            </div>
-
-            {/* Frequency Filter */}
-            <div
+              Active
+            </button>
+            <button
+              onClick={() => setStatusFilter('inactive')}
               className={cn(
-                'flex items-center p-1 rounded-xl',
-                'bg-surface-elevated',
-                'border border-border-subtle'
+                'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                statusFilter === 'inactive'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <button
-                onClick={() => setFrequencyFilter('all')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  frequencyFilter === 'all'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFrequencyFilter('monthly')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  frequencyFilter === 'monthly'
-                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setFrequencyFilter('quarterly')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  frequencyFilter === 'quarterly'
-                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Quarterly
-              </button>
-              <button
-                onClick={() => setFrequencyFilter('yearly')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
-                  frequencyFilter === 'yearly'
-                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Yearly
-              </button>
-            </div>
+              Inactive
+            </button>
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                statusFilter === 'all'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              All
+            </button>
+          </div>
+
+          {/* Frequency Filter */}
+          <div
+            className={cn(
+              'flex items-center p-1 rounded-xl',
+              'bg-surface-elevated',
+              'border border-border-subtle'
+            )}
+          >
+            <button
+              onClick={() => setFrequencyFilter('all')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                frequencyFilter === 'all'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFrequencyFilter('monthly')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                frequencyFilter === 'monthly'
+                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setFrequencyFilter('quarterly')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                frequencyFilter === 'quarterly'
+                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Quarterly
+            </button>
+            <button
+              onClick={() => setFrequencyFilter('yearly')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                frequencyFilter === 'yearly'
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Yearly
+            </button>
           </div>
         </div>
-
-        {/* Subscriptions Grid */}
-        {isError ? (
-          <QueryError error={error} onRetry={refetch} />
-        ) : isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-card border border-border-subtle rounded-xl p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1.5">
-                    <Skeleton className="h-5 w-28" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <Skeleton className="h-6 w-16" />
-                </div>
-                <Skeleton className="h-3 w-full" />
-              </div>
-            ))}
-          </div>
-        ) : filteredSubscriptions.length > 0 ? (
-          // Fade in once on mount; cards swap in place when filters change
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
-            {filteredSubscriptions.map((sub) => (
-              <SubscriptionCard
-                key={sub.key}
-                subscription={sub}
-                currency={currency}
-                countryCode={countryCode}
-                getCategoryLabel={getCategoryLabel}
-                onClick={() => setSelectedKey(sub.key)}
-                profiles={profiles}
-                showProfileBadge={showFamilyView}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={
-              searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active'
-                ? Receipt
-                : Repeat
-            }
-            title={
-              searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active'
-                ? 'No matching subscriptions'
-                : 'No subscriptions detected'
-            }
-            description={
-              searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active'
-                ? 'Try adjusting your search or filters'
-                : 'Recurring payments will appear here once detected from your transactions.'
-            }
-          />
-        )}
-
-        {/* Transaction History Modal */}
-        <TransactionHistoryModal
-          subscription={selectedSubscription}
-          currency={currency}
-          countryCode={countryCode}
-          getCategoryLabel={getCategoryLabel}
-          onClose={() => setSelectedKey(null)}
-          profiles={profiles}
-          showProfileBadge={showFamilyView}
-        />
-
-        <AddSubscriptionDialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          profileId={activeProfileId}
-          currency={currency}
-        />
       </div>
-    </AppLayout>
+
+      {/* Subscriptions Grid */}
+      {isError ? (
+        <QueryError error={error} onRetry={refetch} />
+      ) : isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-card border border-border-subtle rounded-xl p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : filteredSubscriptions.length > 0 ? (
+        // Fade in once on mount; cards swap in place when filters change
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
+          {filteredSubscriptions.map((sub) => (
+            <SubscriptionCard
+              key={sub.key}
+              subscription={sub}
+              currency={currency}
+              countryCode={countryCode}
+              getCategoryLabel={getCategoryLabel}
+              onClick={() => setSelectedKey(sub.key)}
+              profiles={profiles}
+              showProfileBadge={showFamilyView}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={
+            searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active' ? Receipt : Repeat
+          }
+          title={
+            searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active'
+              ? 'No matching subscriptions'
+              : 'No subscriptions detected'
+          }
+          description={
+            searchQuery || frequencyFilter !== 'all' || statusFilter !== 'active'
+              ? 'Try adjusting your search or filters'
+              : 'Recurring payments will appear here once detected from your transactions.'
+          }
+        />
+      )}
+
+      {/* Transaction History Modal */}
+      <TransactionHistoryModal
+        subscription={selectedSubscription}
+        currency={currency}
+        countryCode={countryCode}
+        getCategoryLabel={getCategoryLabel}
+        onClose={() => setSelectedKey(null)}
+        profiles={profiles}
+        showProfileBadge={showFamilyView}
+      />
+
+      <AddSubscriptionDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        profileId={activeProfileId}
+        currency={currency}
+      />
+    </div>
   )
 }
 

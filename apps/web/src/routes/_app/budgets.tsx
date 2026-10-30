@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus } from 'lucide-react'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -32,7 +31,7 @@ import {
 } from '@/hooks'
 import type { Budget } from '@/lib/api'
 
-export const Route = createFileRoute('/budgets')({
+export const Route = createFileRoute('/_app/budgets')({
   component: BudgetsPage,
 })
 
@@ -76,7 +75,7 @@ function BudgetsPage() {
   )
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-8">
         <PageHeader
           title="Budgets"
@@ -250,6 +249,6 @@ function BudgetsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppLayout>
+    </>
   )
 }

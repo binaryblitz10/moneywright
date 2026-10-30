@@ -14,7 +14,6 @@ import {
   useChatStream,
   useProfileSelection,
 } from '@/hooks'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -40,7 +39,7 @@ const searchSchema = z.object({
   conversationId: z.string().optional(),
 })
 
-export const Route = createFileRoute('/chat')({
+export const Route = createFileRoute('/_app/chat')({
   component: ChatPage,
   validateSearch: searchSchema,
 })
@@ -378,44 +377,38 @@ function ChatPage() {
   // Loading state
   if (setupLoading) {
     return (
-      <AppLayout>
-        <div className="space-y-6">
-          <PageHeader title="Ask Penny" description="Your wise financial companion" />
-          <CardSkeleton />
-        </div>
-      </AppLayout>
+      <div className="space-y-6">
+        <PageHeader title="Ask Penny" description="Your wise financial companion" />
+        <CardSkeleton />
+      </div>
     )
   }
 
   // Setup status failed to load
   if (setupError) {
     return (
-      <AppLayout>
-        <div className="space-y-6">
-          <PageHeader title="Ask Penny" description="Your wise financial companion" />
-          <QueryError error={setupErrorValue} onRetry={() => void refetchSetup()} />
-        </div>
-      </AppLayout>
+      <div className="space-y-6">
+        <PageHeader title="Ask Penny" description="Your wise financial companion" />
+        <QueryError error={setupErrorValue} onRetry={() => void refetchSetup()} />
+      </div>
     )
   }
 
   // Not configured state
   if (!setupStatus?.llm?.isConfigured) {
     return (
-      <AppLayout>
-        <div className="space-y-6">
-          <PageHeader title="Ask Penny" description="Your wise financial companion" />
-          <EmptyState
-            icon={AlertCircle}
-            title="Chat Not Configured"
-            description="Please configure your LLM provider in settings to use the chat feature."
-            action={{
-              label: 'Go to Settings',
-              onClick: () => navigate({ to: '/settings', search: { section: 'ai' } }),
-            }}
-          />
-        </div>
-      </AppLayout>
+      <div className="space-y-6">
+        <PageHeader title="Ask Penny" description="Your wise financial companion" />
+        <EmptyState
+          icon={AlertCircle}
+          title="Chat Not Configured"
+          description="Please configure your LLM provider in settings to use the chat feature."
+          action={{
+            label: 'Go to Settings',
+            onClick: () => navigate({ to: '/settings', search: { section: 'ai' } }),
+          }}
+        />
+      </div>
     )
   }
 
@@ -439,7 +432,7 @@ function ChatPage() {
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="flex h-full min-h-0 flex-col">
         {!showWelcome && (
           <>
@@ -551,6 +544,6 @@ function ChatPage() {
         args={toolCallModal.args}
         result={toolCallModal.result}
       />
-    </AppLayout>
+    </>
   )
 }

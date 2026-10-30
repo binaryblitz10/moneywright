@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -52,7 +51,7 @@ type StatementsSearchParams = {
   accountId?: string
 }
 
-export const Route = createFileRoute('/statements')({
+export const Route = createFileRoute('/_app/statements')({
   component: StatementsPage,
   validateSearch: (search: Record<string, unknown>): StatementsSearchParams => {
     return {
@@ -86,7 +85,7 @@ const GROUP_KIND_ICONS: Record<StatementGroupKind, { icon: LucideIcon; className
 function StatementsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const searchParams = useSearch({ from: '/statements' })
+  const searchParams = useSearch({ from: '/_app/statements' })
   const { profiles } = useAuth()
   const {
     activeProfileId,
@@ -346,211 +345,205 @@ function StatementsPage() {
   }
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          title="Statements"
-          description="Upload and manage your financial statements"
-          actions={
-            <>
-              <Button
-                onClick={() => setShowUploadDialog(true)}
-                disabled={showFamilyView}
-                title={showFamilyView ? 'Select a profile to upload statements' : undefined}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Statement
-              </Button>
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChange}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChange}
-              />
-            </>
-          }
-        />
-
-        {/* Filter & Sort Bar */}
-        {accounts && (
-          <FilterBar
-            accounts={accounts}
-            accountFilter={accountFilter}
-            sortOrder={sortOrder}
-            statementsCount={filteredAndSortedStatements?.length || 0}
-            onAccountFilterChange={setAccountFilter}
-            onSortChange={handleSortChange}
-          />
-        )}
-
-        {idFilter && (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-muted/40 px-4 py-2 text-sm">
-            <span className="text-muted-foreground">
-              Showing the {idFilter.size === 1 ? 'statement' : 'statements'} behind a Data Health
-              issue
-            </span>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title="Statements"
+        description="Upload and manage your financial statements"
+        actions={
+          <>
             <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => navigate({ to: '/statements', search: {} })}
+              onClick={() => setShowUploadDialog(true)}
+              disabled={showFamilyView}
+              title={showFamilyView ? 'Select a profile to upload statements' : undefined}
             >
-              Show all
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Statement
             </Button>
-          </div>
-        )}
+            <ProfileSelector
+              selectedProfileId={selectorProfileId}
+              onProfileChange={handleProfileChange}
+              showFamilyView={showFamilyView}
+              onFamilyViewChange={handleFamilyViewChange}
+            />
+          </>
+        }
+      />
 
-        {/* Upload Dialog */}
-        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-          <DialogContent
-            className="sm:max-w-2xl border-0 p-0 gap-0 overflow-hidden h-150 max-h-[85vh] flex flex-col"
-            showCloseButton={false}
+      {/* Filter & Sort Bar */}
+      {accounts && (
+        <FilterBar
+          accounts={accounts}
+          accountFilter={accountFilter}
+          sortOrder={sortOrder}
+          statementsCount={filteredAndSortedStatements?.length || 0}
+          onAccountFilterChange={setAccountFilter}
+          onSortChange={handleSortChange}
+        />
+      )}
+
+      {idFilter && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-muted/40 px-4 py-2 text-sm">
+          <span className="text-muted-foreground">
+            Showing the {idFilter.size === 1 ? 'statement' : 'statements'} behind a Data Health
+            issue
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => navigate({ to: '/statements', search: {} })}
           >
-            {activeProfileId && (
-              <UploadForm
-                profileId={activeProfileId}
-                onClose={() => setShowUploadDialog(false)}
-                onSuccess={() => {
-                  setShowUploadDialog(false)
-                  knownIdsRef.current = new Set(statements?.map((s) => s.id))
-                  queryClient.invalidateQueries({ queryKey: ['statements'] })
-                  queryClient.invalidateQueries({ queryKey: ['accounts'] })
-                }}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+            Show all
+          </Button>
+        </div>
+      )}
 
-        {/* Statements Grid */}
-        {isError ? (
-          <QueryError error={error} onRetry={refetch} />
-        ) : statementsLoading ? (
-          <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full rounded-2xl" />
-            ))}
-          </div>
-        ) : filteredAndSortedStatements && filteredAndSortedStatements.length > 0 ? (
-          <div className="space-y-8">
-            {(Object.keys(GROUP_KIND_LABELS) as StatementGroupKind[]).map((kind) => {
-              const kindGroups = statementGroups.filter(([, group]) => group.kind === kind)
-              if (kindGroups.length === 0) return null
-              const { icon: KindIcon, className: iconClassName } = GROUP_KIND_ICONS[kind]
-              return (
-                <section key={kind}>
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <KindIcon className={cn('h-5 w-5', iconClassName)} />
-                    {GROUP_KIND_LABELS[kind]}
-                  </h2>
-                  <div className="space-y-4">
-                    {kindGroups.map(([key, group]) => (
-                      <StatementGroup
-                        key={key}
-                        id={`statement-group-${key}`}
-                        open={openGroups.has(key)}
-                        onOpenChange={(open) => setGroupOpen(key, open)}
-                        title={group.title}
-                        subtitle={group.subtitle}
-                        logoPath={group.logoPath}
-                        kind={group.kind}
-                        statements={group.statements}
-                        balance={group.balance}
-                        paidSinceStatement={group.paidSinceStatement}
-                        currency={group.currency}
-                        overdueSince={group.overdueSince}
-                        onMissingClick={() => setShowUploadDialog(true)}
-                      >
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                          {group.statements.map((statement) => (
-                            <StatementCard
-                              key={statement.id}
-                              statement={statement}
-                              account={
-                                statement.accountId
-                                  ? accountMap.get(statement.accountId)
-                                  : undefined
-                              }
-                              source={
-                                statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
-                              }
-                              logoPath={group.logoPath}
-                              formatFileSize={formatFileSize}
-                              formatPeriod={formatPeriod}
-                              onDelete={() => deleteMutation.mutate(statement.id)}
-                              selected={visibleSelectedIds.has(statement.id)}
-                              onSelectedChange={(selected) =>
-                                setStatementSelected(statement.id, selected)
-                              }
-                              onEdit={() => setEditStatement(statement)}
-                              onRecategorize={() => setRecategorizeStatement(statement)}
-                              profiles={profiles}
-                              showProfileBadge={showFamilyView}
-                            />
-                          ))}
-                        </div>
-                      </StatementGroup>
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon={accountFilter ? FileText : UploadIcon}
-            title={accountFilter ? 'No statements for this account' : 'No statements yet'}
-            description={
-              accountFilter
-                ? 'Upload a statement for this account or clear the filter to see all statements.'
-                : 'Upload a bank, credit card, or investment statement to start tracking your finances.'
-            }
-            action={{
-              label: 'Upload Statement',
-              onClick: () => setShowUploadDialog(true),
-              icon: UploadIcon,
-            }}
-          />
-        )}
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent
+          className="sm:max-w-2xl border-0 p-0 gap-0 overflow-hidden h-150 max-h-[85vh] flex flex-col"
+          showCloseButton={false}
+        >
+          {activeProfileId && (
+            <UploadForm
+              profileId={activeProfileId}
+              onClose={() => setShowUploadDialog(false)}
+              onSuccess={() => {
+                setShowUploadDialog(false)
+                knownIdsRef.current = new Set(statements?.map((s) => s.id))
+                queryClient.invalidateQueries({ queryKey: ['statements'] })
+                queryClient.invalidateQueries({ queryKey: ['accounts'] })
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
-        {visibleSelectedIds.size > 0 && (
-          <BulkActionBar
-            selectedIds={visibleSelectedIds}
-            totalVisible={filteredAndSortedStatements?.length ?? 0}
-            onSelectAll={() =>
-              setSelectedIds(new Set(filteredAndSortedStatements?.map((s) => s.id)))
-            }
-            onClear={() => setSelectedIds(new Set())}
-          />
-        )}
+      {/* Statements Grid */}
+      {isError ? (
+        <QueryError error={error} onRetry={refetch} />
+      ) : statementsLoading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : filteredAndSortedStatements && filteredAndSortedStatements.length > 0 ? (
+        <div className="space-y-8">
+          {(Object.keys(GROUP_KIND_LABELS) as StatementGroupKind[]).map((kind) => {
+            const kindGroups = statementGroups.filter(([, group]) => group.kind === kind)
+            if (kindGroups.length === 0) return null
+            const { icon: KindIcon, className: iconClassName } = GROUP_KIND_ICONS[kind]
+            return (
+              <section key={kind}>
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <KindIcon className={cn('h-5 w-5', iconClassName)} />
+                  {GROUP_KIND_LABELS[kind]}
+                </h2>
+                <div className="space-y-4">
+                  {kindGroups.map(([key, group]) => (
+                    <StatementGroup
+                      key={key}
+                      id={`statement-group-${key}`}
+                      open={openGroups.has(key)}
+                      onOpenChange={(open) => setGroupOpen(key, open)}
+                      title={group.title}
+                      subtitle={group.subtitle}
+                      logoPath={group.logoPath}
+                      kind={group.kind}
+                      statements={group.statements}
+                      balance={group.balance}
+                      paidSinceStatement={group.paidSinceStatement}
+                      currency={group.currency}
+                      overdueSince={group.overdueSince}
+                      onMissingClick={() => setShowUploadDialog(true)}
+                    >
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {group.statements.map((statement) => (
+                          <StatementCard
+                            key={statement.id}
+                            statement={statement}
+                            account={
+                              statement.accountId ? accountMap.get(statement.accountId) : undefined
+                            }
+                            source={
+                              statement.sourceId ? sourceMap.get(statement.sourceId) : undefined
+                            }
+                            logoPath={group.logoPath}
+                            formatFileSize={formatFileSize}
+                            formatPeriod={formatPeriod}
+                            onDelete={() => deleteMutation.mutate(statement.id)}
+                            selected={visibleSelectedIds.has(statement.id)}
+                            onSelectedChange={(selected) =>
+                              setStatementSelected(statement.id, selected)
+                            }
+                            onEdit={() => setEditStatement(statement)}
+                            onRecategorize={() => setRecategorizeStatement(statement)}
+                            profiles={profiles}
+                            showProfileBadge={showFamilyView}
+                          />
+                        ))}
+                      </div>
+                    </StatementGroup>
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          icon={accountFilter ? FileText : UploadIcon}
+          title={accountFilter ? 'No statements for this account' : 'No statements yet'}
+          description={
+            accountFilter
+              ? 'Upload a statement for this account or clear the filter to see all statements.'
+              : 'Upload a bank, credit card, or investment statement to start tracking your finances.'
+          }
+          action={{
+            label: 'Upload Statement',
+            onClick: () => setShowUploadDialog(true),
+            icon: UploadIcon,
+          }}
+        />
+      )}
 
-        {/* Edit Statement Dialog */}
-        {editStatement && (
-          <StatementEditDialog
-            statement={editStatement}
-            isCreditCard={
-              !!editStatement.accountId &&
-              accountMap.get(editStatement.accountId)?.type === 'credit_card'
-            }
-            onClose={() => setEditStatement(null)}
-          />
-        )}
+      {visibleSelectedIds.size > 0 && (
+        <BulkActionBar
+          selectedIds={visibleSelectedIds}
+          totalVisible={filteredAndSortedStatements?.length ?? 0}
+          onSelectAll={() => setSelectedIds(new Set(filteredAndSortedStatements?.map((s) => s.id)))}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      )}
 
-        {/* Recategorize Modal */}
-        {activeProfileId && recategorizeStatement && (
-          <RecategorizeModal
-            open={!!recategorizeStatement}
-            onOpenChange={(open) => !open && setRecategorizeStatement(null)}
-            profileId={activeProfileId}
-            statementId={recategorizeStatement.id}
-            hintsAccountId={recategorizeStatement.accountId ?? undefined}
-            targetName={recategorizeStatement.originalFilename || 'Statement'}
-            onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ['transactions'] })
-            }}
-          />
-        )}
-      </div>
-    </AppLayout>
+      {/* Edit Statement Dialog */}
+      {editStatement && (
+        <StatementEditDialog
+          statement={editStatement}
+          isCreditCard={
+            !!editStatement.accountId &&
+            accountMap.get(editStatement.accountId)?.type === 'credit_card'
+          }
+          onClose={() => setEditStatement(null)}
+        />
+      )}
+
+      {/* Recategorize Modal */}
+      {activeProfileId && recategorizeStatement && (
+        <RecategorizeModal
+          open={!!recategorizeStatement}
+          onOpenChange={(open) => !open && setRecategorizeStatement(null)}
+          profileId={activeProfileId}
+          statementId={recategorizeStatement.id}
+          hintsAccountId={recategorizeStatement.accountId ?? undefined}
+          targetName={recategorizeStatement.originalFilename || 'Statement'}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['transactions'] })
+          }}
+        />
+      )}
+    </div>
   )
 }

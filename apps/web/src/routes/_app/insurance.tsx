@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -24,12 +23,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Wallet,
-  Home,
+  Shield,
+  Heart,
   Car,
-  GraduationCap,
-  Briefcase,
-  Coins,
   Upload,
   FileText,
   Trash2,
@@ -43,18 +39,16 @@ import {
   Clock,
   Calendar,
   User,
+  Users,
   BadgeCheck,
   Building2,
-  Percent,
-  TrendingUp,
-  MapPin,
+  CarFront,
+  Plus,
   Receipt,
   ChevronRight,
   Banknote,
-  Target,
-  TrendingDown,
-  CircleDollarSign,
   CheckCircle2,
+  Percent,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -72,22 +66,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Loan, LoanType, Profile } from '@/lib/api'
+import type { InsurancePolicy, InsurancePolicyType, Profile } from '@/lib/api'
 import {
   getLLMProviders,
   getPreferences,
   setPreference,
   PREFERENCE_KEYS,
-  uploadLoan,
+  uploadInsurancePolicy,
 } from '@/lib/api'
 import {
   useAuth,
   useAccounts,
-  useLoans,
-  useDeleteLoan,
+  useInsurancePolicies,
+  useDeleteInsurance,
   useProfileSelection,
-  useLoanPaymentHistory,
-  useLoanOutstanding,
+  useInsurancePaymentHistory,
   useConstants,
 } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -95,56 +88,38 @@ import { PROVIDER_LOGOS, getLogoInvertStyle } from '@/lib/provider-logos'
 import { toast } from 'sonner'
 import { MetaLabel } from '@/components/ui/meta-label'
 
-export const Route = createFileRoute('/loans')({
-  component: LoansPage,
+export const Route = createFileRoute('/_app/insurance')({
+  component: InsurancePage,
 })
 
-const LOAN_TYPE_CONFIG: Record<
-  LoanType,
-  { icon: typeof Wallet; label: string; color: string; bgColor: string }
+const POLICY_TYPE_CONFIG: Record<
+  InsurancePolicyType,
+  { icon: typeof Shield; label: string; color: string; bgColor: string }
 > = {
-  personal_loan: {
-    icon: Wallet,
-    label: 'Personal Loans',
-    color: 'text-violet-500',
-    bgColor: 'bg-violet-500/10',
-  },
-  home_loan: {
-    icon: Home,
-    label: 'Home Loans',
+  life_insurance: {
+    icon: Shield,
+    label: 'Life Insurance',
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10',
   },
-  vehicle_loan: {
+  health_insurance: {
+    icon: Heart,
+    label: 'Health Insurance',
+    color: 'text-rose-500',
+    bgColor: 'bg-rose-500/10',
+  },
+  vehicle_insurance: {
     icon: Car,
-    label: 'Vehicle Loans',
+    label: 'Vehicle Insurance',
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
   },
-  education_loan: {
-    icon: GraduationCap,
-    label: 'Education Loans',
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-500/10',
-  },
-  business_loan: {
-    icon: Briefcase,
-    label: 'Business Loans',
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-500/10',
-  },
-  gold_loan: {
-    icon: Coins,
-    label: 'Gold Loans',
-    color: 'text-yellow-500',
-    bgColor: 'bg-yellow-500/10',
-  },
 }
 
-function LoansPage() {
+function InsurancePage() {
   const { user, profiles } = useAuth()
   const queryClient = useQueryClient()
-  const { countryCode, rawInstitutions, institutions } = useConstants()
+  const { countryCode, rawInsuranceProviders, institutions } = useConstants()
   const {
     activeProfileId,
     showFamilyView,
@@ -155,20 +130,20 @@ function LoansPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
+  const [selectedPolicy, setSelectedPolicy] = useState<InsurancePolicy | null>(null)
 
   // Query enabled when we have a profileId OR we're in family view
   const queryEnabled = !!activeProfileId || showFamilyView
 
   // Query hooks
-  const { data: loans, isLoading } = useLoans(activeProfileId, {
+  const { data: policies, isLoading } = useInsurancePolicies(activeProfileId, {
     enabled: queryEnabled,
     refetchInterval: (query) => {
-      // Poll if any loans are pending/parsing
+      // Poll if any policies are pending/parsing
       const data = query.state.data
       if (!data) return false
       const hasProcessing = data.some(
-        (l) => l.parseStatus === 'pending' || l.parseStatus === 'parsing'
+        (p) => p.parseStatus === 'pending' || p.parseStatus === 'parsing'
       )
       return hasProcessing ? 3000 : false
     },
@@ -176,23 +151,20 @@ function LoansPage() {
   const { data: accounts } = useAccounts(activeProfileId, { enabled: queryEnabled })
 
   // Mutation hooks
-  const deleteMutation = useDeleteLoan(activeProfileId)
+  const deleteMutation = useDeleteInsurance(activeProfileId)
 
-  // Separate processing loans from completed ones
-  const processingLoans =
-    loans?.filter((l) => l.parseStatus === 'pending' || l.parseStatus === 'parsing') || []
+  // Separate processing policies from completed ones
+  const processingPolicies =
+    policies?.filter((p) => p.parseStatus === 'pending' || p.parseStatus === 'parsing') || []
 
-  const completedLoans =
-    loans?.filter((l) => l.parseStatus === 'completed' || l.parseStatus === 'failed') || []
+  const completedPolicies =
+    policies?.filter((p) => p.parseStatus === 'completed' || p.parseStatus === 'failed') || []
 
-  // Group completed loans by type
-  const loanGroups = {
-    personal_loan: completedLoans.filter((l) => l.loanType === 'personal_loan'),
-    home_loan: completedLoans.filter((l) => l.loanType === 'home_loan'),
-    vehicle_loan: completedLoans.filter((l) => l.loanType === 'vehicle_loan'),
-    education_loan: completedLoans.filter((l) => l.loanType === 'education_loan'),
-    business_loan: completedLoans.filter((l) => l.loanType === 'business_loan'),
-    gold_loan: completedLoans.filter((l) => l.loanType === 'gold_loan'),
+  // Group completed policies by type
+  const policyGroups = {
+    life_insurance: completedPolicies.filter((p) => p.policyType === 'life_insurance'),
+    health_insurance: completedPolicies.filter((p) => p.policyType === 'health_insurance'),
+    vehicle_insurance: completedPolicies.filter((p) => p.policyType === 'vehicle_insurance'),
   }
 
   const handleDelete = async () => {
@@ -202,93 +174,91 @@ function LoansPage() {
   }
 
   const handleUploadSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['loans'] })
+    queryClient.invalidateQueries({ queryKey: ['insurance'] })
     setUploadOpen(false)
   }
 
   const currencySymbol = user?.country === 'US' ? '$' : user?.country === 'GB' ? '£' : '₹'
 
   return (
-    <AppLayout>
-      <div className="space-y-8">
-        {/* Page Header */}
-        <PageHeader
-          title="Loans"
-          description="Manage your loan documents"
-          actions={
-            <div className="flex items-center gap-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button onClick={() => setUploadOpen(true)} disabled={showFamilyView}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Loan Document
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {showFamilyView && (
-                  <TooltipContent>Switch to a profile to upload a loan document</TooltipContent>
-                )}
-              </Tooltip>
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChange}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChange}
-              />
-            </div>
-          }
-        />
-
-        {/* Loans Display */}
-        {isLoading ? (
-          <div className="space-y-8">
-            {Object.entries(LOAN_TYPE_CONFIG)
-              .slice(0, 3)
-              .map(([type]) => (
-                <section key={type}>
-                  <div className="h-7 w-40 bg-surface-elevated rounded animate-pulse mb-4" />
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                      <CardSkeleton key={i} />
-                    ))}
-                  </div>
-                </section>
-              ))}
+    <div className="space-y-8">
+      {/* Page Header */}
+      <PageHeader
+        title="Insurance"
+        description="Manage your insurance policies"
+        actions={
+          <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button onClick={() => setUploadOpen(true)} disabled={showFamilyView}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Policy
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {showFamilyView && (
+                <TooltipContent>Switch to a profile to upload a policy</TooltipContent>
+              )}
+            </Tooltip>
+            <ProfileSelector
+              selectedProfileId={selectorProfileId}
+              onProfileChange={handleProfileChange}
+              showFamilyView={showFamilyView}
+              onFamilyViewChange={handleFamilyViewChange}
+            />
           </div>
-        ) : loans && loans.length > 0 ? (
-          <div className="space-y-8">
-            {/* Processing Section */}
-            {processingLoans.length > 0 && (
-              <section>
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-muted-foreground" />
-                  <span>Processing</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    ({processingLoans.length})
-                  </span>
-                </h2>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {processingLoans.map((loan) => (
-                    <LoanCard
-                      key={loan.id}
-                      loan={loan}
-                      currencySymbol={currencySymbol}
-                      profiles={profiles}
-                      showProfileBadge={showFamilyView}
-                      onDelete={() => setDeleteId(loan.id)}
-                      countryCode={countryCode}
-                      institutions={rawInstitutions}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
+        }
+      />
 
-            {/* Completed loans by type */}
-            {(Object.entries(loanGroups) as [LoanType, Loan[]][]).map(([type, typeLoans]) => {
-              if (typeLoans.length === 0) return null
-              const config = LOAN_TYPE_CONFIG[type]
+      {/* Policies Display */}
+      {isLoading ? (
+        <div className="space-y-8">
+          {Object.entries(POLICY_TYPE_CONFIG).map(([type]) => (
+            <section key={type}>
+              <div className="h-7 w-40 bg-surface-elevated rounded animate-pulse mb-4" />
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : policies && policies.length > 0 ? (
+        <div className="space-y-8">
+          {/* Processing Section */}
+          {processingPolicies.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <span>Processing</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({processingPolicies.length})
+                </span>
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {processingPolicies.map((policy) => (
+                  <PolicyCard
+                    key={policy.id}
+                    policy={policy}
+                    currencySymbol={currencySymbol}
+                    profiles={profiles}
+                    showProfileBadge={showFamilyView}
+                    onDelete={() => setDeleteId(policy.id)}
+                    countryCode={countryCode}
+                    insuranceProviders={rawInsuranceProviders}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Completed policies by type */}
+          {(Object.entries(policyGroups) as [InsurancePolicyType, InsurancePolicy[]][]).map(
+            ([type, typePolicies]) => {
+              if (typePolicies.length === 0) return null
+              const config = POLICY_TYPE_CONFIG[type]
               const Icon = config.icon
 
               return (
@@ -298,130 +268,132 @@ function LoansPage() {
                     {config.label}
                   </h2>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {typeLoans.map((loan) => (
-                      <LoanCard
-                        key={loan.id}
-                        loan={loan}
+                    {typePolicies.map((policy) => (
+                      <PolicyCard
+                        key={policy.id}
+                        policy={policy}
                         currencySymbol={currencySymbol}
                         profiles={profiles}
                         showProfileBadge={showFamilyView}
-                        onDelete={() => setDeleteId(loan.id)}
-                        onSelect={() => setSelectedLoan(loan)}
+                        onDelete={() => setDeleteId(policy.id)}
+                        onSelect={() => setSelectedPolicy(policy)}
                         countryCode={countryCode}
-                        institutions={rawInstitutions}
+                        insuranceProviders={rawInsuranceProviders}
                       />
                     ))}
                   </div>
                 </section>
               )
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon={FileText}
-            title="No loan documents yet"
-            description={
-              showFamilyView
-                ? 'Switch to a profile to upload loan documents.'
-                : 'Upload your loan documents to keep track of EMIs, interest rates, and repayment schedules.'
             }
-            action={
-              showFamilyView
-                ? undefined
-                : {
-                    label: 'Upload Loan Document',
-                    onClick: () => setUploadOpen(true),
-                    icon: Upload,
-                  }
-            }
-          />
-        )}
-
-        {/* Upload Dialog */}
-        {activeProfileId && (
-          <UploadDialog
-            open={uploadOpen}
-            onOpenChange={setUploadOpen}
-            profileId={activeProfileId}
-            onSuccess={handleUploadSuccess}
-          />
-        )}
-
-        {/* Delete Confirmation */}
-        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Loan</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete this loan document? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Loan Detail Sheet */}
-        <LoanDetailSheet
-          loan={selectedLoan}
-          onOpenChange={(open) => !open && setSelectedLoan(null)}
-          currencySymbol={currencySymbol}
-          countryCode={countryCode}
-          institutions={rawInstitutions}
-          accounts={accounts}
-          institutionsMap={institutions}
+          )}
+        </div>
+      ) : (
+        <EmptyState
+          icon={FileText}
+          title="No insurance policies yet"
+          description={
+            showFamilyView
+              ? 'Switch to a profile to upload insurance policies.'
+              : 'Upload your insurance policy documents to keep track of coverage, premiums, and renewal dates.'
+          }
+          action={
+            showFamilyView
+              ? undefined
+              : {
+                  label: 'Upload Policy',
+                  onClick: () => setUploadOpen(true),
+                  icon: Upload,
+                }
+          }
         />
-      </div>
-    </AppLayout>
+      )}
+
+      {/* Upload Dialog */}
+      {activeProfileId && (
+        <UploadDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          profileId={activeProfileId}
+          onSuccess={handleUploadSuccess}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Policy</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this insurance policy? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Policy Detail Sheet */}
+      <PolicyDetailSheet
+        policy={selectedPolicy}
+        onOpenChange={(open) => !open && setSelectedPolicy(null)}
+        currencySymbol={currencySymbol}
+        countryCode={countryCode}
+        insuranceProviders={rawInsuranceProviders}
+        accounts={accounts}
+        institutionsMap={institutions}
+      />
+    </div>
   )
 }
 
 // ============================================
-// Loan Card Component
+// Policy Card Component - Redesigned
 // ============================================
 
-interface LoanCardProps {
-  loan: Loan
+interface PolicyCardProps {
+  policy: InsurancePolicy
   currencySymbol: string
   profiles?: Profile[]
   showProfileBadge: boolean
   onDelete: () => void
   onSelect?: () => void
   countryCode?: string
-  institutions?: { id: string; name: string; logo: string }[]
+  insuranceProviders?: { id: string; name: string; logo: string }[]
 }
 
-function LoanCard({
-  loan,
+function PolicyCard({
+  policy,
   currencySymbol,
   profiles,
   showProfileBadge,
   onDelete,
   onSelect,
   countryCode,
-  institutions,
-}: LoanCardProps) {
+  insuranceProviders,
+}: PolicyCardProps) {
   const [logoError, setLogoError] = useState(false)
-  const profile = profiles?.find((p) => p.id === loan.profileId)
+  const profile = profiles?.find((p) => p.id === policy.profileId)
 
-  const isProcessing = loan.parseStatus === 'pending' || loan.parseStatus === 'parsing'
-  const isFailed = loan.parseStatus === 'failed'
+  const isProcessing = policy.parseStatus === 'pending' || policy.parseStatus === 'parsing'
+  const isFailed = policy.parseStatus === 'failed'
 
-  const config = LOAN_TYPE_CONFIG[loan.loanType]
-  const Icon = config?.icon || Wallet
+  const config = POLICY_TYPE_CONFIG[policy.policyType]
+  const Icon = config?.icon || Shield
 
   // Get institution logo path if available
-  const institution = loan.institution ? institutions?.find((i) => i.id === loan.institution) : null
+  const institution = policy.institution
+    ? insuranceProviders?.find((p) => p.id === policy.institution)
+    : null
   const logoPath =
-    loan.institution && countryCode
-      ? `/institutions/${countryCode.toLowerCase()}/${loan.institution}.svg`
+    policy.institution && countryCode
+      ? `/institutions/${countryCode.toLowerCase()}/${policy.institution}.svg`
       : null
 
   // Format currency
@@ -432,32 +404,60 @@ function LoanCard({
     }).format(amount)
   }
 
-  // Format end date
-  const formatEndDate = (dateStr: string | null) => {
+  // Format end date - different display for life vs other insurance
+  const formatEndDate = (dateStr: string | null, policyType: string) => {
     if (!dateStr) return null
     const date = new Date(dateStr)
     const now = new Date()
     const isExpired = date < now
 
+    // For life insurance, show "ends in X years" or "ended"
+    if (policyType === 'life_insurance') {
+      if (isExpired) {
+        return { text: 'ended', isExpired: true }
+      }
+      const years = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365))
+      if (years < 1) {
+        const months = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
+        return { text: `ends in ${months} mo`, isExpired: false }
+      }
+      return { text: `ends in ${years} yrs`, isExpired: false }
+    }
+
+    // For health/vehicle insurance, show "renews Mon YY"
     const formatted = date.toLocaleDateString('en-US', {
       month: 'short',
       year: '2-digit',
     })
 
     return {
-      text: isExpired ? `ended ${formatted}` : `ends ${formatted}`,
+      text: isExpired ? `expired ${formatted}` : `renews ${formatted}`,
       isExpired,
     }
   }
 
-  const endDateInfo = formatEndDate(loan.endDate)
+  const endDateInfo = formatEndDate(policy.endDate, policy.policyType)
 
-  // Mask account number - show last 4 digits
-  const maskedAccountNumber = loan.loanAccountNumber
-    ? `••••${loan.loanAccountNumber.slice(-4)}`
-    : null
+  // Get subtype from details
+  const getSubtype = () => {
+    const details = policy.details as Record<string, unknown> | null
+    if (!details) return null
 
-  // Processing card
+    switch (policy.policyType) {
+      case 'life_insurance':
+        return details.lifeInsuranceType as string | undefined
+      case 'health_insurance':
+        return details.healthInsuranceType as string | undefined
+      case 'vehicle_insurance':
+        return details.vehicleInsuranceType as string | undefined
+      default:
+        return null
+    }
+  }
+
+  const subtype = getSubtype()?.replace(/_/g, ' ')
+
+  // Processing card - matches pending account pattern
   if (isProcessing) {
     return (
       <div
@@ -471,9 +471,9 @@ function LoanCard({
             <Clock className="h-5 w-5 text-warning animate-pulse" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-sm text-warning">Processing Document</h3>
+            <h3 className="font-semibold text-sm text-warning">Processing Policy</h3>
             <p className="text-xs text-muted-foreground truncate">
-              {loan.originalFilename || 'Extracting details...'}
+              {policy.originalFilename || 'Extracting details...'}
             </p>
           </div>
           <DropdownMenu>
@@ -500,14 +500,14 @@ function LoanCard({
 
         <div className="mt-4">
           <p className="text-xs text-muted-foreground">
-            This loan will be updated once parsing is complete.
+            This policy will be updated once parsing is complete.
           </p>
         </div>
 
         <div className="mt-4 flex items-center gap-2">
           <Loader2 className="h-3 w-3 animate-spin text-warning" />
           <span className="text-xs text-warning">
-            {loan.parseStatus === 'parsing' ? 'Parsing...' : 'Awaiting processing...'}
+            {policy.parseStatus === 'parsing' ? 'Parsing...' : 'Awaiting processing...'}
           </span>
         </div>
 
@@ -520,7 +520,7 @@ function LoanCard({
     )
   }
 
-  // Failed card
+  // Failed card - matches failed account pattern
   if (isFailed) {
     return (
       <div
@@ -536,7 +536,7 @@ function LoanCard({
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-sm text-negative">Parsing Failed</h3>
             <p className="text-xs text-muted-foreground truncate">
-              {loan.originalFilename || 'Loan document'}
+              {policy.originalFilename || 'Policy document'}
             </p>
           </div>
           <DropdownMenu>
@@ -563,8 +563,8 @@ function LoanCard({
 
         <div className="mt-4">
           <p className="text-xs text-muted-foreground">
-            {loan.errorMessage ||
-              'Failed to parse the document. You can delete this and try uploading again.'}
+            {policy.errorMessage ||
+              'Failed to parse the policy. You can delete this and try uploading again.'}
           </p>
         </div>
 
@@ -582,7 +582,7 @@ function LoanCard({
     )
   }
 
-  // Completed card
+  // Completed card - redesigned to match account cards
   return (
     <div
       className={cn(
@@ -598,7 +598,7 @@ function LoanCard({
             {logoPath && !logoError ? (
               <img
                 src={logoPath}
-                alt={institution?.name || loan.lender}
+                alt={institution?.name || policy.provider}
                 className="h-6 w-6 object-contain"
                 onError={() => setLogoError(true)}
               />
@@ -609,13 +609,15 @@ function LoanCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-foreground truncate text-sm">
-                {institution?.name || loan.lender}
+                {institution?.name || policy.provider}
               </h3>
               {showProfileBadge && profile && <ProfileBadge name={profile.name} />}
             </div>
             <p className="text-xs text-muted-foreground truncate">
-              {maskedAccountNumber && <span>{maskedAccountNumber}</span>}
-              {!maskedAccountNumber && config?.label.replace('s', '')}
+              {subtype && <span className="capitalize">{subtype}</span>}
+              {subtype && policy.policyNumber && ' · '}
+              {policy.policyNumber && <span>{policy.policyNumber}</span>}
+              {!subtype && !policy.policyNumber && config?.label}
             </p>
           </div>
         </div>
@@ -644,39 +646,33 @@ function LoanCard({
         </div>
       </div>
 
-      {/* EMI and Interest Rate info */}
-      <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-        {loan.emiAmount && (
-          <span>
-            {currencySymbol}
-            {formatAmount(loan.emiAmount)}/mo
-          </span>
-        )}
-        {loan.interestRate && (
-          <span className="flex items-center gap-1">
-            <Percent className="h-3 w-3" />
-            {loan.interestRate}%
-          </span>
-        )}
-      </div>
+      {/* Premium info (like card number in credit cards) */}
+      {policy.premiumAmount && (
+        <p className="text-sm text-muted-foreground mt-4">
+          {currencySymbol}
+          {formatAmount(policy.premiumAmount)}
+          {policy.premiumFrequency && <span>/{policy.premiumFrequency.replace('_', ' ')}</span>}
+          {' premium'}
+        </p>
+      )}
 
-      {/* Principal Amount */}
+      {/* Coverage - like Balance section in accounts */}
       <div className="mt-4 pt-4 border-t border-border-subtle">
-        <MetaLabel as="p">Principal</MetaLabel>
+        <MetaLabel as="p">Coverage</MetaLabel>
         <div className="flex items-baseline justify-between mt-1">
-          <p className="text-xl font-semibold tabular-nums">
-            {loan.principalAmount !== null
-              ? `${currencySymbol}${formatAmount(loan.principalAmount)}`
+          <p className="text-xl font-semibold text-positive tabular-nums">
+            {policy.sumInsured !== null
+              ? `${currencySymbol}${formatAmount(policy.sumInsured)}`
               : '—'}
           </p>
           {endDateInfo && (
             <p
               className={cn(
                 'text-xs',
-                endDateInfo.isExpired ? 'text-positive' : 'text-muted-foreground'
+                endDateInfo.isExpired ? 'text-destructive' : 'text-muted-foreground'
               )}
             >
-              {endDateInfo.isExpired ? 'closed' : endDateInfo.text}
+              {endDateInfo.text}
             </p>
           )}
         </div>
@@ -686,7 +682,7 @@ function LoanCard({
 }
 
 // ============================================
-// Upload Dialog Component
+// Upload Dialog Component - Matches Statement Upload
 // ============================================
 
 interface UploadDialogProps {
@@ -876,7 +872,7 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
 
       for (const file of files) {
         try {
-          await uploadLoan(file, profileId, {
+          await uploadInsurancePolicy(file, profileId, {
             parsingModel: parsing.model ? `${parsing.provider}:${parsing.model}` : undefined,
             password: password || undefined,
           })
@@ -904,18 +900,18 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
       if (successCount > 0) {
         if (failCount > 0) {
           toast.success(
-            `${successCount} document${successCount !== 1 ? 's' : ''} uploaded, ${failCount} failed`
+            `${successCount} polic${successCount !== 1 ? 'ies' : 'y'} uploaded, ${failCount} failed`
           )
         } else {
-          toast.success(`${successCount} document${successCount !== 1 ? 's' : ''} uploaded!`)
+          toast.success(`${successCount} polic${successCount !== 1 ? 'ies' : 'y'} uploaded!`)
         }
         onSuccess()
         resetForm()
       } else {
-        setError('Failed to upload documents')
+        setError('Failed to upload policies')
       }
     } catch {
-      setError('Failed to upload documents')
+      setError('Failed to upload policies')
     } finally {
       setIsUploading(false)
     }
@@ -947,9 +943,9 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
               <FileUp className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-semibold text-foreground">Upload Loan Document</h2>
+              <h2 className="text-lg font-semibold text-foreground">Upload Insurance Policy</h2>
               <p className="text-sm text-muted-foreground">
-                Drop your loan documents to extract details
+                Drop your policy documents to extract details
               </p>
             </div>
           </div>
@@ -1044,7 +1040,7 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
                   </span>{' '}
                   to select
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">PDF only</p>
+                <p className="text-xs text-muted-foreground mt-2">PDF only • Max 10MB</p>
               </div>
             )}
           </div>
@@ -1178,7 +1174,7 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
               ) : (
                 <>
                   <Check className="mr-2 h-4 w-4" />
-                  {files.length > 1 ? `Upload ${files.length} Files` : 'Upload Document'}
+                  {files.length > 1 ? `Upload ${files.length} Files` : 'Upload Policy'}
                 </>
               )}
             </Button>
@@ -1190,47 +1186,48 @@ function UploadDialog({ open, onOpenChange, profileId, onSuccess }: UploadDialog
 }
 
 // ============================================
-// Loan Detail Modal Component
+// Policy Detail Modal Component
 // ============================================
 
-interface LoanDetailModalProps {
-  loan: Loan | null
+interface PolicyDetailModalProps {
+  policy: InsurancePolicy | null
   onOpenChange: (open: boolean) => void
   currencySymbol: string
   countryCode?: string
-  institutions?: { id: string; name: string; logo: string }[]
+  insuranceProviders?: { id: string; name: string; logo: string }[]
   accounts?: { id: string; institution?: string | null; accountName?: string | null }[]
   institutionsMap?: Record<string, string>
 }
 
-function LoanDetailSheet({
-  loan,
+function PolicyDetailSheet({
+  policy,
   onOpenChange,
   currencySymbol,
   countryCode,
-  institutions,
+  insuranceProviders,
   accounts,
   institutionsMap,
-}: LoanDetailModalProps) {
+}: PolicyDetailModalProps) {
   const [logoError, setLogoError] = useState(false)
   const [paymentLogoErrors, setPaymentLogoErrors] = useState<Record<string, boolean>>({})
-  // Fetch payment history and outstanding data
-  const { data: paymentHistory, isLoading: isLoadingPayments } = useLoanPaymentHistory(
-    loan?.id || ''
+  // Fetch payment history
+  const { data: paymentHistory, isLoading: isLoadingPayments } = useInsurancePaymentHistory(
+    policy?.id || ''
   )
-  const { data: outstandingData } = useLoanOutstanding(loan?.id || '')
 
-  if (!loan) return null
+  if (!policy) return null
 
-  const config = LOAN_TYPE_CONFIG[loan.loanType]
-  const Icon = config?.icon || Wallet
-  const details = loan.details as Record<string, unknown> | null
+  const config = POLICY_TYPE_CONFIG[policy.policyType]
+  const Icon = config?.icon || Shield
+  const details = policy.details as Record<string, unknown> | null
 
   // Get institution logo path if available
-  const institution = loan.institution ? institutions?.find((i) => i.id === loan.institution) : null
+  const institution = policy.institution
+    ? insuranceProviders?.find((p) => p.id === policy.institution)
+    : null
   const logoPath =
-    loan.institution && countryCode
-      ? `/institutions/${countryCode.toLowerCase()}/${loan.institution}.svg`
+    policy.institution && countryCode
+      ? `/institutions/${countryCode.toLowerCase()}/${policy.institution}.svg`
       : null
 
   // Get source account info for payment
@@ -1274,98 +1271,71 @@ function LoanDetailSheet({
     })
   }
 
-  // Use backend-calculated outstanding data (with proper amortization)
-  const totalPayable =
-    outstandingData?.totalPayable ??
-    (loan.emiAmount && loan.tenureMonths ? loan.emiAmount * loan.tenureMonths : null)
-  const totalInterest =
-    outstandingData?.totalInterest ??
-    (totalPayable && loan.principalAmount ? totalPayable - loan.principalAmount : null)
-  const totalPaid = outstandingData?.totalPaid ?? 0
-  const paymentCount = outstandingData?.paymentCount ?? 0
-  const emisCompleted = outstandingData?.emisCompleted ?? 0
-  const totalEmis = outstandingData?.totalEmis ?? loan.tenureMonths ?? 0
+  // Calculate total paid from payment history
+  const totalPaid = paymentHistory?.reduce((sum, p) => sum + p.amount, 0) ?? 0
+  const paymentCount = paymentHistory?.length ?? 0
 
-  // Principal progress (from backend amortization calculation)
-  const principalPaid = outstandingData?.principalPaid ?? 0
-  const outstandingPrincipal = outstandingData?.outstandingPrincipal ?? loan.principalAmount ?? 0
-  const principalProgressPercent = outstandingData?.principalProgressPercent ?? 0
+  // Calculate days until renewal
+  const getDaysUntilRenewal = () => {
+    if (!policy.endDate) return null
+    const endDate = new Date(policy.endDate)
+    const now = new Date()
+    const diffTime = endDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+  const daysUntilRenewal = getDaysUntilRenewal()
+  const isExpired = daysUntilRenewal !== null && daysUntilRenewal < 0
 
   // Get type-specific details
-  const getHomeLoanDetails = () => {
-    if (!details || loan.loanType !== 'home_loan') return null
+  const getLifeInsuranceDetails = () => {
+    if (!details || policy.policyType !== 'life_insurance') return null
     return {
-      propertyAddress: details.propertyAddress as string | undefined,
-      propertyType: (details.propertyType as string)?.replace(/_/g, ' '),
-      coBorrowerName: details.coBorrowerName as string | undefined,
-      collateralValue: details.collateralValue as number | undefined,
+      type: (details.lifeInsuranceType as string)?.replace(/_/g, ' '),
+      nomineeName: details.nomineeName as string | undefined,
+      nomineeRelation: details.nomineeRelation as string | undefined,
+      deathBenefit: details.deathBenefit as number | undefined,
+      maturityBenefit: details.maturityBenefit as number | undefined,
+      riders: details.riderDetails as string[] | undefined,
     }
   }
 
-  const getVehicleLoanDetails = () => {
-    if (!details || loan.loanType !== 'vehicle_loan') return null
+  const getHealthInsuranceDetails = () => {
+    if (!details || policy.policyType !== 'health_insurance') return null
     return {
+      type: (details.healthInsuranceType as string)?.replace(/_/g, ' '),
+      coveredMembers: details.coveredMembers as
+        | Array<{ name?: string; relation?: string; age?: number }>
+        | undefined,
+      roomRentLimit: details.roomRentLimit as string | number | undefined,
+      coPayPercentage: details.coPayPercentage as number | undefined,
+      preExistingWaitingPeriod: details.preExistingWaitingPeriod as string | undefined,
+      networkHospitals: details.networkHospitals as string | undefined,
+    }
+  }
+
+  const getVehicleInsuranceDetails = () => {
+    if (!details || policy.policyType !== 'vehicle_insurance') return null
+    return {
+      type: (details.vehicleInsuranceType as string)?.replace(/_/g, ' '),
       vehicleMake: details.vehicleMake as string | undefined,
       vehicleModel: details.vehicleModel as string | undefined,
       vehicleYear: details.vehicleYear as number | undefined,
       registrationNumber: details.registrationNumber as string | undefined,
-      vehicleType: (details.vehicleType as string)?.replace(/_/g, ' '),
+      idv: details.idv as number | undefined,
+      addOns: details.addOns as string[] | undefined,
     }
   }
 
-  const getEducationLoanDetails = () => {
-    if (!details || loan.loanType !== 'education_loan') return null
-    return {
-      institutionName: details.institutionName as string | undefined,
-      courseName: details.courseName as string | undefined,
-      studentName: details.studentName as string | undefined,
-      moratoriumPeriod: details.moratoriumPeriod as string | undefined,
-    }
-  }
-
-  const getBusinessLoanDetails = () => {
-    if (!details || loan.loanType !== 'business_loan') return null
-    return {
-      businessName: details.businessName as string | undefined,
-      loanPurpose: details.loanPurpose as string | undefined,
-      collateralDetails: details.collateralDetails as string | undefined,
-    }
-  }
-
-  const getGoldLoanDetails = () => {
-    if (!details || loan.loanType !== 'gold_loan') return null
-    return {
-      goldWeight: details.goldWeight as number | undefined,
-      goldPurity: details.goldPurity as string | undefined,
-      collateralValue: details.collateralValue as number | undefined,
-    }
-  }
-
-  const getPersonalLoanDetails = () => {
-    if (!details || loan.loanType !== 'personal_loan') return null
-    return {
-      loanPurpose: details.loanPurpose as string | undefined,
-    }
-  }
-
-  const homeDetails = getHomeLoanDetails()
-  const vehicleDetails = getVehicleLoanDetails()
-  const educationDetails = getEducationLoanDetails()
-  const businessDetails = getBusinessLoanDetails()
-  const goldDetails = getGoldLoanDetails()
-  const personalDetails = getPersonalLoanDetails()
+  const lifeDetails = getLifeInsuranceDetails()
+  const healthDetails = getHealthInsuranceDetails()
+  const vehicleDetails = getVehicleInsuranceDetails()
 
   // Check if there are any type-specific details to show
-  const hasTypeDetails =
-    homeDetails ||
-    vehicleDetails ||
-    educationDetails ||
-    businessDetails ||
-    goldDetails ||
-    (personalDetails && personalDetails.loanPurpose)
+  const hasTypeDetails = lifeDetails || healthDetails || vehicleDetails
 
   return (
-    <Dialog open={!!loan} onOpenChange={onOpenChange}>
+    <Dialog open={!!policy} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-2xl p-0 gap-0 overflow-hidden max-h-[90vh]"
         showCloseButton={false}
@@ -1398,30 +1368,22 @@ function LoanDetailSheet({
                       ? config?.bgColor || 'bg-primary/10'
                       : 'bg-surface-elevated border border-border-subtle',
                     !logoPath || logoError
-                      ? loan.loanType === 'home_loan' && 'from-blue-500/20 to-blue-600/20'
+                      ? policy.policyType === 'life_insurance' && 'from-blue-500/20 to-blue-600/20'
                       : '',
                     !logoPath || logoError
-                      ? loan.loanType === 'vehicle_loan' && 'from-amber-500/20 to-amber-600/20'
+                      ? policy.policyType === 'health_insurance' &&
+                          'from-rose-500/20 to-rose-600/20'
                       : '',
                     !logoPath || logoError
-                      ? loan.loanType === 'education_loan' &&
-                          'from-emerald-500/20 to-emerald-600/20'
-                      : '',
-                    !logoPath || logoError
-                      ? loan.loanType === 'personal_loan' && 'from-violet-500/20 to-violet-600/20'
-                      : '',
-                    !logoPath || logoError
-                      ? loan.loanType === 'business_loan' && 'from-orange-500/20 to-orange-600/20'
-                      : '',
-                    !logoPath || logoError
-                      ? loan.loanType === 'gold_loan' && 'from-yellow-500/20 to-yellow-600/20'
+                      ? policy.policyType === 'vehicle_insurance' &&
+                          'from-amber-500/20 to-amber-600/20'
                       : ''
                   )}
                 >
                   {logoPath && !logoError ? (
                     <img
                       src={logoPath}
-                      alt={institution?.name || loan.lender}
+                      alt={institution?.name || policy.provider}
                       className="h-8 w-8 object-contain"
                       onError={() => setLogoError(true)}
                     />
@@ -1431,7 +1393,7 @@ function LoanDetailSheet({
                 </div>
                 <div className="min-w-0">
                   <DialogTitle className="text-xl font-semibold truncate">
-                    {institution?.name || loan.lender}
+                    {institution?.name || policy.provider}
                   </DialogTitle>
                   <div className="flex items-center gap-2 mt-1">
                     <span
@@ -1441,11 +1403,11 @@ function LoanDetailSheet({
                         config?.color
                       )}
                     >
-                      {config?.label.replace('s', '')}
+                      {config?.label}
                     </span>
-                    {loan.loanAccountNumber && (
+                    {policy.policyNumber && (
                       <span className="text-sm text-muted-foreground font-mono">
-                        {loan.loanAccountNumber}
+                        {policy.policyNumber}
                       </span>
                     )}
                   </div>
@@ -1456,12 +1418,12 @@ function LoanDetailSheet({
               <div
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
-                  loan.status === 'active'
+                  policy.status === 'active' && !isExpired
                     ? 'bg-positive/10 text-positive'
                     : 'bg-muted text-muted-foreground'
                 )}
               >
-                {loan.status === 'active' ? (
+                {policy.status === 'active' && !isExpired ? (
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-positive opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-positive"></span>
@@ -1469,7 +1431,7 @@ function LoanDetailSheet({
                 ) : (
                   <CheckCircle2 className="h-3 w-3" />
                 )}
-                <span className="capitalize">{loan.status}</span>
+                <span className="capitalize">{isExpired ? 'Expired' : policy.status}</span>
               </div>
             </div>
           </DialogHeader>
@@ -1478,114 +1440,104 @@ function LoanDetailSheet({
         {/* Scrollable content */}
         <ScrollArea className="max-h-[calc(90vh-180px)]">
           <div className="p-6 space-y-6">
-            {/* Progress Section - Hero element */}
-            {loan.principalAmount && loan.principalAmount > 0 && (
-              <div className="relative rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated to-card p-5 overflow-hidden">
-                {/* Background decoration */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
+            {/* Coverage Summary Section */}
+            <div className="relative rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated to-card p-5 overflow-hidden">
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
 
-                <div className="relative">
-                  {/* Progress header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Target className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Principal Progress</p>
-                        <p className="text-xs text-muted-foreground">
-                          {emisCompleted} of {totalEmis} EMIs completed
-                        </p>
-                      </div>
+              <div className="relative">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-positive/10 flex items-center justify-center">
+                      <Shield className="h-4 w-4 text-positive" />
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold tabular-nums text-primary">
-                        {Math.round(principalProgressPercent)}%
+                    <div>
+                      <p className="text-sm font-medium">Coverage Summary</p>
+                      <p className="text-xs text-muted-foreground">
+                        {daysUntilRenewal !== null &&
+                          (isExpired
+                            ? `Expired ${Math.abs(daysUntilRenewal)} days ago`
+                            : daysUntilRenewal <= 30
+                              ? `Renews in ${daysUntilRenewal} days`
+                              : `Valid until ${formatDate(policy.endDate)}`)}
                       </p>
                     </div>
                   </div>
+                  {daysUntilRenewal !== null && daysUntilRenewal <= 30 && daysUntilRenewal > 0 && (
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      Renewal Soon
+                    </span>
+                  )}
+                </div>
 
-                  {/* Progress bar */}
-                  <div className="relative h-3 bg-muted rounded-full overflow-hidden mb-4">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-emerald-400 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${principalProgressPercent}%` }}
-                    />
-                    {/* Shine effect */}
-                    <div
-                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full"
-                      style={{ width: `${principalProgressPercent}%` }}
-                    />
+                {/* Amount breakdown */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-3 rounded-xl bg-positive/5 border border-positive/10">
+                    <p className="text-xs text-muted-foreground mb-1">Sum Insured</p>
+                    <p className="text-base font-semibold tabular-nums text-positive">
+                      {currencySymbol}
+                      {formatAmount(policy.sumInsured)}
+                    </p>
                   </div>
-
-                  {/* Principal breakdown */}
-                  <div className="grid grid-cols-3 gap-3 mb-3">
-                    <div className="text-center p-3 rounded-xl bg-positive/5 border border-positive/10">
-                      <p className="text-xs text-muted-foreground mb-1">Principal Paid</p>
-                      <p className="text-base font-semibold tabular-nums text-positive">
-                        {currencySymbol}
-                        {formatAmount(principalPaid)}
+                  <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                    <p className="text-xs text-muted-foreground mb-1">Premium</p>
+                    <p className="text-base font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                      {policy.premiumAmount
+                        ? `${currencySymbol}${formatAmount(policy.premiumAmount)}`
+                        : '—'}
+                    </p>
+                    {policy.premiumFrequency && (
+                      <p className="text-xs text-muted-foreground">
+                        /{policy.premiumFrequency.replace('_', ' ')}
                       </p>
-                    </div>
-                    <div className="text-center p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
-                      <p className="text-xs text-muted-foreground mb-1">Outstanding</p>
-                      <p className="text-base font-semibold tabular-nums text-amber-600 dark:text-amber-400">
-                        {currencySymbol}
-                        {formatAmount(outstandingPrincipal)}
-                      </p>
-                    </div>
-                    <div className="text-center p-3 rounded-xl bg-muted/50 border border-border-subtle">
-                      <p className="text-xs text-muted-foreground mb-1">Principal</p>
-                      <p className="text-base font-semibold tabular-nums">
-                        {currencySymbol}
-                        {formatAmount(loan.principalAmount)}
-                      </p>
-                    </div>
+                    )}
                   </div>
-
-                  {/* Total paid info */}
-                  <div className="pt-3 border-t border-border-subtle flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Total Paid (incl. interest)</span>
-                    <span className="font-semibold tabular-nums">
+                  <div className="text-center p-3 rounded-xl bg-muted/50 border border-border-subtle">
+                    <p className="text-xs text-muted-foreground mb-1">Total Paid</p>
+                    <p className="text-base font-semibold tabular-nums">
                       {currencySymbol}
                       {formatAmount(totalPaid)}
-                    </span>
+                    </p>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Key Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <MetricCard
                 icon={Banknote}
-                label="Principal"
-                value={`${currencySymbol}${formatAmount(loan.principalAmount)}`}
+                label="Sum Insured"
+                value={`${currencySymbol}${formatAmount(policy.sumInsured)}`}
+                iconColor="text-positive"
+                iconBg="bg-positive/10"
+              />
+              <MetricCard
+                icon={Receipt}
+                label="Premium"
+                value={
+                  policy.premiumAmount
+                    ? `${currencySymbol}${formatAmount(policy.premiumAmount)}`
+                    : '—'
+                }
+                subtitle={policy.premiumFrequency?.replace('_', ' ') || undefined}
                 iconColor="text-blue-500"
                 iconBg="bg-blue-500/10"
               />
               <MetricCard
-                icon={CircleDollarSign}
-                label="EMI"
-                value={loan.emiAmount ? `${currencySymbol}${formatAmount(loan.emiAmount)}` : '—'}
-                subtitle="/month"
+                icon={Calendar}
+                label="Start Date"
+                value={formatDate(policy.startDate)}
                 iconColor="text-emerald-500"
                 iconBg="bg-emerald-500/10"
               />
               <MetricCard
-                icon={Percent}
-                label="Interest Rate"
-                value={loan.interestRate != null ? `${loan.interestRate}%` : '—'}
-                subtitle={loan.interestType || undefined}
-                iconColor="text-orange-500"
-                iconBg="bg-orange-500/10"
-              />
-              <MetricCard
-                icon={TrendingDown}
-                label="Total Interest"
-                value={totalInterest ? `${currencySymbol}${formatAmount(totalInterest)}` : '—'}
-                iconColor="text-rose-500"
-                iconBg="bg-rose-500/10"
+                icon={Clock}
+                label="End Date"
+                value={formatDate(policy.endDate)}
+                iconColor={isExpired ? 'text-destructive' : 'text-orange-500'}
+                iconBg={isExpired ? 'bg-destructive/10' : 'bg-orange-500/10'}
               />
             </div>
 
@@ -1609,43 +1561,27 @@ function LoanDetailSheet({
 
               {/* Details Tab */}
               <TabsContent value="details" className="mt-4 space-y-4">
-                {/* Loan Details */}
+                {/* Policy Information */}
                 <div className="rounded-xl border border-border-subtle bg-card overflow-hidden">
                   <div className="px-4 py-3 border-b border-border-subtle bg-surface-elevated">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      Loan Information
+                      Policy Information
                     </h3>
                   </div>
                   <div className="p-4 grid gap-0.5">
-                    {loan.borrowerName && (
-                      <DetailRowCompact icon={User} label="Borrower" value={loan.borrowerName} />
-                    )}
-                    {loan.tenureMonths != null && (
+                    {policy.policyHolderName && (
                       <DetailRowCompact
-                        icon={Clock}
-                        label="Tenure"
-                        value={
-                          loan.tenureMonths >= 12
-                            ? `${Math.floor(loan.tenureMonths / 12)} years ${loan.tenureMonths % 12 > 0 ? `${loan.tenureMonths % 12} months` : ''}`
-                            : `${loan.tenureMonths} months`
-                        }
+                        icon={User}
+                        label="Policy Holder"
+                        value={policy.policyHolderName}
                       />
                     )}
                     <DetailRowCompact
-                      icon={Calendar}
-                      label="Disbursement"
-                      value={formatDate(loan.disbursementDate)}
-                    />
-                    <DetailRowCompact
-                      icon={Calendar}
-                      label="First EMI"
-                      value={formatDate(loan.firstEmiDate)}
-                    />
-                    <DetailRowCompact
-                      icon={Calendar}
-                      label="End Date"
-                      value={formatDate(loan.endDate)}
+                      icon={BadgeCheck}
+                      label="Status"
+                      value={policy.status?.replace(/_/g, ' ')}
+                      capitalize
                     />
                   </div>
                 </div>
@@ -1655,74 +1591,163 @@ function LoanDetailSheet({
                   <div className="rounded-xl border border-border-subtle bg-card overflow-hidden">
                     <div className="px-4 py-3 border-b border-border-subtle bg-surface-elevated">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
-                        {loan.loanType === 'home_loan' && (
-                          <Home className="h-4 w-4 text-blue-500" />
+                        {policy.policyType === 'life_insurance' && (
+                          <Shield className="h-4 w-4 text-blue-500" />
                         )}
-                        {loan.loanType === 'vehicle_loan' && (
+                        {policy.policyType === 'health_insurance' && (
+                          <Heart className="h-4 w-4 text-rose-500" />
+                        )}
+                        {policy.policyType === 'vehicle_insurance' && (
                           <Car className="h-4 w-4 text-amber-500" />
                         )}
-                        {loan.loanType === 'education_loan' && (
-                          <GraduationCap className="h-4 w-4 text-emerald-500" />
-                        )}
-                        {loan.loanType === 'business_loan' && (
-                          <Briefcase className="h-4 w-4 text-orange-500" />
-                        )}
-                        {loan.loanType === 'gold_loan' && (
-                          <Coins className="h-4 w-4 text-yellow-500" />
-                        )}
-                        {loan.loanType === 'personal_loan' && (
-                          <Wallet className="h-4 w-4 text-violet-500" />
-                        )}
-                        {loan.loanType === 'home_loan' && 'Property Details'}
-                        {loan.loanType === 'vehicle_loan' && 'Vehicle Details'}
-                        {loan.loanType === 'education_loan' && 'Education Details'}
-                        {loan.loanType === 'business_loan' && 'Business Details'}
-                        {loan.loanType === 'gold_loan' && 'Gold Details'}
-                        {loan.loanType === 'personal_loan' && 'Loan Purpose'}
+                        {policy.policyType === 'life_insurance' && 'Life Insurance Details'}
+                        {policy.policyType === 'health_insurance' && 'Health Insurance Details'}
+                        {policy.policyType === 'vehicle_insurance' && 'Vehicle Details'}
                       </h3>
                     </div>
                     <div className="p-4 grid gap-0.5">
-                      {/* Home Loan */}
-                      {homeDetails && (
+                      {/* Life Insurance */}
+                      {lifeDetails && (
                         <>
-                          {homeDetails.propertyAddress && (
+                          {lifeDetails.type && (
                             <DetailRowCompact
-                              icon={MapPin}
-                              label="Address"
-                              value={homeDetails.propertyAddress}
-                            />
-                          )}
-                          {homeDetails.propertyType && (
-                            <DetailRowCompact
-                              icon={Building2}
-                              label="Type"
-                              value={homeDetails.propertyType}
+                              icon={FileText}
+                              label="Plan Type"
+                              value={lifeDetails.type}
                               capitalize
                             />
                           )}
-                          {homeDetails.coBorrowerName && (
+                          {lifeDetails.nomineeName && (
                             <DetailRowCompact
                               icon={User}
-                              label="Co-borrower"
-                              value={homeDetails.coBorrowerName}
+                              label="Nominee"
+                              value={`${lifeDetails.nomineeName}${lifeDetails.nomineeRelation ? ` (${lifeDetails.nomineeRelation})` : ''}`}
                             />
                           )}
-                          {homeDetails.collateralValue != null &&
-                            homeDetails.collateralValue > 0 && (
+                          {lifeDetails.deathBenefit != null && lifeDetails.deathBenefit > 0 && (
+                            <DetailRowCompact
+                              icon={Shield}
+                              label="Death Benefit"
+                              value={`${currencySymbol}${formatAmount(lifeDetails.deathBenefit)}`}
+                            />
+                          )}
+                          {lifeDetails.maturityBenefit != null &&
+                            lifeDetails.maturityBenefit > 0 && (
                               <DetailRowCompact
-                                icon={TrendingUp}
-                                label="Property Value"
-                                value={`${currencySymbol}${formatAmount(homeDetails.collateralValue)}`}
+                                icon={BadgeCheck}
+                                label="Maturity Benefit"
+                                value={`${currencySymbol}${formatAmount(lifeDetails.maturityBenefit)}`}
                               />
+                            )}
+                          {lifeDetails.riders && lifeDetails.riders.length > 0 && (
+                            <div className="py-2.5 border-b border-border-subtle last:border-0">
+                              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                                <Plus className="h-4 w-4" />
+                                <span className="text-sm">Riders</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 ml-6">
+                                {lifeDetails.riders.map((rider, i) => (
+                                  <span
+                                    key={i}
+                                    className="text-xs px-2 py-1 rounded-md bg-blue-500/10 text-blue-500"
+                                  >
+                                    {rider}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {/* Health Insurance */}
+                      {healthDetails && (
+                        <>
+                          {healthDetails.type && (
+                            <DetailRowCompact
+                              icon={FileText}
+                              label="Plan Type"
+                              value={healthDetails.type}
+                              capitalize
+                            />
+                          )}
+                          {healthDetails.roomRentLimit != null &&
+                            healthDetails.roomRentLimit !== 0 && (
+                              <DetailRowCompact
+                                icon={Building2}
+                                label="Room Rent"
+                                value={
+                                  healthDetails.roomRentLimit === 'no_limit'
+                                    ? 'No Limit'
+                                    : `${currencySymbol}${formatAmount(healthDetails.roomRentLimit as number)}/day`
+                                }
+                              />
+                            )}
+                          {healthDetails.coPayPercentage != null &&
+                            healthDetails.coPayPercentage > 0 && (
+                              <DetailRowCompact
+                                icon={Percent}
+                                label="Co-pay"
+                                value={`${healthDetails.coPayPercentage}%`}
+                              />
+                            )}
+                          {healthDetails.preExistingWaitingPeriod && (
+                            <DetailRowCompact
+                              icon={Clock}
+                              label="PED Waiting"
+                              value={healthDetails.preExistingWaitingPeriod}
+                            />
+                          )}
+                          {healthDetails.networkHospitals && (
+                            <DetailRowCompact
+                              icon={Building2}
+                              label="Network"
+                              value={healthDetails.networkHospitals}
+                            />
+                          )}
+                          {healthDetails.coveredMembers &&
+                            healthDetails.coveredMembers.length > 0 && (
+                              <div className="py-2.5 border-b border-border-subtle last:border-0">
+                                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                                  <Users className="h-4 w-4" />
+                                  <span className="text-sm">
+                                    Covered Members ({healthDetails.coveredMembers.length})
+                                  </span>
+                                </div>
+                                <div className="space-y-1.5 ml-6">
+                                  {healthDetails.coveredMembers.map((member, i) => (
+                                    <div key={i} className="text-sm flex items-center gap-2">
+                                      <span className="font-medium">{member.name || 'Member'}</span>
+                                      {member.relation && (
+                                        <span className="text-xs text-muted-foreground">
+                                          ({member.relation})
+                                        </span>
+                                      )}
+                                      {member.age && (
+                                        <span className="text-xs text-muted-foreground">
+                                          • {member.age} yrs
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                         </>
                       )}
-                      {/* Vehicle Loan */}
+                      {/* Vehicle Insurance */}
                       {vehicleDetails && (
                         <>
+                          {vehicleDetails.type && (
+                            <DetailRowCompact
+                              icon={FileText}
+                              label="Coverage"
+                              value={vehicleDetails.type}
+                              capitalize
+                            />
+                          )}
                           {(vehicleDetails.vehicleMake || vehicleDetails.vehicleModel) && (
                             <DetailRowCompact
-                              icon={Car}
+                              icon={CarFront}
                               label="Vehicle"
                               value={[
                                 vehicleDetails.vehicleMake,
@@ -1740,119 +1765,42 @@ function LoanDetailSheet({
                               value={vehicleDetails.registrationNumber}
                             />
                           )}
-                          {vehicleDetails.vehicleType && (
+                          {vehicleDetails.idv != null && vehicleDetails.idv > 0 && (
                             <DetailRowCompact
-                              icon={FileText}
-                              label="Type"
-                              value={vehicleDetails.vehicleType}
-                              capitalize
+                              icon={Shield}
+                              label="IDV"
+                              value={`${currencySymbol}${formatAmount(vehicleDetails.idv)}`}
                             />
+                          )}
+                          {vehicleDetails.addOns && vehicleDetails.addOns.length > 0 && (
+                            <div className="py-2.5 border-b border-border-subtle last:border-0">
+                              <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                                <Plus className="h-4 w-4" />
+                                <span className="text-sm">Add-ons</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 ml-6">
+                                {vehicleDetails.addOns.map((addon, i) => (
+                                  <span
+                                    key={i}
+                                    className="text-xs px-2 py-1 rounded-md bg-amber-500/10 text-amber-500"
+                                  >
+                                    {addon}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </>
-                      )}
-                      {/* Education Loan */}
-                      {educationDetails && (
-                        <>
-                          {educationDetails.institutionName && (
-                            <DetailRowCompact
-                              icon={Building2}
-                              label="Institution"
-                              value={educationDetails.institutionName}
-                            />
-                          )}
-                          {educationDetails.courseName && (
-                            <DetailRowCompact
-                              icon={FileText}
-                              label="Course"
-                              value={educationDetails.courseName}
-                            />
-                          )}
-                          {educationDetails.studentName && (
-                            <DetailRowCompact
-                              icon={User}
-                              label="Student"
-                              value={educationDetails.studentName}
-                            />
-                          )}
-                          {educationDetails.moratoriumPeriod && (
-                            <DetailRowCompact
-                              icon={Clock}
-                              label="Moratorium"
-                              value={educationDetails.moratoriumPeriod}
-                            />
-                          )}
-                        </>
-                      )}
-                      {/* Business Loan */}
-                      {businessDetails && (
-                        <>
-                          {businessDetails.businessName && (
-                            <DetailRowCompact
-                              icon={Building2}
-                              label="Business"
-                              value={businessDetails.businessName}
-                            />
-                          )}
-                          {businessDetails.loanPurpose && (
-                            <DetailRowCompact
-                              icon={FileText}
-                              label="Purpose"
-                              value={businessDetails.loanPurpose}
-                            />
-                          )}
-                          {businessDetails.collateralDetails && (
-                            <DetailRowCompact
-                              icon={BadgeCheck}
-                              label="Collateral"
-                              value={businessDetails.collateralDetails}
-                            />
-                          )}
-                        </>
-                      )}
-                      {/* Gold Loan */}
-                      {goldDetails && (
-                        <>
-                          {goldDetails.goldWeight != null && (
-                            <DetailRowCompact
-                              icon={Coins}
-                              label="Weight"
-                              value={`${goldDetails.goldWeight} grams`}
-                            />
-                          )}
-                          {goldDetails.goldPurity && (
-                            <DetailRowCompact
-                              icon={BadgeCheck}
-                              label="Purity"
-                              value={goldDetails.goldPurity}
-                            />
-                          )}
-                          {goldDetails.collateralValue != null &&
-                            goldDetails.collateralValue > 0 && (
-                              <DetailRowCompact
-                                icon={TrendingUp}
-                                label="Gold Value"
-                                value={`${currencySymbol}${formatAmount(goldDetails.collateralValue)}`}
-                              />
-                            )}
-                        </>
-                      )}
-                      {/* Personal Loan */}
-                      {personalDetails && personalDetails.loanPurpose && (
-                        <DetailRowCompact
-                          icon={FileText}
-                          label="Purpose"
-                          value={personalDetails.loanPurpose}
-                        />
                       )}
                     </div>
                   </div>
                 )}
 
                 {/* File Info */}
-                {loan.originalFilename && (
+                {policy.originalFilename && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
                     <FileText className="h-3 w-3" />
-                    <span>Source: {loan.originalFilename}</span>
+                    <span>Source: {policy.originalFilename}</span>
                   </div>
                 )}
               </TabsContent>
@@ -1906,7 +1854,7 @@ function LoanDetailSheet({
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-medium truncate">
-                                {payment.summary || 'EMI Payment'}
+                                {payment.summary || 'Premium Payment'}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {new Date(payment.date).toLocaleDateString('en-GB', {

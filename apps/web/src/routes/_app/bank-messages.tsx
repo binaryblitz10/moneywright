@@ -4,7 +4,6 @@
 
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Loader2, MessageSquareText, RefreshCw } from 'lucide-react'
-import { AppLayout } from '@/components/domain/app-layout'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,7 +22,7 @@ import {
   useSyncedSms,
 } from '@/hooks'
 
-export const Route = createFileRoute('/bank-messages')({
+export const Route = createFileRoute('/_app/bank-messages')({
   component: BankMessagesPage,
 })
 
@@ -63,7 +62,7 @@ function BankMessagesPage() {
     categories.find((c) => c.code === code)?.label || code.replace(/_/g, ' ')
 
   return (
-    <AppLayout>
+    <>
       <PageHeader
         title="Bank Messages"
         description="Card and bank alerts read from your Messages app"
@@ -139,6 +138,6 @@ function BankMessagesPage() {
           )}
         </div>
       )}
-    </AppLayout>
+    </>
   )
 }

@@ -9,6 +9,8 @@ export const getRouter = () => {
   const router = createRouter({
     routeTree,
     scrollRestoration: true,
+    // The layout persists across pages, so its scroll container must be reset on navigation
+    scrollToTopSelectors: ['.page-content'],
     defaultPreloadStaleTime: 0,
     defaultViewTransition: true,
   })

@@ -11,7 +11,6 @@ import {
   useReportBounds,
   useTrendsReport,
 } from '@/hooks'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -43,7 +42,7 @@ const searchSchema = z.object({
   to: monthParam,
 })
 
-export const Route = createFileRoute('/reports')({
+export const Route = createFileRoute('/_app/reports')({
   component: ReportsPage,
   validateSearch: searchSchema,
 })
@@ -98,7 +97,7 @@ function ReportsPage() {
     : 'Your money, month by month'
 
   return (
-    <AppLayout>
+    <>
       <PageHeader
         title="Reports"
         description={description}
@@ -161,7 +160,7 @@ function ReportsPage() {
           </TabsContent>
         </Tabs>
       )}
-    </AppLayout>
+    </>
   )
 }
 

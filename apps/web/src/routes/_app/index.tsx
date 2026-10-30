@@ -10,7 +10,6 @@ import {
   useProfileSelection,
   useDashboardWidgets,
 } from '@/hooks'
-import { AppLayout } from '@/components/domain/app-layout'
 import { ProfileSelector } from '@/components/domain/profile-selector'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { QueryError } from '@/components/ui/query-error'
@@ -58,7 +57,7 @@ import {
   MonthDetailModal,
 } from '@/components/dashboard'
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_app/')({
   component: DashboardPage,
 })
 
@@ -422,7 +421,7 @@ function DashboardPage() {
   }
 
   return (
-    <AppLayout>
+    <>
       <PageHeader
         title="Dashboard"
         description="Your financial overview"
@@ -512,6 +511,6 @@ function DashboardPage() {
         endDate={dateRange.endDate}
         onClose={() => setSelectedMonth(null)}
       />
-    </AppLayout>
+    </>
   )
 }
