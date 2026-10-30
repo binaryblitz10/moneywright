@@ -11,9 +11,10 @@ import type { AccountBalanceInfo } from '@/lib/api'
 
 interface AccountBalancesCardProps {
   accounts: AccountBalanceInfo[]
+  countryCode: string
 }
 
-export function AccountBalancesCard({ accounts }: AccountBalancesCardProps) {
+export function AccountBalancesCard({ accounts, countryCode }: AccountBalancesCardProps) {
   if (!accounts || accounts.length === 0) {
     return null
   }
@@ -37,7 +38,7 @@ export function AccountBalancesCard({ accounts }: AccountBalancesCardProps) {
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {accounts.map((account) => (
-          <AccountBalanceCard key={account.accountId} account={account} />
+          <AccountBalanceCard key={account.accountId} account={account} countryCode={countryCode} />
         ))}
       </div>
     </SectionCard>

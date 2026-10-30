@@ -444,7 +444,12 @@ function DashboardPage() {
         countryCode={user?.country?.toLowerCase() || 'in'}
       />
     ),
-    account_balances: <AccountBalancesCard accounts={allAccounts} />,
+    account_balances: (
+      <AccountBalancesCard
+        accounts={allAccounts}
+        countryCode={user?.country?.toLowerCase() || 'in'}
+      />
+    ),
   }
 
   return (

@@ -2,6 +2,7 @@
  * Account Balance Card component
  */
 
+import { useState } from 'react'
 import { CreditCard, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatDate } from './utils'
@@ -9,9 +10,14 @@ import type { AccountBalanceInfo } from '@/lib/api'
 
 interface AccountBalanceCardProps {
   account: AccountBalanceInfo
+  countryCode: string
 }
 
-export function AccountBalanceCard({ account }: AccountBalanceCardProps) {
+export function AccountBalanceCard({ account, countryCode }: AccountBalanceCardProps) {
+  const [logoError, setLogoError] = useState(false)
+  const logoPath = account.institution
+    ? `/institutions/${countryCode}/${account.institution}.svg`
+    : null
   const hasBalance = account.latestBalance !== null
   const isZero = account.latestBalance === 0
 
@@ -23,7 +29,14 @@ export function AccountBalanceCard({ account }: AccountBalanceCardProps) {
           'bg-surface border-border-subtle'
         )}
       >
-        {account.type === 'credit_card' ? (
+        {logoPath && !logoError ? (
+          <img
+            src={logoPath}
+            alt={account.institution ?? ''}
+            className="h-6 w-6 object-contain"
+            onError={() => setLogoError(true)}
+          />
+        ) : account.type === 'credit_card' ? (
           <CreditCard className="h-5 w-5 text-muted-foreground" />
         ) : (
           <Building2 className="h-5 w-5 text-muted-foreground" />
