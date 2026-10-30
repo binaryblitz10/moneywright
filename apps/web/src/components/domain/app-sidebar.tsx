@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,11 @@ interface AppSidebarProps {
 export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  // The pressed item is highlighted straight away and stays so until the location catches up,
+  // so the colour never goes back to idle between press, release and the route changing
+  const [pressed, setPressed] = useState<{ href: string; from: string } | null>(null)
+  const clickedRef = useRef(false)
+  const activeHref = pressed?.from === location.pathname ? pressed.href : location.pathname
   const { updateAvailable, isReady, restartToUpdate, dismissUpdate } = useUpdateChecker()
 
   // Items waiting in the Review queues
@@ -44,18 +50,29 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const navGroups = getNavGroups(!!smsStatus?.enabled)
 
   const renderNavItem = (item: NavItem) => {
-    const isActive = location.pathname === item.href
+    const isActive = activeHref === item.href
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
+          onPointerDown={() => {
+            clickedRef.current = false
+            setPressed({ href: item.href, from: location.pathname })
+          }}
+          onPointerLeave={() => {
+            if (!clickedRef.current) setPressed(null)
+          }}
           onClick={() => {
+            clickedRef.current = true
             markSidebarNavigation()
-            navigate({ to: item.href })
+            // Drop the pressed mark once navigation settles, even if the location never moved
+            void navigate({ to: item.href, viewTransition: false }).finally(() =>
+              setPressed((current) => (current?.href === item.href ? null : current))
+            )
           }}
           isActive={isActive}
           className={cn(
-            'relative h-8 transition-all duration-200',
-            isActive && 'text-foreground font-medium',
+            'relative h-8 transition-colors duration-50',
+            isActive && 'text-foreground data-[active=true]:font-normal',
             !isActive && 'text-muted-foreground hover:text-foreground hover:bg-surface-hover'
           )}
         >

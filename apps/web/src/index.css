@@ -333,6 +333,16 @@
   animation: none;
 }
 
+/* The sidebar is part of root: show its new state straight away instead of
+   cross-fading it, which reads as a flash on the icon and active bar */
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
 ::view-transition-old(page-content),
 ::view-transition-new(page-content) {
   animation-duration: 160ms;
