@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, CircleCheck, Copy, FileWarning, MessageSquareWarning } from 'lucide-react'
+import { ChevronRight, Copy, FileWarning, MessageSquareWarning, ShieldCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -38,10 +38,15 @@ function Row({
 export function ReviewHealth({ duplicateGroups, possibleMatches, dataIssues }: ReviewHealthProps) {
   if (duplicateGroups + possibleMatches + dataIssues === 0) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <CircleCheck className="h-4 w-4 text-positive" />
-        No data health issues
-      </p>
+      <div className="flex items-center gap-3 rounded-xl border border-positive/15 bg-positive/5 px-3 py-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-positive/15">
+          <ShieldCheck className="h-4 w-4 text-positive" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-tight">Data health is good</p>
+          <p className="text-xs text-muted-foreground">No duplicates, gaps or balance issues</p>
+        </div>
+      </div>
     )
   }
 
