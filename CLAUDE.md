@@ -394,6 +394,13 @@ Whenever a new feature is added, **ask the user explicitly** whether it should a
 
 If yes, add the tool in `apps/api/src/services/chat/tools.ts`, reusing the feature's existing service functions, and mention it in the "Picking the right tool" list in `apps/api/src/services/chat/prompt.ts`.
 
+## Adding a Dashboard Widget
+
+1. Add the widget to `DASHBOARD_WIDGETS` in `apps/web/src/lib/dashboard-widgets.ts` (group `cards` or `sections`), and render it in `apps/web/src/routes/_app/index.tsx` (`statCardNodes` or `sectionNodes`).
+2. Sections that should share a row with a neighbour go in `HALF_WIDTH_SECTIONS`. A section left alone in its row takes the full row, and users can force full width in Settings, so build half-width cards to stretch (`className="h-full"`) and look right at both widths.
+3. Every section widget uses `SectionCard` with a **subtitle** (`description`), such as the timeframe label or a count. Without one its content starts lower than its neighbour's. Keep the subtitle line while loading (for example `'\u00A0'`) so the content doesn't shift.
+4. Hiding any widget in Settings must leave no gap, so check the page with a few widgets switched off.
+
 ## Adding a UI Component
 
 1. Check if shadcn/ui has it: https://ui.shadcn.com
