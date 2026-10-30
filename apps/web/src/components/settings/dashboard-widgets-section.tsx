@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import { Reorder, useDragControls } from 'motion/react'
 import { ChevronDown, ChevronUp, GripVertical, LayoutGrid, PanelsTopLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,22 +20,126 @@ import {
 } from '@/lib/dashboard-widgets'
 import { cn } from '@/lib/utils'
 
-const GROUP_ICONS: Record<(typeof DASHBOARD_WIDGET_GROUPS)[number]['id'], LucideIcon> = {
+type WidgetGroupId = (typeof DASHBOARD_WIDGET_GROUPS)[number]['id']
+type WidgetDefinition = (typeof DASHBOARD_WIDGETS)[number]
+
+const GROUP_ICONS: Record<WidgetGroupId, LucideIcon> = {
   cards: LayoutGrid,
   sections: PanelsTopLeft,
 }
 
+interface WidgetRowProps {
+  widget: WidgetDefinition
+  visible: boolean
+  isFullWidth: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onVisibleChange: (visible: boolean) => void
+  onFullWidthChange: (full: boolean) => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onDragEnd: () => void
+}
+
+/** One draggable row; only the grip starts a drag, so the switch and buttons stay clickable */
+function WidgetRow({
+  widget,
+  visible,
+  isFullWidth,
+  canMoveUp,
+  canMoveDown,
+  onVisibleChange,
+  onFullWidthChange,
+  onMoveUp,
+  onMoveDown,
+  onDragEnd,
+}: WidgetRowProps) {
+  const controls = useDragControls()
+  const [dragging, setDragging] = useState(false)
+  const switchId = `dashboard-widget-${widget.id}`
+
+  return (
+    <Reorder.Item
+      value={widget.id}
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={() => setDragging(true)}
+      onDragEnd={() => {
+        setDragging(false)
+        onDragEnd()
+      }}
+      className={cn(
+        'relative flex select-none items-center gap-2 px-3 py-2.5 transition-colors hover:bg-primary/5',
+        dragging && 'z-10 bg-card shadow-lg hover:bg-card'
+      )}
+    >
+      <div
+        className="cursor-grab touch-none active:cursor-grabbing"
+        onPointerDown={(e) => controls.start(e)}
+        aria-hidden
+      >
+        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+      </div>
+      <Label htmlFor={switchId} className="flex-1 cursor-pointer text-sm font-normal">
+        {widget.label}
+      </Label>
+      {!isCardWidget(widget.id) && HALF_WIDTH_SECTIONS.has(widget.id) && (
+        <Button
+          variant={isFullWidth ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-7 px-2 text-xs"
+          aria-pressed={isFullWidth}
+          title="Auto shares a row with a neighbour; Full width always gets its own row"
+          onClick={() => onFullWidthChange(!isFullWidth)}
+        >
+          {isFullWidth ? 'Full width' : 'Auto'}
+        </Button>
+      )}
+      <div className="flex items-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label={`Move ${widget.label} up`}
+          disabled={!canMoveUp}
+          onClick={onMoveUp}
+        >
+          <ChevronUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label={`Move ${widget.label} down`}
+          disabled={!canMoveDown}
+          onClick={onMoveDown}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </div>
+      <Switch id={switchId} checked={visible} onCheckedChange={onVisibleChange} />
+    </Reorder.Item>
+  )
+}
+
 export function DashboardWidgetsSection() {
-  const { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, isLoading } =
+  const { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, setOrder, isLoading } =
     useDashboardWidgets()
-  const [draggingId, setDraggingId] = useState<DashboardWidgetId | null>(null)
-  const [dropTargetId, setDropTargetId] = useState<DashboardWidgetId | null>(null)
+  // Order of the group being dragged: kept locally so rows slide as the grip moves, and saved
+  // once on drop instead of on every swap
+  const [draft, setDraft] = useState<{ group: WidgetGroupId; ids: DashboardWidgetId[] } | null>(
+    null
+  )
 
   if (isLoading) return null
 
-  const endDrag = () => {
-    setDraggingId(null)
-    setDropTargetId(null)
+  /** Put the dragged group's new order back into the complete widget order */
+  const saveDraft = () => {
+    if (!draft) return
+    const groupIds = new Set<DashboardWidgetId>(draft.ids)
+    const queue = [...draft.ids]
+    setOrder(order.map((id) => (groupIds.has(id) ? queue.shift()! : id)))
+    setDraft(null)
   }
 
   return (
@@ -44,9 +149,12 @@ export function DashboardWidgetsSection() {
     >
       <div className="grid gap-4 lg:grid-cols-2">
         {DASHBOARD_WIDGET_GROUPS.map((group) => {
-          const widgets = order
+          const savedIds = order.filter(
+            (id) => DASHBOARD_WIDGETS.find((w) => w.id === id)?.group === group.id
+          )
+          const ids = draft?.group === group.id ? draft.ids : savedIds
+          const widgets = ids
             .map((id) => DASHBOARD_WIDGETS.find((w) => w.id === id))
-            .filter((w) => w?.group === group.id)
             .filter((w) => w !== undefined)
           const shown = widgets.filter((w) => isVisible(w.id)).length
           const GroupIcon = GROUP_ICONS[group.id]
@@ -62,95 +170,28 @@ export function DashboardWidgetsSection() {
                   {shown} of {widgets.length} shown
                 </span>
               </div>
-              <div className="divide-y divide-border-subtle">
-                {widgets.map((widget, index) => {
-                  const switchId = `dashboard-widget-${widget.id}`
-                  const previous = widgets[index - 1]
-                  const next = widgets[index + 1]
-                  const isGroupDrag =
-                    draggingId !== null &&
-                    DASHBOARD_WIDGETS.find((w) => w.id === draggingId)?.group === group.id
-                  return (
-                    <div
-                      key={widget.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = 'move'
-                        setDraggingId(widget.id)
-                      }}
-                      onDragOver={(e) => {
-                        if (!isGroupDrag) return
-                        e.preventDefault()
-                        setDropTargetId(widget.id)
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        if (isGroupDrag && draggingId) reorder(draggingId, widget.id)
-                        endDrag()
-                      }}
-                      onDragEnd={endDrag}
-                      className={cn(
-                        'flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-primary/5',
-                        draggingId === widget.id && 'opacity-50',
-                        isGroupDrag &&
-                          dropTargetId === widget.id &&
-                          draggingId !== widget.id &&
-                          'bg-primary/10'
-                      )}
-                    >
-                      <GripVertical
-                        className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/60"
-                        aria-hidden
-                      />
-                      <Label
-                        htmlFor={switchId}
-                        className="flex-1 cursor-pointer text-sm font-normal"
-                      >
-                        {widget.label}
-                      </Label>
-                      {!isCardWidget(widget.id) && HALF_WIDTH_SECTIONS.has(widget.id) && (
-                        <Button
-                          variant={fullWidth.has(widget.id) ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          aria-pressed={fullWidth.has(widget.id)}
-                          title="Auto shares a row with a neighbour; Full width always gets its own row"
-                          onClick={() => setFullWidth(widget.id, !fullWidth.has(widget.id))}
-                        >
-                          {fullWidth.has(widget.id) ? 'Full width' : 'Auto'}
-                        </Button>
-                      )}
-                      <div className="flex items-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label={`Move ${widget.label} up`}
-                          disabled={!previous}
-                          onClick={() => previous && reorder(widget.id, previous.id)}
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label={`Move ${widget.label} down`}
-                          disabled={!next}
-                          onClick={() => next && reorder(widget.id, next.id)}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <Switch
-                        id={switchId}
-                        checked={isVisible(widget.id)}
-                        onCheckedChange={(checked) => setVisible(widget.id, checked)}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
+              <Reorder.Group
+                axis="y"
+                values={ids}
+                onReorder={(next) => setDraft({ group: group.id, ids: next })}
+                className="divide-y divide-border-subtle"
+              >
+                {widgets.map((widget, index) => (
+                  <WidgetRow
+                    key={widget.id}
+                    widget={widget}
+                    visible={isVisible(widget.id)}
+                    isFullWidth={fullWidth.has(widget.id)}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < widgets.length - 1}
+                    onVisibleChange={(visible) => setVisible(widget.id, visible)}
+                    onFullWidthChange={(full) => setFullWidth(widget.id, full)}
+                    onMoveUp={() => reorder(widget.id, widgets[index - 1]!.id)}
+                    onMoveDown={() => reorder(widget.id, widgets[index + 1]!.id)}
+                    onDragEnd={saveDraft}
+                  />
+                ))}
+              </Reorder.Group>
             </div>
           )
         })}

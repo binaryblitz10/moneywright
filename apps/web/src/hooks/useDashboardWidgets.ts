@@ -76,5 +76,11 @@ export function useDashboardWidgets(enabled: boolean = true) {
     [order, savePreference]
   )
 
-  return { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, isLoading }
+  /** Save a complete new order */
+  const setOrder = useCallback(
+    (ids: DashboardWidgetId[]) => savePreference(PREFERENCE_KEYS.DASHBOARD_WIDGET_ORDER, ids),
+    [savePreference]
+  )
+
+  return { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, setOrder, isLoading }
 }
