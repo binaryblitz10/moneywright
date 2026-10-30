@@ -62,4 +62,67 @@ describe('computeCardBalance', () => {
       lastPaymentDate: null,
     })
   })
+
+  describe('with activity on the card since the statement', () => {
+    const charge = (date: string, amount: number) => ({
+      date,
+      type: 'debit' as const,
+      amount,
+      category: 'shopping',
+    })
+    const payment = (date: string, amount: number) => ({
+      date,
+      type: 'credit' as const,
+      amount,
+      category: 'credit_card_payment',
+    })
+
+    test('a paid statement still owes the charges made since', () => {
+      const r = computeCardBalance(
+        52393.27,
+        END,
+        [{ date: '2026-10-19', amount: 52393.27 }],
+        [
+          charge('2026-10-20', 30000),
+          charge('2026-10-26', 6510.67),
+          payment('2026-10-19', 52393.27),
+        ]
+      )
+      expect(r.balance).toBe(36510.67)
+      expect(r.paymentsSinceStatement).toBe(52393.27)
+    })
+
+    test('a payment seen on both sides is counted once', () => {
+      const r = computeCardBalance(
+        1000,
+        END,
+        [{ date: '2026-10-05', amount: 1000 }],
+        [payment('2026-10-06', 1000)]
+      )
+      expect(r.balance).toBe(0)
+      expect(r.paymentsSinceStatement).toBe(1000)
+    })
+
+    test('a payment only seen on the card still counts', () => {
+      const r = computeCardBalance(1000, END, [], [payment('2026-10-06', 1000)])
+      expect(r.balance).toBe(0)
+      expect(r.lastPaymentDate).toBe('2026-10-06')
+    })
+
+    test('refunds reduce the balance but are not payments', () => {
+      const r = computeCardBalance(
+        1000,
+        END,
+        [],
+        [{ date: '2026-10-08', type: 'credit', amount: 200, category: 'shopping' }]
+      )
+      expect(r.balance).toBe(800)
+      expect(r.paymentsSinceStatement).toBe(0)
+    })
+
+    test('activity on or before the statement end is already in the statement', () => {
+      const r = computeCardBalance(1000, END, [], [charge(END, 500), charge('2026-09-01', 500)])
+      expect(r.balance).toBe(1000)
+    })
+  })
 })

@@ -7,7 +7,7 @@ import { getAccountTypesForCountry, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
 import { accountNumbersMatch, getLast4 } from '../lib/account-number'
 import { getLoanLiabilities, type LoanLiabilityInfo } from './loans'
-import { computeCardBalance, type LinkedCardPayment } from './card-balance'
+import { computeCardBalance, type CardActivity, type LinkedCardPayment } from './card-balance'
 
 /**
  * Account service
@@ -91,7 +91,7 @@ export interface AccountWithBalance extends AccountResponse {
 
 /**
  * Latest balance for an account: the closing balance of the most recent completed statement.
- * For credit cards, linked bank payments made after the statement end are subtracted.
+ * For credit cards this is brought up to date with the charges, refunds and payments since.
  */
 async function getLatestAccountBalance(
   account: Pick<Account, 'id' | 'type'>,
@@ -125,7 +125,31 @@ async function getLatestAccountBalance(
   const statementDate = latestStatement?.periodEnd ?? null
 
   let payments: LinkedCardPayment[] = []
+  let activity: CardActivity[] = []
   if (account.type === 'credit_card' && statementBalance !== null && statementDate) {
+    const cardRows = await db
+      .select({
+        date: tables.transactions.date,
+        type: tables.transactions.type,
+        amount: tables.transactions.amount,
+        category: tables.transactions.category,
+      })
+      .from(tables.transactions)
+      .where(
+        and(
+          eq(tables.transactions.userId, userId),
+          eq(tables.transactions.accountId, account.id),
+          eq(tables.transactions.isHidden, false),
+          gt(tables.transactions.date, statementDate)
+        )
+      )
+    activity = cardRows.map((r) => ({
+      date: String(r.date),
+      type: r.type === 'credit' ? 'credit' : 'debit',
+      amount: typeof r.amount === 'string' ? parseFloat(r.amount) : Number(r.amount),
+      category: r.category,
+    }))
+
     const rows = await db
       .select({ date: tables.transactions.date, amount: tables.transactions.amount })
       .from(tables.transactions)
@@ -145,7 +169,7 @@ async function getLatestAccountBalance(
     }))
   }
 
-  const result = computeCardBalance(statementBalance, statementDate, payments)
+  const result = computeCardBalance(statementBalance, statementDate, payments, activity)
   return {
     balance: account.type === 'credit_card' ? result.balance : statementBalance,
     statementBalance,
