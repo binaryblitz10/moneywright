@@ -13,6 +13,7 @@ interface AccountBalanceCardProps {
 
 export function AccountBalanceCard({ account }: AccountBalanceCardProps) {
   const hasBalance = account.latestBalance !== null
+  const isZero = account.latestBalance === 0
 
   return (
     <div className="flex items-center gap-3 p-3.5 rounded-lg bg-surface-elevated border border-border-subtle hover:border-border-hover transition-colors">
@@ -42,18 +43,12 @@ export function AccountBalanceCard({ account }: AccountBalanceCardProps) {
             <p
               className={cn(
                 'text-sm font-semibold tabular-nums',
-                account.isLiability ? 'text-negative' : 'text-positive'
+                isZero ? 'text-foreground' : account.isLiability ? 'text-negative' : 'text-positive'
               )}
             >
-              {account.isLiability ? '-' : ''}
+              {account.isLiability && !isZero ? '-' : ''}
               {formatCurrency(account.latestBalance!, account.currency)}
             </p>
-            {(account.paymentsSinceStatement ?? 0) > 0 && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {formatCurrency(account.paymentsSinceStatement!, account.currency)} paid since
-                statement
-              </p>
-            )}
             {account.latestStatementDate && (
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {formatDate(account.latestStatementDate)}
