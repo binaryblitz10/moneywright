@@ -85,19 +85,19 @@ function SettingsPage() {
   })
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader
         title="Settings"
         description="Manage your profiles, security, data, rules, AI providers and dashboard"
       />
 
-      <div className="flex max-w-5xl flex-col overflow-hidden rounded-xl border border-border-subtle bg-card shadow-sm md:flex-row">
+      <div className="flex min-h-0 max-w-[1600px] flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-card shadow-sm md:flex-row">
         <SettingsNav
           active={section}
           onChange={(next) => navigate({ search: { section: next }, replace: true })}
         />
 
-        <div className="min-w-0 flex-1 [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none [&>[data-slot=card]+[data-slot=card]]:border-t [&>[data-slot=card]+[data-slot=card]]:border-border-subtle">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none [&>[data-slot=card]+[data-slot=card]]:border-t [&>[data-slot=card]+[data-slot=card]]:border-border-subtle">
           {section === 'general' && (
             <>
               {profilesError ? (
@@ -161,6 +161,6 @@ function SettingsPage() {
           )}
         </div>
       </div>
-    </>
+    </div>
   )
 }
