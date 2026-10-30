@@ -102,7 +102,7 @@ export function CreditCardDisplay({
   const statementEnd = account.cardStatement?.periodEnd ?? account.latestStatementDate
   const statementRange = statementEnd
     ? statementStart
-      ? `${formatShortDate(statementStart, false)} – ${formatShortDate(statementEnd, true)}`
+      ? `${formatShortDate(statementStart, statementStart.slice(0, 4) !== statementEnd.slice(0, 4))} – ${formatShortDate(statementEnd, true)}`
       : `as of ${formatShortDate(statementEnd, true)}`
     : null
 
@@ -378,7 +378,7 @@ export function CreditCardDetailModal({
   return (
     <Dialog open={!!account} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-2xl p-0 gap-0 overflow-hidden max-h-[90vh]"
+        className="sm:max-w-xl p-0 gap-0 overflow-hidden max-h-[90vh]"
         showCloseButton={false}
       >
         {/* Header with gradient background */}
