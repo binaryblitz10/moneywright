@@ -53,6 +53,7 @@ import {
   SpendingByCategoryCard,
   IncomeByCategoryCard,
   BudgetsCard,
+  ReviewCard,
   SubscriptionsCard,
   AccountBalancesCard,
   MonthDetailModal,
@@ -428,6 +429,15 @@ function DashboardPage() {
         currency={subscriptionsData?.currency || 'INR'}
         getCategoryLabel={getCategoryLabel}
         isLoading={subscriptionsLoading}
+        countryCode={user?.country?.toLowerCase() || 'in'}
+      />
+    ),
+    review: (
+      <ReviewCard
+        className="h-full"
+        profileId={profileId}
+        enabled={queryEnabled}
+        categories={categories}
         countryCode={user?.country?.toLowerCase() || 'in'}
       />
     ),

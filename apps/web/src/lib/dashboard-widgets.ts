@@ -17,6 +17,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'what_changed', label: 'What changed', group: 'sections' },
   { id: 'budgets', label: 'Budgets', group: 'sections' },
   { id: 'subscriptions', label: 'Subscriptions', group: 'sections' },
+  { id: 'review', label: 'Review', group: 'sections' },
   { id: 'account_balances', label: 'Account balances', group: 'sections' },
 ] as const
 
@@ -91,6 +92,7 @@ export const HALF_WIDTH_SECTIONS: ReadonlySet<SectionWidgetId> = new Set([
   'what_changed',
   'budgets',
   'subscriptions',
+  'review',
 ])
 
 /** Group ordered sections into dashboard rows: neighbouring half-width sections pair up */

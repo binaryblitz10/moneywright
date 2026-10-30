@@ -54,6 +54,7 @@ export {
   useDismissDuplicates,
   useDuplicateGroups,
   useReviewCounts,
+  useResolveReviewItem,
   usePossibleMatches,
   useResolvePossibleMatch,
   useLinkTransactions,

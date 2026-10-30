@@ -241,6 +241,31 @@ export function useBulkUpdateTransactions() {
 }
 
 /**
+ * Settle one review item: set its category, or confirm the one it has.
+ * No toast per item, so working through a queue stays quiet; the next item showing is the feedback.
+ */
+export function useResolveReviewItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      transactionId,
+      category,
+    }: {
+      transactionId: string
+      category?: string
+    }): Promise<void> => {
+      if (category) await updateTransaction(transactionId, { category })
+      else await bulkUpdateTransactions({ transactionIds: [transactionId], confirmCategory: true })
+    },
+    onSuccess: () => invalidateTransactionTotals(queryClient),
+    onError: () => {
+      toast.error('Failed to update transaction')
+    },
+  })
+}
+
+/**
  * Find groups of likely duplicate transactions
  */
 export function useDuplicateGroups(

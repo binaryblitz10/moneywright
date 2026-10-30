@@ -672,7 +672,7 @@ function SortableHeading({
 }
 
 // Round badge with the account's bank logo, or a card / bank icon when there is no logo
-function AccountAvatar({
+export function AccountAvatar({
   logoPath,
   institutionId,
   isCard,
