@@ -270,7 +270,7 @@ function SubscriptionsPage() {
         description="Track and manage your recurring payments"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+            <Button onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4" />
               Add subscription
             </Button>

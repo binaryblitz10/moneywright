@@ -40,8 +40,8 @@ export function ProfilesSection({ profiles }: ProfilesSectionProps) {
       <SectionCard
         title="Profiles"
         action={
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCreate}>
-            <Plus className="mr-1 h-3 w-3" />
+          <Button size="sm" onClick={handleCreate}>
+            <Plus className="h-3 w-3" />
             Add Profile
           </Button>
         }

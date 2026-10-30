@@ -245,6 +245,10 @@ const mutation = useMutation({
 <div style={{ borderRadius: '8px', padding: '16px' }}>
 ```
 
+### Primary Action Buttons
+
+The main "add" / "create" / "upload" button in a page header or section header always uses the `default` (green) variant: no `variant` prop. Use `size="sm"` in section headers. Reserve `outline` and `ghost` for secondary actions such as filters, exports and toolbar controls. Never make a page's primary add action `outline` or `ghost`.
+
 ### Expand/Collapse Animation
 
 Anything that expands or collapses (filter panels, statement groups, detail rows, reasoning blocks) uses `Collapsible` from `components/ui/collapsible.tsx`. It animates height, fade and a slight slide over 500ms, and keeps the content mounted so closing animates too. Do not hand-roll `grid-rows` transitions or conditionally render expanding content.
