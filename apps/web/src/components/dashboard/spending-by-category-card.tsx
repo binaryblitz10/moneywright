@@ -111,6 +111,7 @@ export function SpendingByCategoryCard({
           )
         ) : (
           <InlineEmptyState
+            className="flex-1"
             icon={PieChart}
             title="No spending data"
             description="Categories appear after importing transactions"

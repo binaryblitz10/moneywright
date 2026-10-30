@@ -39,6 +39,7 @@ export function BudgetsCard({
       title="Budgets"
       description={singleMonth ? monthTitle(singleMonth.month) : periodLabel}
       className={className}
+      contentClassName="flex flex-1 flex-col"
       action={
         summary && summary.budgetCount > 0 ? (
           <Link to="/budgets">
@@ -67,6 +68,8 @@ export function BudgetsCard({
           description="Set a monthly limit for a category like Food or Shopping and see how you keep to it."
           action={{ label: 'Add a budget', href: '/budgets' }}
           size="sm"
+          glow
+          className="my-auto"
         />
       ) : singleMonth ? (
         <BudgetsMonthView
@@ -76,7 +79,7 @@ export function BudgetsCard({
           getCategoryColor={getCategoryColor}
         />
       ) : summary.months.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className="my-auto py-6 text-center text-sm text-muted-foreground">
           Nothing to show for this period yet.
         </p>
       ) : (

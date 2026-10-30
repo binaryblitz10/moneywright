@@ -122,7 +122,7 @@ export function SubscriptionsList({
 
   if (!subscriptions.length) {
     return (
-      <div className={cn('', className)}>
+      <div className={cn('flex flex-1 items-center justify-center', className)}>
         <EmptyState />
       </div>
     )

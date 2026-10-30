@@ -105,6 +105,7 @@ export function IncomeByCategoryCard({
           )
         ) : (
           <InlineEmptyState
+            className="flex-1"
             icon={Wallet}
             title="No income data"
             description="Income categories appear after importing transactions"

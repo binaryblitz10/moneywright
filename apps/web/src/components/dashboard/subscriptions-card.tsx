@@ -32,6 +32,7 @@ export function SubscriptionsCard({
     <SectionCard
       title="Subscriptions"
       className={className}
+      contentClassName="flex flex-1 flex-col"
       action={
         subscriptions.length > 0 && (
           <Link to="/subscriptions">

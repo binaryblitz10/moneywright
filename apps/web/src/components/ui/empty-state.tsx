@@ -31,6 +31,8 @@ export interface EmptyStateProps {
   }
   /** Size variant */
   size?: 'sm' | 'default' | 'lg'
+  /** Soft glow behind the icon, as on the dashboard widgets */
+  glow?: boolean
   /** Additional class name */
   className?: string
 }
@@ -51,6 +53,7 @@ export function EmptyState({
   action,
   secondaryAction,
   size = 'default',
+  glow = false,
   className,
 }: EmptyStateProps) {
   const sizeClasses = {
@@ -79,13 +82,16 @@ export function EmptyState({
         className
       )}
     >
-      <div
-        className={cn(
-          'mx-auto rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center mb-4',
-          iconSizeClasses[size]
-        )}
-      >
-        <Icon className={cn('text-muted-foreground', iconInnerClasses[size])} />
+      <div className="relative mx-auto mb-4 w-fit">
+        {glow && <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl" />}
+        <div
+          className={cn(
+            'relative rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center',
+            iconSizeClasses[size]
+          )}
+        >
+          <Icon className={cn('text-muted-foreground', iconInnerClasses[size])} />
+        </div>
       </div>
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto px-4">{description}</p>
@@ -148,8 +154,11 @@ export function InlineEmptyState({
 }) {
   return (
     <div className={cn('flex flex-col items-center justify-center py-8 text-center', className)}>
-      <div className="h-12 w-12 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center mb-3">
-        <Icon className="h-6 w-6 text-muted-foreground" />
+      <div className="relative mb-3">
+        <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl" />
+        <div className="relative h-12 w-12 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center">
+          <Icon className="h-6 w-6 text-muted-foreground" />
+        </div>
       </div>
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       {description && (
