@@ -285,7 +285,7 @@ function InvestmentsPage() {
               <DropdownMenuTrigger asChild>
                 <Button className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Add
+                  Add Investment
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
