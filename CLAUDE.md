@@ -59,7 +59,7 @@ cd apps/desktop && bun run tauri dev
 
 A plain `bun run dev` uses `apps/api/data/app.db` (an empty dev DB) and the secrets in `apps/api/.env.local`. The user's real data, PIN and encrypted values live in the desktop app folder `~/Library/Application Support/com.moneywright.desktop/` (`.env`, `data/`, `drizzle/`). The `ENCRYPTION_KEY`/`JWT_SECRET` there differ from `.env.local`, so running against the real DB without them causes decrypt errors and a PIN that never works.
 
-To start dev against the real data, **use a copy** (dev runs migrations, so never point it at the live folder) and export the desktop secrets, since shell env overrides `.env.local`:
+**Whenever asked to start a dev server, always do this first**: take a fresh copy of the Mac app's data and settings (`.env`, `data/`, `drizzle/`) and start dev against that copy, without asking and even if a copy from earlier exists. Never use a plain `bun run dev` for it. Dev runs against a **copy** (it runs migrations, so never point it at the live folder) with the desktop secrets exported, since shell env overrides `.env.local`:
 
 ```bash
 APP="$HOME/Library/Application Support/com.moneywright.desktop"
