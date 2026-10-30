@@ -99,8 +99,8 @@ export function glanceHeadline(stats: GlanceStats, pace: MonthPace): string {
   const money = (amount: number) => formatBudgetAmount(amount, currency)
   if (!pace.isCurrent) {
     return over
-      ? `You finished ${money(-remaining)} over budget`
-      : `You finished ${money(remaining)} under budget`
+      ? `Closed ${money(-remaining)} over budget`
+      : `Closed ${money(remaining)} under budget`
   }
   if (over) return `Over budget with ${pace.daysLeft} ${pace.daysLeft === 1 ? 'day' : 'days'} left`
   const difference = spent - expected
