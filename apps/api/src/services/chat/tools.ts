@@ -37,8 +37,13 @@ import {
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
-import { getBudgetSummary, type BudgetSummary } from '../budgets'
-import { isMonth } from '../../lib/budgets'
+import {
+  getBudgetRangeSummary,
+  getBudgetSummary,
+  type BudgetRangeSummary,
+  type BudgetSummary,
+} from '../budgets'
+import { isMonth, monthsBetween } from '../../lib/budgets'
 import { getProfilesByUserId } from '../profiles'
 import { comparePeriods, daysInRange, getTotals } from '../transaction-totals'
 import { CATEGORY_KIND_LABELS } from '../../lib/constants'
@@ -1114,6 +1119,84 @@ In family view the budgets come grouped by profile. Budgets only cover spending 
           month,
           profiles: summaries
             .filter(({ summary }) => summary.budgets.length > 0)
+            .map(({ profile, summary }) => ({ profile, ...toResult(summary) })),
+        }
+      },
+    }),
+
+    getBudgetPerformance: tool({
+      description: `How the user's budgets held up over several months: which months stayed within budget and which categories keep going over. The app does the adding - quote these figures as given, never recompute them.
+Each month is its own budget period (the monthly limit, plus anything carried over). A month counts as within budget when its total spending is not above its total available.
+Returns: completedMonths, monthsWithinBudget (the month still in progress is never counted as a miss), months (per month: totalAvailable, totalSpent, percentUsed, status 'ok' | 'warning' | 'over'), and categories ranked worst first (monthsOver of monthsTracked, overBy = money spent beyond the limit in those months, totalSpent, totalAvailable).
+Budgets apply to every month, as on the Budgets page; future months are left out. Use this for "where do I keep overspending?" or "did I stick to my budget?"; use \`getBudgets\` for one month's detail.
+In family view the results come grouped by profile.`,
+      inputSchema: z.object({
+        startMonth: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .describe('First month as YYYY-MM'),
+        endMonth: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .describe('Last month as YYYY-MM (default: the current month)')
+          .optional(),
+      }),
+      execute: async (params) => {
+        const startMonth = params.startMonth
+        const endMonth = params.endMonth ?? new Date().toISOString().substring(0, 7)
+        if (!isMonth(startMonth) || !isMonth(endMonth) || startMonth > endMonth) {
+          return { error: 'startMonth and endMonth must be YYYY-MM, start first' }
+        }
+        if (monthsBetween(startMonth, endMonth).length > 60) {
+          return { error: 'The range can cover at most 60 months' }
+        }
+
+        const toResult = (summary: BudgetRangeSummary) => ({
+          currency: summary.currency,
+          completedMonths: summary.completedMonths,
+          monthsWithinBudget: summary.monthsWithinBudget,
+          totalAvailable: summary.totalAvailable,
+          totalSpent: summary.totalSpent,
+          months: summary.months.map((m) => ({
+            month: m.month,
+            inProgress: m.inProgress,
+            totalAvailable: m.totalAvailable,
+            totalSpent: m.totalSpent,
+            percentUsed: Math.round(m.percentUsed),
+            status: m.status,
+          })),
+          categories: summary.categories.map((c) => ({
+            category: c.category,
+            categoryLabel: c.categoryLabel,
+            monthsTracked: c.monthsTracked,
+            monthsOver: c.monthsOver,
+            overBy: c.overBy,
+            totalSpent: c.totalSpent,
+            totalAvailable: c.totalAvailable,
+          })),
+        })
+
+        if (profileIdForQuery) {
+          return {
+            startMonth,
+            endMonth,
+            ...toResult(
+              await getBudgetRangeSummary(userId, profileIdForQuery, startMonth, endMonth)
+            ),
+          }
+        }
+        const profiles = await getProfilesByUserId(userId)
+        const summaries = await Promise.all(
+          profiles.map(async (profile) => ({
+            profile: profile.name,
+            summary: await getBudgetRangeSummary(userId, profile.id, startMonth, endMonth),
+          }))
+        )
+        return {
+          startMonth,
+          endMonth,
+          profiles: summaries
+            .filter(({ summary }) => summary.months.length > 0)
             .map(({ profile, summary }) => ({ profile, ...toResult(summary) })),
         }
       },

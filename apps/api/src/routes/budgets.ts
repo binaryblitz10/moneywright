@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { z } from 'zod/v4'
 import { auth, type AuthVariables } from '../middleware/auth'
-import { isMonth } from '../lib/budgets'
+import { isMonth, monthsBetween } from '../lib/budgets'
 import {
   BudgetValidationError,
   createBudget,
   deleteBudget,
+  getBudgetRangeSummary,
   getBudgetSummary,
   updateBudget,
 } from '../services/budgets'
@@ -37,6 +38,32 @@ function validationError(message: string | undefined): {
 function currentMonth(): string {
   return new Date().toISOString().substring(0, 7)
 }
+
+/** Longest range the range summary covers */
+const MAX_RANGE_MONTHS = 60
+
+/**
+ * GET /budgets/profiles/:profileId/range?startMonth=YYYY-MM&endMonth=YYYY-MM
+ * How a profile's budgets held up in each month of the range
+ */
+budgetRoutes.get('/profiles/:profileId/range', async (c) => {
+  const userId = c.get('userId')
+  const profileId = c.req.param('profileId')
+  const startMonth = c.req.query('startMonth') ?? ''
+  const endMonth = c.req.query('endMonth') ?? ''
+
+  if (!isMonth(startMonth) || !isMonth(endMonth) || startMonth > endMonth) {
+    return c.json(validationError('startMonth and endMonth must be YYYY-MM, start first'), 400)
+  }
+  if (monthsBetween(startMonth, endMonth).length > MAX_RANGE_MONTHS) {
+    return c.json(validationError(`The range can cover at most ${MAX_RANGE_MONTHS} months`), 400)
+  }
+  if (!(await getProfileById(profileId, userId))) {
+    return c.json({ error: 'not_found', message: 'Profile not found' }, 404)
+  }
+
+  return c.json(await getBudgetRangeSummary(userId, profileId, startMonth, endMonth))
+})
 
 /**
  * GET /budgets/profiles/:profileId?month=YYYY-MM

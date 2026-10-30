@@ -3,9 +3,14 @@ import { db, tables, dbType } from '../db'
 import type { Budget as BudgetRow } from '../db'
 import { getCategoriesForCountry, type CountryCode } from '../lib/constants'
 import {
+  computeBudgetMonths,
   computeBudgetProgress,
   monthRange,
+  monthsBetween,
   previousMonth,
+  summarizeBudgetMonths,
+  type BudgetCategoryHistory,
+  type BudgetMonth,
   type BudgetProgress,
   type Month,
 } from '../lib/budgets'
@@ -54,6 +59,23 @@ export interface BudgetSummary {
   daily: number[]
   /** The same for the month before, to compare against */
   previousDaily: number[]
+}
+
+export interface BudgetRangeSummary {
+  startMonth: Month
+  endMonth: Month
+  currency: string
+  /** How many budgets the profile has, so "none set" can be told from "nothing in this range yet" */
+  budgetCount: number
+  /** Each month of the range with budgets, oldest first (future months are left out) */
+  months: BudgetMonth[]
+  /** Completed months only; the month in progress isn't a miss yet */
+  completedMonths: number
+  monthsWithinBudget: number
+  /** Worst first: most months over budget, then the most money over */
+  categories: (BudgetCategoryHistory & { categoryLabel: string })[]
+  totalAvailable: number
+  totalSpent: number
 }
 
 /** Thrown when a budget fails validation; routes turn it into a 400 */
@@ -155,6 +177,62 @@ export async function getBudgetSummary(
     totalSpent: withProgress.reduce((sum, b) => sum + b.spent, 0),
     daily: dailyFor(current.transactions, month),
     previousDaily: dailyFor(last.transactions, previous),
+  }
+}
+
+/**
+ * How the profile's budgets held up month by month from `startMonth` to `endMonth`.
+ * Each month is its own budget period, so a range is the months added up, not one big budget.
+ */
+export async function getBudgetRangeSummary(
+  userId: string,
+  profileId: string,
+  startMonth: Month,
+  endMonth: Month
+): Promise<BudgetRangeSummary> {
+  const budgets = await listBudgets(userId, profileId)
+
+  // One load for the whole range plus the month before it, which rollovers need
+  const { transactions, currency } = await loadTotalsTransactions(userId, {
+    profileId,
+    kind: 'expense',
+    startDate: monthRange(previousMonth(startMonth)).startDate,
+    endDate: monthRange(endMonth).endDate,
+  })
+  const byMonth = new Map<Month, TotalsTransaction[]>()
+  for (const txn of transactions) {
+    const month = txn.date.substring(0, 7)
+    byMonth.set(month, [...(byMonth.get(month) ?? []), txn])
+  }
+  const spentCache = new Map<Month, TotalsResult>()
+  const spentIn = (month: Month, category: string): number => {
+    let totals = spentCache.get(month)
+    if (!totals) {
+      totals = computeTotals(byMonth.get(month) ?? [], { kind: 'expense', groupBy: 'category' })
+      spentCache.set(month, totals)
+    }
+    return totals.groups.find((g) => g.key === category)?.total ?? 0
+  }
+
+  const months = computeBudgetMonths(
+    budgets.map((b) => ({ ...b, createdMonth: b.createdAt.substring(0, 7) })),
+    monthsBetween(startMonth, endMonth),
+    spentIn,
+    new Date().toISOString().substring(0, 7)
+  )
+  const { completedMonths, monthsWithinBudget, categories } = summarizeBudgetMonths(months)
+
+  return {
+    startMonth,
+    endMonth,
+    currency,
+    budgetCount: budgets.length,
+    months,
+    completedMonths,
+    monthsWithinBudget,
+    categories: categories.map((c) => ({ ...c, categoryLabel: categoryLabel(c.category) })),
+    totalAvailable: months.reduce((sum, m) => sum + m.totalAvailable, 0),
+    totalSpent: months.reduce((sum, m) => sum + m.totalSpent, 0),
   }
 }
 
