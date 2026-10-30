@@ -145,7 +145,7 @@ describe('budget months', () => {
     expect(months[1]!.totalAvailable).toBe(3000)
   })
 
-  test('summary counts completed months and ranks the worst categories first', () => {
+  test('summary counts every month, the current one by what is spent so far, and ranks the worst categories first', () => {
     const months = computeBudgetMonths(
       [dining, food],
       monthsBetween('2026-01', '2026-04'),
@@ -153,25 +153,26 @@ describe('budget months', () => {
       '2026-04'
     )
     const summary = summarizeBudgetMonths(months)
-    expect(summary.completedMonths).toBe(3)
-    expect(summary.monthsWithinBudget).toBe(2)
+    // Jan 2000, Feb 3400 and Mar 1300 of 3000, April (current) 1100 of 3000: only February is over
+    expect(summary.monthCount).toBe(4)
+    expect(summary.monthsWithinBudget).toBe(3)
     expect(summary.categories.map((c) => c.category)).toEqual(['dining', 'food'])
     expect(summary.categories[0]).toMatchObject({
-      monthsTracked: 3,
-      monthsOver: 2,
-      overBy: 700,
+      monthsTracked: 4,
+      monthsOver: 3,
+      overBy: 800,
       totalSpent: 4700,
       totalAvailable: 4000,
     })
     expect(summary.categories[1]).toMatchObject({ monthsOver: 1, overBy: 500 })
   })
 
-  test('the month in progress is never a miss', () => {
-    const months = computeBudgetMonths([dining], ['2026-04'], spentIn, '2026-04')
-    expect(months[0]!.status).toBe('over')
-    expect(summarizeBudgetMonths(months)).toMatchObject({
-      completedMonths: 0,
-      monthsWithinBudget: 0,
-    })
+  test('the month in progress counts by what is spent so far', () => {
+    const over = computeBudgetMonths([dining], ['2026-04'], spentIn, '2026-04')
+    expect(over[0]!.status).toBe('over')
+    expect(summarizeBudgetMonths(over)).toMatchObject({ monthCount: 1, monthsWithinBudget: 0 })
+
+    const under = computeBudgetMonths([food], ['2026-04'], spentIn, '2026-04')
+    expect(summarizeBudgetMonths(under)).toMatchObject({ monthCount: 1, monthsWithinBudget: 1 })
   })
 })

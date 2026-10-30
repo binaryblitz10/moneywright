@@ -85,7 +85,7 @@ export interface BudgetMonthEntry extends BudgetProgress {
 
 export interface BudgetMonth {
   month: Month
-  /** The month we're in now: not over yet, so it isn't counted as a miss */
+  /** The month we're in now: it counts by what is spent so far */
   inProgress: boolean
   entries: BudgetMonthEntry[]
   /** Sums across the month's budgets, with the status of the totals */
@@ -97,12 +97,12 @@ export interface BudgetMonth {
 
 export interface BudgetCategoryHistory {
   category: string
-  /** Completed months the budget existed in, and how many of them went over */
+  /** Months of the range, and how many of them the budget went over */
   monthsTracked: number
   monthsOver: number
   /** Money spent beyond the limit, summed over the months it went over */
   overBy: number
-  /** Sums over every month of the range, the one in progress included */
+  /** Sums over every month of the range */
   totalAvailable: number
   totalSpent: number
 }
@@ -166,11 +166,10 @@ export function computeBudgetMonths(
 
 /** Months stayed within budget and, per category, how often it went over */
 export function summarizeBudgetMonths(months: BudgetMonth[]): {
-  completedMonths: number
+  monthCount: number
   monthsWithinBudget: number
   categories: BudgetCategoryHistory[]
 } {
-  const completed = months.filter((m) => !m.inProgress)
   const history = new Map<string, BudgetCategoryHistory>()
 
   for (const month of months) {
@@ -185,20 +184,18 @@ export function summarizeBudgetMonths(months: BudgetMonth[]): {
       }
       row.totalAvailable += entry.available
       row.totalSpent += entry.spent
-      if (!month.inProgress) {
-        row.monthsTracked += 1
-        if (entry.status === 'over') {
-          row.monthsOver += 1
-          row.overBy += entry.spent - entry.available
-        }
+      row.monthsTracked += 1
+      if (entry.status === 'over') {
+        row.monthsOver += 1
+        row.overBy += entry.spent - entry.available
       }
       history.set(entry.category, row)
     }
   }
 
   return {
-    completedMonths: completed.length,
-    monthsWithinBudget: completed.filter((m) => m.status !== 'over').length,
+    monthCount: months.length,
+    monthsWithinBudget: months.filter((m) => m.status !== 'over').length,
     // Worst first: most months over, then the most money over
     categories: [...history.values()].sort(
       (a, b) => b.monthsOver - a.monthsOver || b.overBy - a.overBy

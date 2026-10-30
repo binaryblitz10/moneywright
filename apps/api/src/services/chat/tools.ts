@@ -1127,7 +1127,7 @@ In family view the budgets come grouped by profile. Budgets only cover spending 
     getBudgetPerformance: tool({
       description: `How the user's budgets held up over several months: which months stayed within budget and which categories keep going over. The app does the adding - quote these figures as given, never recompute them.
 Each month is its own budget period (the monthly limit, plus anything carried over). A month counts as within budget when its total spending is not above its total available.
-Returns: completedMonths, monthsWithinBudget (the month still in progress is never counted as a miss), months (per month: totalAvailable, totalSpent, percentUsed, status 'ok' | 'warning' | 'over'), and categories ranked worst first (monthsOver of monthsTracked, overBy = money spent beyond the limit in those months, totalSpent, totalAvailable).
+Returns: monthCount, monthsWithinBudget (the current month counts by what is spent so far), months (per month: totalAvailable, totalSpent, percentUsed, status 'ok' | 'warning' | 'over'), and categories ranked worst first (monthsOver of monthsTracked, overBy = money spent beyond the limit in those months, totalSpent, totalAvailable).
 Budgets apply to every month, as on the Budgets page; future months are left out. Use this for "where do I keep overspending?" or "did I stick to my budget?"; use \`getBudgets\` for one month's detail.
 In family view the results come grouped by profile.`,
       inputSchema: z.object({
@@ -1153,7 +1153,7 @@ In family view the results come grouped by profile.`,
 
         const toResult = (summary: BudgetRangeSummary) => ({
           currency: summary.currency,
-          completedMonths: summary.completedMonths,
+          monthCount: summary.monthCount,
           monthsWithinBudget: summary.monthsWithinBudget,
           totalAvailable: summary.totalAvailable,
           totalSpent: summary.totalSpent,

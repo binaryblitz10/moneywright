@@ -69,8 +69,8 @@ export interface BudgetRangeSummary {
   budgetCount: number
   /** Each month of the range with budgets, oldest first (future months are left out) */
   months: BudgetMonth[]
-  /** Completed months only; the month in progress isn't a miss yet */
-  completedMonths: number
+  /** Months in `months`, and how many of them stayed within budget (the current one by what is spent so far) */
+  monthCount: number
   monthsWithinBudget: number
   /** Worst first: most months over budget, then the most money over */
   categories: (BudgetCategoryHistory & { categoryLabel: string })[]
@@ -220,7 +220,7 @@ export async function getBudgetRangeSummary(
     spentIn,
     new Date().toISOString().substring(0, 7)
   )
-  const { completedMonths, monthsWithinBudget, categories } = summarizeBudgetMonths(months)
+  const { monthCount, monthsWithinBudget, categories } = summarizeBudgetMonths(months)
 
   return {
     startMonth,
@@ -228,7 +228,7 @@ export async function getBudgetRangeSummary(
     currency,
     budgetCount: budgets.length,
     months,
-    completedMonths,
+    monthCount,
     monthsWithinBudget,
     categories: categories.map((c) => ({ ...c, categoryLabel: categoryLabel(c.category) })),
     totalAvailable: months.reduce((sum, m) => sum + m.totalAvailable, 0),
