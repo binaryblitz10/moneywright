@@ -100,7 +100,7 @@ function DashboardPage() {
   const setPreferenceMutation = useSetPreference()
 
   // Widgets switched off in Settings stay hidden; nothing shows until the choice is known
-  const { isVisible, order } = useDashboardWidgets(isAuthenticated)
+  const { isVisible, fullWidth, order } = useDashboardWidgets(isAuthenticated)
   const show = (id: DashboardWidgetId) => !preferencesLoading && isVisible(id)
 
   // Dashboard-wide timeframe: one selection drives every date-based widget.
@@ -285,7 +285,8 @@ function DashboardPage() {
   const orderedWidgets = order.filter((id) => show(id) && !(id === 'budgets' && showFamilyView))
   const orderedCards = orderedWidgets.filter((id): id is CardWidgetId => isCardWidget(id))
   const sectionRows = chunkSectionRows(
-    orderedWidgets.filter((id): id is SectionWidgetId => !isCardWidget(id))
+    orderedWidgets.filter((id): id is SectionWidgetId => !isCardWidget(id)),
+    fullWidth
   )
 
   const statCardNodes: Record<CardWidgetId, ReactNode> = {
@@ -475,13 +476,21 @@ function DashboardPage() {
             </StatCardGrid>
           )}
 
-          {/* Sections in the saved order; neighbouring half-width ones share a row, a lone one fills half */}
+          {/* Sections in the saved order; neighbouring half-width ones share a row, a lone one fills the row */}
           {sectionRows.map((row) => {
             const [first] = row
-            if (first && row.length === 1 && !HALF_WIDTH_SECTIONS.has(first)) {
-              return <Fragment key={first}>{sectionNodes[first]}</Fragment>
+            // A widget alone in its row fills it, so the page never ends in a gap
+            if (first && row.length === 1) {
+              // Half-width cards are built to stretch (h-full) to a row sibling, so a lone one
+              // needs its own auto-height wrapper to size to its content
+              return HALF_WIDTH_SECTIONS.has(first) ? (
+                <div key={first} className="mb-6">
+                  {sectionNodes[first]}
+                </div>
+              ) : (
+                <Fragment key={first}>{sectionNodes[first]}</Fragment>
+              )
             }
-            // A half-width widget on its own keeps its width instead of stretching across the row
             return (
               <div key={row.join('-')} className="grid gap-4 mb-6 lg:grid-cols-2">
                 {row.map((id) => (

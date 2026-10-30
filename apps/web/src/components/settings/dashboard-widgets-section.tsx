@@ -13,6 +13,8 @@ import { useDashboardWidgets } from '@/hooks'
 import {
   DASHBOARD_WIDGETS,
   DASHBOARD_WIDGET_GROUPS,
+  HALF_WIDTH_SECTIONS,
+  isCardWidget,
   type DashboardWidgetId,
 } from '@/lib/dashboard-widgets'
 import { cn } from '@/lib/utils'
@@ -23,7 +25,8 @@ const GROUP_ICONS: Record<(typeof DASHBOARD_WIDGET_GROUPS)[number]['id'], Lucide
 }
 
 export function DashboardWidgetsSection() {
-  const { isVisible, setVisible, order, reorder, isLoading } = useDashboardWidgets()
+  const { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, isLoading } =
+    useDashboardWidgets()
   const [draggingId, setDraggingId] = useState<DashboardWidgetId | null>(null)
   const [dropTargetId, setDropTargetId] = useState<DashboardWidgetId | null>(null)
 
@@ -37,7 +40,7 @@ export function DashboardWidgetsSection() {
   return (
     <SectionCard
       title="Dashboard Widgets"
-      description="Choose what the dashboard shows and drag to change the order."
+      description="Choose what the dashboard shows, drag to change the order, and give a section its own row with the full-width button. Sections left alone in a row fill it automatically."
     >
       <div className="grid gap-4 lg:grid-cols-2">
         {DASHBOARD_WIDGET_GROUPS.map((group) => {
@@ -105,6 +108,18 @@ export function DashboardWidgetsSection() {
                       >
                         {widget.label}
                       </Label>
+                      {!isCardWidget(widget.id) && HALF_WIDTH_SECTIONS.has(widget.id) && (
+                        <Button
+                          variant={fullWidth.has(widget.id) ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          aria-pressed={fullWidth.has(widget.id)}
+                          title="Auto shares a row with a neighbour; Full width always gets its own row"
+                          onClick={() => setFullWidth(widget.id, !fullWidth.has(widget.id))}
+                        >
+                          {fullWidth.has(widget.id) ? 'Full width' : 'Auto'}
+                        </Button>
+                      )}
                       <div className="flex items-center">
                         <Button
                           variant="ghost"

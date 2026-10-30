@@ -2174,6 +2174,8 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
   // Dashboard widget display order (JSON array of widget ids)
   DASHBOARD_WIDGET_ORDER: 'dashboard.widget_order',
+  // Half-width dashboard sections set to full width (JSON array of widget ids)
+  DASHBOARD_FULL_WIDTH_WIDGETS: 'dashboard.full_width_widgets',
   // Data health checks the user chose to ignore (JSON array of issue keys)
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
   // Profile selection

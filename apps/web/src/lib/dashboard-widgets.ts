@@ -3,6 +3,7 @@
  * The hidden preference stores the hidden ids, so widgets added later are shown by default.
  * The order preference stores the widget ids in display order; widgets missing from it
  * (added later) follow in their default position.
+ * The full-width preference stores the half-width sections the user wants on a row of their own.
  */
 
 export const DASHBOARD_WIDGETS = [
@@ -41,6 +42,11 @@ export function parseHiddenWidgets(value: string | undefined): DashboardWidgetId
   } catch {
     return []
   }
+}
+
+/** Parse the saved full-width sections (a JSON array of ids), ignoring unknown ids */
+export function parseFullWidthWidgets(value: string | undefined): DashboardWidgetId[] {
+  return parseHiddenWidgets(value)
 }
 
 /** Parse the saved widget order (a JSON array of ids) into a complete order of every widget */
@@ -95,18 +101,20 @@ export const HALF_WIDTH_SECTIONS: ReadonlySet<SectionWidgetId> = new Set([
   'review',
 ])
 
-/** Group ordered sections into dashboard rows: neighbouring half-width sections pair up */
-export function chunkSectionRows(sections: SectionWidgetId[]): SectionWidgetId[][] {
+/**
+ * Group ordered sections into dashboard rows: neighbouring half-width sections pair up.
+ * Sections set to full width, and any section left alone in its row, take the whole row.
+ */
+export function chunkSectionRows(
+  sections: SectionWidgetId[],
+  fullWidth: ReadonlySet<DashboardWidgetId>
+): SectionWidgetId[][] {
+  const canPair = (id: SectionWidgetId) => HALF_WIDTH_SECTIONS.has(id) && !fullWidth.has(id)
   const rows: SectionWidgetId[][] = []
   for (const id of sections) {
     const last = rows[rows.length - 1]
     const [lastId] = last ?? []
-    if (
-      last?.length === 1 &&
-      lastId &&
-      HALF_WIDTH_SECTIONS.has(id) &&
-      HALF_WIDTH_SECTIONS.has(lastId)
-    ) {
+    if (last?.length === 1 && lastId && canPair(id) && canPair(lastId)) {
       last.push(id)
     } else {
       rows.push([id])

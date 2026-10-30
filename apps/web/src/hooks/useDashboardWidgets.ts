@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import {
   moveWidget,
+  parseFullWidthWidgets,
   parseHiddenWidgets,
   parseWidgetOrder,
   type DashboardWidgetId,
@@ -10,7 +11,7 @@ import {
 import { preferencesKeys, usePreferences, useSetPreference } from './useSummary'
 
 /**
- * Which dashboard widgets are switched on, and in what order (user-wide preferences)
+ * Which dashboard widgets are switched on, in what order, and which are full width (user-wide preferences)
  */
 export function useDashboardWidgets(enabled: boolean = true) {
   const queryClient = useQueryClient()
@@ -24,6 +25,12 @@ export function useDashboardWidgets(enabled: boolean = true) {
 
   const order = useMemo(
     () => parseWidgetOrder(preferences?.[PREFERENCE_KEYS.DASHBOARD_WIDGET_ORDER]),
+    [preferences]
+  )
+
+  const fullWidth = useMemo(
+    () =>
+      new Set(parseFullWidthWidgets(preferences?.[PREFERENCE_KEYS.DASHBOARD_FULL_WIDTH_WIDGETS])),
     [preferences]
   )
 
@@ -52,6 +59,14 @@ export function useDashboardWidgets(enabled: boolean = true) {
     [hidden, savePreference]
   )
 
+  const setFullWidth = useCallback(
+    (id: DashboardWidgetId, full: boolean) => {
+      const ids = [...fullWidth].filter((w) => w !== id)
+      savePreference(PREFERENCE_KEYS.DASHBOARD_FULL_WIDTH_WIDGETS, full ? [...ids, id] : ids)
+    },
+    [fullWidth, savePreference]
+  )
+
   /** Put a widget where another one currently sits */
   const reorder = useCallback(
     (id: DashboardWidgetId, targetId: DashboardWidgetId) => {
@@ -61,5 +76,5 @@ export function useDashboardWidgets(enabled: boolean = true) {
     [order, savePreference]
   )
 
-  return { isVisible, setVisible, order, reorder, isLoading }
+  return { isVisible, setVisible, fullWidth, setFullWidth, order, reorder, isLoading }
 }
