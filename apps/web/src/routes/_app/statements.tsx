@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -87,13 +86,7 @@ function StatementsPage() {
   const navigate = useNavigate()
   const searchParams = useSearch({ from: '/_app/statements' })
   const { profiles } = useAuth()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [accountFilter, setAccountFilter] = useState<string | null>(searchParams.accountId ?? null)
   const idFilter = searchParams.ids ? new Set(searchParams.ids.split(',')) : null
@@ -360,12 +353,6 @@ function StatementsPage() {
               <Upload className="mr-2 h-4 w-4" />
               Upload Statement
             </Button>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </>
         }
       />

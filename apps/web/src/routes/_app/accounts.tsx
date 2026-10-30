@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Building2, CreditCard, Search, Upload } from 'lucide-react'
@@ -67,13 +66,7 @@ function sortAccounts(list: Account[], sort: AccountSort): Account[] {
 function AccountsPage() {
   const queryClient = useQueryClient()
   const { user, profiles } = useAuth()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<AccountSort>('default')
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
@@ -143,12 +136,6 @@ function AccountsPage() {
                 Upload Statement
               </Link>
             </Button>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </div>
         }
       />

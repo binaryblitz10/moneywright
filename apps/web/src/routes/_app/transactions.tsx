@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog,
@@ -106,13 +105,7 @@ function searchFromFilters(filters: TransactionFilters, q: string): Transactions
 
 function TransactionsPage() {
   const { user, profiles } = useAuth()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -311,18 +304,6 @@ function TransactionsPage() {
               <Plus className="mr-2 h-4 w-4" />
               Add transaction
             </Button>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={(profile) => {
-                handleProfileChange(profile)
-                setPage(1)
-              }}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={(enabled) => {
-                handleFamilyViewChange(enabled)
-                setPage(1)
-              }}
-            />
           </div>
         }
       />

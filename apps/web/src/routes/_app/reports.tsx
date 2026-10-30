@@ -11,7 +11,6 @@ import {
   useReportBounds,
   useTrendsReport,
 } from '@/hooks'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { QueryError } from '@/components/ui/query-error'
@@ -51,13 +50,7 @@ function ReportsPage() {
   const navigate = useNavigate({ from: '/reports' })
   const { tab, from, to } = Route.useSearch()
   const { isAuthenticated, user } = useAuth()
-  const {
-    activeProfileId: profileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId: profileId, showFamilyView } = useProfileSelection()
 
   const queryEnabled = isAuthenticated && (!!profileId || showFamilyView)
 
@@ -111,12 +104,6 @@ function ReportsPage() {
                 onChange={setRange}
               />
             )}
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </div>
         }
       />

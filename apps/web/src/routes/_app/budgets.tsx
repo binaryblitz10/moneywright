@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus } from 'lucide-react'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -41,13 +40,7 @@ function currentMonth(): string {
 }
 
 function BudgetsPage() {
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
 
   const [month, setMonth] = useState(currentMonth)
   const [addOpen, setAddOpen] = useState(false)
@@ -130,12 +123,6 @@ function BudgetsPage() {
                 <Plus className="h-4 w-4 mr-2" />
                 Add budget
               </Button>
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChange}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChange}
-              />
             </div>
           }
         />

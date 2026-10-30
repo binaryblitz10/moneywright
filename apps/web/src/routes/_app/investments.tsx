@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -77,13 +76,7 @@ const HOLDING_SORT_OPTIONS: SortChoice<HoldingSort>[] = [
 function InvestmentsPage() {
   const queryClient = useQueryClient()
   const { profiles } = useAuth()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const [showAddSourceDialog, setShowAddSourceDialog] = useState(false)
   const [showAddHoldingDialog, setShowAddHoldingDialog] = useState(false)
   const [editingSource, setEditingSource] = useState<InvestmentSource | null>(null)
@@ -308,12 +301,6 @@ function InvestmentsPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </>
         }
       />

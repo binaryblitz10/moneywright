@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { Input } from '@/components/ui/input'
@@ -151,13 +150,7 @@ function SubscriptionsPage() {
   const navigate = useNavigate()
   const searchParams = useSearch({ from: '/_app/subscriptions' })
   const { user, profiles } = useAuth()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const [searchQuery, setSearchQuery] = useState('')
   const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
@@ -281,12 +274,6 @@ function SubscriptionsPage() {
               <Plus className="h-4 w-4" />
               Add subscription
             </Button>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </div>
         }
       />

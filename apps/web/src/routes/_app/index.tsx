@@ -10,7 +10,6 @@ import {
   useProfileSelection,
   useDashboardWidgets,
 } from '@/hooks'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { QueryError } from '@/components/ui/query-error'
 import { PageHeader } from '@/components/ui/page-header'
@@ -86,13 +85,7 @@ function getElapsedMonths(range: DateRange): number {
 
 function DashboardPage() {
   const { user, isAuthenticated } = useAuth()
-  const {
-    activeProfileId: profileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId: profileId, showFamilyView } = useProfileSelection()
   const [selectedMonth, setSelectedMonth] = useState<MonthlyTrendData | null>(null)
 
   // Fetch user-wide preferences (not profile-specific)
@@ -431,12 +424,6 @@ function DashboardPage() {
               selection={timeframeSelection}
               onChange={handleTimeframeChange}
               userCountry={user?.country}
-            />
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
             />
           </div>
         }

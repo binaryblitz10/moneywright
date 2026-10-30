@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
@@ -39,13 +38,7 @@ function ReviewPage() {
   const navigate = Route.useNavigate()
   const { tab } = useSearch({ from: '/_app/review' })
   const activeTab: ReviewTab = tab ?? 'duplicates'
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
@@ -98,14 +91,6 @@ function ReviewPage() {
       <PageHeader
         title="Review"
         description="Resolve duplicate, uncategorized and low-confidence transactions"
-        actions={
-          <ProfileSelector
-            selectedProfileId={selectorProfileId}
-            onProfileChange={handleProfileChange}
-            showFamilyView={showFamilyView}
-            onFamilyViewChange={handleFamilyViewChange}
-          />
-        }
       />
 
       <Tabs

@@ -28,6 +28,8 @@ interface ProfileSelectorProps {
   onProfileChange: (profile: Profile) => void
   showFamilyView?: boolean
   onFamilyViewChange?: (enabled: boolean) => void
+  /** Icon-only trigger that opens upwards, for tight spots like the sidebar footer */
+  compact?: boolean
 }
 
 export function ProfileSelector({
@@ -35,6 +37,7 @@ export function ProfileSelector({
   onProfileChange,
   showFamilyView = false,
   onFamilyViewChange,
+  compact = false,
 }: ProfileSelectorProps) {
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
@@ -144,6 +147,20 @@ export function ProfileSelector({
     setNewProfileSummary('')
   }
 
+  const triggerIcon = showFamilyView ? (
+    <Users className="h-4 w-4 text-muted-foreground" />
+  ) : (
+    <User className="h-4 w-4 text-muted-foreground" />
+  )
+
+  if (isLoading && compact) {
+    return (
+      <Button variant="ghost" size="icon" disabled className="h-8 w-8 shrink-0">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </Button>
+    )
+  }
+
   if (isLoading) {
     return (
       <Button variant="outline" disabled className="min-w-35">
@@ -157,24 +174,32 @@ export function ProfileSelector({
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="min-w-35 justify-between gap-2">
-            <span className="flex items-center gap-2">
-              {showFamilyView ? (
-                <Users className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <User className="h-4 w-4 text-muted-foreground" />
-              )}
-              <span className="truncate max-w-25">{displayName}</span>
-            </span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 text-muted-foreground transition-transform duration-200',
-                isOpen && 'rotate-180'
-              )}
-            />
-          </Button>
+          {compact ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-md transition-colors duration-50 hover:bg-surface-hover focus-visible:ring-0"
+              aria-label={`Profile: ${displayName}`}
+              title={`Profile: ${displayName}`}
+            >
+              {triggerIcon}
+            </Button>
+          ) : (
+            <Button variant="outline" className="min-w-35 justify-between gap-2">
+              <span className="flex items-center gap-2">
+                {triggerIcon}
+                <span className="truncate max-w-25">{displayName}</span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                  isOpen && 'rotate-180'
+                )}
+              />
+            </Button>
+          )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" side={compact ? 'top' : 'bottom'} className="w-56">
           <DropdownMenuLabel>Profiles</DropdownMenuLabel>
 
           {/* Family View Option */}

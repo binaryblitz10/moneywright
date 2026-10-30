@@ -14,7 +14,6 @@ import {
   useChatStream,
   useProfileSelection,
 } from '@/hooks'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -22,7 +21,7 @@ import { CardSkeleton } from '@/components/ui/skeleton'
 import { QueryError } from '@/components/ui/query-error'
 import { ToolCallModal } from '@/components/ai-elements/tool-call-modal'
 import { PREFERENCE_KEYS } from '@/lib/api'
-import type { ChatMessage, Profile } from '@/lib/api'
+import type { ChatMessage } from '@/lib/api'
 import { Plus, AlertCircle } from 'lucide-react'
 
 import {
@@ -80,13 +79,7 @@ function ChatPage() {
   // Profiles and preferences
   const { data: preferences } = usePreferences()
   const setPreference = useSetPreference()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
 
   // Setup status (providers, LLM configuration)
   const {
@@ -319,32 +312,6 @@ function ChatPage() {
     navigate({ to: '/chat', search: {}, replace: true })
   }, [chatStream, navigate])
 
-  // Handle profile change - also reset chat
-  const handleProfileChangeWithReset = useCallback(
-    (profile: Profile) => {
-      handleProfileChange(profile)
-      // Reset chat when switching profiles
-      chatStream.resetState()
-      setMessages([])
-      setActiveConversationId(undefined)
-      navigate({ to: '/chat', search: {}, replace: true })
-    },
-    [handleProfileChange, chatStream, navigate]
-  )
-
-  // Handle family view change - also reset chat
-  const handleFamilyViewChangeWithReset = useCallback(
-    (enabled: boolean) => {
-      handleFamilyViewChange(enabled)
-      // Reset chat when toggling family view
-      chatStream.resetState()
-      setMessages([])
-      setActiveConversationId(undefined)
-      navigate({ to: '/chat', search: {}, replace: true })
-    },
-    [handleFamilyViewChange, chatStream, navigate]
-  )
-
   // Handle selecting a conversation
   const handleSelectConversation = useCallback(
     (convId: string) => {
@@ -457,12 +424,6 @@ function ChatPage() {
                       onSelectConversation={handleSelectConversation}
                       onDeleteConversation={handleDeleteConversation}
                     />
-                    <ProfileSelector
-                      selectedProfileId={selectorProfileId}
-                      onProfileChange={handleProfileChangeWithReset}
-                      showFamilyView={showFamilyView}
-                      onFamilyViewChange={handleFamilyViewChangeWithReset}
-                    />
                   </>
                 }
               />
@@ -482,12 +443,6 @@ function ChatPage() {
                 currentConversationId={urlConversationId}
                 onSelectConversation={handleSelectConversation}
                 onDeleteConversation={handleDeleteConversation}
-              />
-              <ProfileSelector
-                selectedProfileId={selectorProfileId}
-                onProfileChange={handleProfileChangeWithReset}
-                showFamilyView={showFamilyView}
-                onFamilyViewChange={handleFamilyViewChangeWithReset}
               />
             </div>
           </>

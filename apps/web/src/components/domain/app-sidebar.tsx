@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
+import { ProfileSelector } from './profile-selector'
 import { cn } from '@/lib/utils'
 import { isMacDesktop } from '@/lib/desktop'
 import { markSidebarNavigation } from '@/lib/back-navigation'
@@ -35,8 +36,19 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const activeHref = pressed?.from === location.pathname ? pressed.href : location.pathname
   const { updateAvailable, isReady, restartToUpdate, dismissUpdate } = useUpdateChecker()
 
+  // A conversation belongs to the profile it was started under, so switching profiles closes it
+  const leaveChatConversation = () => {
+    if (location.pathname === '/chat') navigate({ to: '/chat', search: {}, replace: true })
+  }
+
   // Items waiting in the Review queues
-  const { activeProfileId } = useProfileSelection()
+  const {
+    activeProfileId,
+    showFamilyView,
+    selectorProfileId,
+    handleProfileChange,
+    handleFamilyViewChange,
+  } = useProfileSelection()
   const { data: reviewCounts } = useReviewCounts(activeProfileId)
   const reviewTotal = reviewCounts
     ? reviewCounts.duplicateGroups +
@@ -201,9 +213,22 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 
       <SidebarSeparator className="mx-0 w-full bg-(--border-subtle)" />
 
-      {/* Footer: just the Settings link */}
-      <SidebarFooter className="px-2 py-2">
-        <SidebarMenu>{renderNavItem(settingsNavItem)}</SidebarMenu>
+      {/* Footer: Settings link and the profile switcher */}
+      <SidebarFooter className="flex-row items-center gap-1 px-2 py-2">
+        <SidebarMenu className="min-w-0 flex-1">{renderNavItem(settingsNavItem)}</SidebarMenu>
+        <ProfileSelector
+          compact
+          selectedProfileId={selectorProfileId}
+          onProfileChange={(profile) => {
+            handleProfileChange(profile)
+            leaveChatConversation()
+          }}
+          showFamilyView={showFamilyView}
+          onFamilyViewChange={(enabled) => {
+            handleFamilyViewChange(enabled)
+            leaveChatConversation()
+          }}
+        />
       </SidebarFooter>
     </Sidebar>
   )

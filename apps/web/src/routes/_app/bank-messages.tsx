@@ -10,12 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { QueryError } from '@/components/ui/query-error'
 import { MessagesTable } from '@/components/bank-messages/messages-table'
 import { Button } from '@/components/ui/button'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import {
   useAccounts,
   useAuth,
   useCategories,
-  useProfileSelection,
   usePendingSms,
   useSmsImportStatus,
   useSyncSmsImport,
@@ -46,8 +44,6 @@ function BankMessagesPage() {
   const { data: accounts = [] } = useAccounts()
   const syncMutation = useSyncSmsImport()
   const { user } = useAuth()
-  const { showFamilyView, selectorProfileId, handleProfileChange, handleFamilyViewChange } =
-    useProfileSelection()
   const { data: categoriesData } = useCategories()
   const categories = categoriesData?.categories || []
 
@@ -87,12 +83,6 @@ function BankMessagesPage() {
                 Sync
               </Button>
             )}
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </div>
         }
       />

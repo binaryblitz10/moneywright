@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ProfileSelector } from '@/components/domain/profile-selector'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { CardSkeleton } from '@/components/ui/skeleton'
@@ -120,13 +119,7 @@ function InsurancePage() {
   const { user, profiles } = useAuth()
   const queryClient = useQueryClient()
   const { countryCode, rawInsuranceProviders, institutions } = useConstants()
-  const {
-    activeProfileId,
-    showFamilyView,
-    selectorProfileId,
-    handleProfileChange,
-    handleFamilyViewChange,
-  } = useProfileSelection()
+  const { activeProfileId, showFamilyView } = useProfileSelection()
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -201,12 +194,6 @@ function InsurancePage() {
                 <TooltipContent>Switch to a profile to upload a policy</TooltipContent>
               )}
             </Tooltip>
-            <ProfileSelector
-              selectedProfileId={selectorProfileId}
-              onProfileChange={handleProfileChange}
-              showFamilyView={showFamilyView}
-              onFamilyViewChange={handleFamilyViewChange}
-            />
           </div>
         }
       />
