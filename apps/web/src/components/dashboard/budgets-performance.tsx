@@ -34,11 +34,10 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
     <div className="space-y-5">
       <div className="space-y-1">
         <p className="text-2xl font-semibold tracking-tight">
-          Within budget{' '}
           <span className="tabular-nums">
             {monthsWithinBudget} of {monthCount}
           </span>{' '}
-          {monthCount === 1 ? 'month' : 'months'}
+          {monthCount === 1 ? 'month' : 'months'} within budget
         </p>
         <p className="text-sm text-muted-foreground tabular-nums">
           {money(summary.totalSpent)} spent of {money(summary.totalAvailable)} budgeted
