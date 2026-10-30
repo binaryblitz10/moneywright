@@ -184,7 +184,7 @@ function TrendTooltip({
   if (!active || !payload?.length) return null
   const point = payload[0]!.payload
   const rows: Array<[string, number | undefined]> = [
-    ['Spent', point.spent],
+    ['Total Spent', point.spent],
     ['Projected', point.spent === undefined ? point.projected : undefined],
     ['Even pace', point.pace],
     ['Last month', point.lastMonth],
