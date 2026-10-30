@@ -53,3 +53,9 @@ export function monthRangeOf(month: string): { startDate: string; endDate: strin
   const lastDay = new Date(year!, monthNum!, 0).getDate()
   return { startDate: `${month}-01`, endDate: `${month}-${String(lastDay).padStart(2, '0')}` }
 }
+
+/** e.g. "Oct" */
+export function monthShort(month: string): string {
+  const [year, monthNum] = month.split('-').map(Number)
+  return new Date(year!, monthNum! - 1, 1).toLocaleDateString('en-US', { month: 'short' })
+}

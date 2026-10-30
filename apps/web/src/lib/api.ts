@@ -3573,8 +3573,63 @@ export interface BudgetInput {
   rollover: boolean
 }
 
+export interface BudgetMonthEntry extends BudgetProgress {
+  category: string
+}
+
+export interface BudgetMonth {
+  /** YYYY-MM */
+  month: string
+  /** The month we're in now: not counted as a miss yet */
+  inProgress: boolean
+  entries: BudgetMonthEntry[]
+  totalAvailable: number
+  totalSpent: number
+  percentUsed: number
+  status: BudgetProgress['status']
+}
+
+export interface BudgetCategoryHistory {
+  category: string
+  categoryLabel: string
+  /** Completed months the budget existed in, and how many of them went over */
+  monthsTracked: number
+  monthsOver: number
+  /** Money spent beyond the limit, summed over the months it went over */
+  overBy: number
+  totalAvailable: number
+  totalSpent: number
+}
+
+export interface BudgetRangeSummary {
+  startMonth: string
+  endMonth: string
+  currency: string
+  /** Budgets of the profile in all, whatever the range */
+  budgetCount: number
+  /** Months of the range that had budgets, oldest first */
+  months: BudgetMonth[]
+  completedMonths: number
+  monthsWithinBudget: number
+  /** Worst first */
+  categories: BudgetCategoryHistory[]
+  totalAvailable: number
+  totalSpent: number
+}
+
 export async function getBudgets(profileId: string, month: string): Promise<BudgetSummary> {
   const response = await api.get(`/budgets/profiles/${profileId}`, { params: { month } })
+  return response.data
+}
+
+export async function getBudgetRange(
+  profileId: string,
+  startMonth: string,
+  endMonth: string
+): Promise<BudgetRangeSummary> {
+  const response = await api.get(`/budgets/profiles/${profileId}/range`, {
+    params: { startMonth, endMonth },
+  })
   return response.data
 }
 

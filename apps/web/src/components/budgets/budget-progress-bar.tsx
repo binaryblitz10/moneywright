@@ -31,7 +31,7 @@ export function BudgetProgressBar({
       aria-valuenow={Math.round(percentUsed)}
       aria-valuemin={0}
       aria-valuemax={100}
-      className={cn('relative h-2 w-full rounded-full bg-muted', className)}
+      className={cn('relative h-2 w-full rounded-full bg-muted dark:bg-foreground/15', className)}
     >
       <div
         className={cn(

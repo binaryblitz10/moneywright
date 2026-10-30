@@ -9,6 +9,7 @@ import {
   useSetPreference,
   useProfileSelection,
   useDashboardWidgets,
+  useBudgetRange,
 } from '@/hooks'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { QueryError } from '@/components/ui/query-error'
@@ -51,6 +52,7 @@ import {
   WhatChangedCard,
   SpendingByCategoryCard,
   IncomeByCategoryCard,
+  BudgetsCard,
   SubscriptionsCard,
   AccountBalancesCard,
   MonthDetailModal,
@@ -223,6 +225,14 @@ function DashboardPage() {
     enabled: queryEnabled && show('subscriptions'),
   })
 
+  // Budgets follow the timeframe, a month at a time. They belong to one profile, so family view skips them.
+  const { data: budgetRange, isLoading: budgetRangeLoading } = useBudgetRange(
+    profileId,
+    dateRange.startDate.substring(0, 7),
+    dateRange.endDate.substring(0, 7),
+    timeframeQueriesEnabled && show('budgets')
+  )
+
   // Handlers
   const handleMonthClick = useCallback((month: MonthlyTrendData) => {
     setSelectedMonth(month)
@@ -268,7 +278,8 @@ function DashboardPage() {
 
   const allWidgetsHidden = !preferencesLoading && DASHBOARD_WIDGETS.every((w) => !isVisible(w.id))
 
-  const orderedWidgets = order.filter((id) => show(id))
+  // Budgets belong to one profile, so family view leaves the widget out (and its row slot)
+  const orderedWidgets = order.filter((id) => show(id) && !(id === 'budgets' && showFamilyView))
   const orderedCards = orderedWidgets.filter((id): id is CardWidgetId => isCardWidget(id))
   const sectionRows = chunkSectionRows(
     orderedWidgets.filter((id): id is SectionWidgetId => !isCardWidget(id))
@@ -399,6 +410,16 @@ function DashboardPage() {
         getCategoryLabel={getCategoryLabel}
       />
     ),
+    budgets: (
+      <BudgetsCard
+        className="h-full"
+        summary={budgetRange}
+        isLoading={budgetRangeLoading}
+        periodLabel={selectedTimeframeLabel}
+        getCategoryLabel={getCategoryLabel}
+        getCategoryColor={getCategoryColor}
+      />
+    ),
     subscriptions: (
       <SubscriptionsCard
         className="h-full"
@@ -442,17 +463,15 @@ function DashboardPage() {
             </StatCardGrid>
           )}
 
-          {/* Sections in the saved order; neighbouring half-width ones share a row */}
+          {/* Sections in the saved order; neighbouring half-width ones share a row, a lone one fills half */}
           {sectionRows.map((row) => {
             const [first] = row
             if (first && row.length === 1 && !HALF_WIDTH_SECTIONS.has(first)) {
               return <Fragment key={first}>{sectionNodes[first]}</Fragment>
             }
+            // A half-width widget on its own keeps its width instead of stretching across the row
             return (
-              <div
-                key={row.join('-')}
-                className={cn('grid gap-4 mb-6', row.length === 2 && 'lg:grid-cols-2')}
-              >
+              <div key={row.join('-')} className="grid gap-4 mb-6 lg:grid-cols-2">
                 {row.map((id) => (
                   <Fragment key={id}>{sectionNodes[id]}</Fragment>
                 ))}

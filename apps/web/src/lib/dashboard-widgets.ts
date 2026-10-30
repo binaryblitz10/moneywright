@@ -15,6 +15,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'spending_by_category', label: 'Spending by category', group: 'sections' },
   { id: 'income_by_category', label: 'Income by category', group: 'sections' },
   { id: 'what_changed', label: 'What changed', group: 'sections' },
+  { id: 'budgets', label: 'Budgets', group: 'sections' },
   { id: 'subscriptions', label: 'Subscriptions', group: 'sections' },
   { id: 'account_balances', label: 'Account balances', group: 'sections' },
 ] as const
@@ -88,6 +89,7 @@ export const HALF_WIDTH_SECTIONS: ReadonlySet<SectionWidgetId> = new Set([
   'spending_by_category',
   'income_by_category',
   'what_changed',
+  'budgets',
   'subscriptions',
 ])
 
