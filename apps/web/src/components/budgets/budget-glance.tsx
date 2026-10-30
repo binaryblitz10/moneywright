@@ -51,7 +51,7 @@ export function BudgetGlance({ summary, pace, month }: BudgetGlanceProps) {
 
   return (
     <SectionCard
-      title="Month at a glance"
+      title="Budget Overview"
       className="gap-0"
       action={
         <div className="flex items-center gap-2">
