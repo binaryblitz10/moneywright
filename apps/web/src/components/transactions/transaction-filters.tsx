@@ -28,7 +28,8 @@ import { useConstants } from '@/hooks/useConstants'
 import { useSmsImportStatus } from '@/hooks/useSmsImport'
 import { getAccountShortLabel, getStatementPeriodLabel } from '@/lib/statement-display'
 import { MetaLabel } from '@/components/ui/meta-label'
-import { CategoryPicker, ROW_ACTIVE_CLASS, ROW_CLASS, ROW_HOVER_CLASS } from './category-picker'
+import { CategoryPicker } from './category-picker'
+import { ROW_ACTIVE_CLASS, ROW_CLASS, ROW_HOVER_CLASS } from '@/components/ui/picker-styles'
 import { CategoryIcon } from '@/components/ui/category-icon'
 
 interface TransactionFiltersBarProps {

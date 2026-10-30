@@ -7,12 +7,14 @@ import type { Category, CategoryKind } from '@/lib/api'
 import { CATEGORY_KIND_LABELS, CATEGORY_KIND_ORDER, categoriesOfKind } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 import { CategoryIcon } from '@/components/ui/category-icon'
-
-export const ROW_CLASS =
-  'flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground/85 transition-colors disabled:pointer-events-none disabled:opacity-50'
-export const ROW_ACTIVE_CLASS = 'bg-foreground/[0.08] text-foreground'
-/** For rows outside the keyboard-highlighted list, which have no highlight of their own */
-export const ROW_HOVER_CLASS = 'hover:bg-foreground/[0.08] hover:text-foreground'
+import {
+  PICKER_CONTENT_CLASS,
+  PICKER_LIST_CLASS,
+  PICKER_SEARCH_CLASS,
+  PICKER_TRIGGER_CLASS,
+  ROW_ACTIVE_CLASS,
+  ROW_CLASS,
+} from '@/components/ui/picker-styles'
 
 // Full class names so Tailwind can see them
 const DOT_COLORS: Record<string, string> = {
@@ -212,10 +214,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
             id={id}
             type="button"
             variant="outline"
-            className={cn(
-              'h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover',
-              props.triggerClassName
-            )}
+            className={cn(PICKER_TRIGGER_CLASS, props.triggerClassName)}
           >
             <span
               className={cn(
@@ -234,13 +233,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent
-        className={cn(
-          'w-(--radix-popover-trigger-width) min-w-72 overflow-hidden rounded-xl border-border-hover bg-popover p-0 dark:bg-background shadow-2xl shadow-black/15 dark:shadow-black/60',
-          contentClassName
-        )}
-        align={contentAlign}
-      >
+      <PopoverContent className={cn(PICKER_CONTENT_CLASS, contentClassName)} align={contentAlign}>
         <div className="relative border-b border-border-subtle">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -251,7 +244,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
               setActiveCode(null)
             }}
             onKeyDown={handleKeyDown}
-            className="h-11 rounded-none border-0 bg-transparent pl-10 text-sm shadow-none focus-visible:ring-0"
+            className={PICKER_SEARCH_CLASS}
           />
         </div>
         {!hideKindFilter && (
@@ -289,10 +282,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
             </div>
           </>
         )}
-        <div
-          ref={listRef}
-          className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 [scrollbar-width:thin]"
-        >
+        <div ref={listRef} className={PICKER_LIST_CLASS}>
           {props.multiple && !search && props.leadingRows && (
             <>
               {props.leadingRows}
