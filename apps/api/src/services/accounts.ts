@@ -87,6 +87,45 @@ export interface AccountWithBalance extends AccountResponse {
   statementBalance?: number | null
   /** Total of linked credit card payments made after the statement (0 when none) */
   paymentsSinceStatement?: number
+  /** Credit card billing details from the latest statement */
+  cardStatement?: CardStatementInfo | null
+}
+
+/**
+ * Billing details printed on a credit card statement
+ */
+export interface CardStatementInfo {
+  periodStart: string | null
+  periodEnd: string | null
+  dueDate: string | null
+  minimumDue: number | null
+  creditLimit: number | null
+}
+
+function parseCardStatementInfo(statement: {
+  periodStart: string | null
+  periodEnd: string | null
+  summary: unknown
+}): CardStatementInfo {
+  let summary: Record<string, unknown> | null = null
+  if (typeof statement.summary === 'string') {
+    try {
+      summary = JSON.parse(statement.summary)
+    } catch {
+      summary = null
+    }
+  } else if (statement.summary && typeof statement.summary === 'object') {
+    summary = statement.summary as Record<string, unknown>
+  }
+  const text = (v: unknown) => (typeof v === 'string' && v ? v : null)
+  const num = (v: unknown) => (typeof v === 'number' ? v : null)
+  return {
+    periodStart: statement.periodStart ? String(statement.periodStart) : null,
+    periodEnd: statement.periodEnd ? String(statement.periodEnd) : null,
+    dueDate: text(summary?.dueDate),
+    minimumDue: num(summary?.minimumDue),
+    creditLimit: num(summary?.creditLimit),
+  }
 }
 
 /**
@@ -101,11 +140,14 @@ async function getLatestAccountBalance(
   statementBalance: number | null
   paymentsSinceStatement: number
   statementDate: string | null
+  cardStatement: CardStatementInfo | null
 }> {
   const [latestStatement] = await db
     .select({
       closingBalance: tables.statements.closingBalance,
+      periodStart: tables.statements.periodStart,
       periodEnd: tables.statements.periodEnd,
+      summary: tables.statements.summary,
     })
     .from(tables.statements)
     .where(
@@ -171,6 +213,10 @@ async function getLatestAccountBalance(
 
   const result = computeCardBalance(statementBalance, statementDate, payments, activity)
   return {
+    cardStatement:
+      account.type === 'credit_card' && latestStatement
+        ? parseCardStatementInfo(latestStatement)
+        : null,
     balance: account.type === 'credit_card' ? result.balance : statementBalance,
     statementBalance,
     paymentsSinceStatement: result.paymentsSinceStatement,
@@ -210,6 +256,7 @@ export async function getAccountsWithBalances(
       latestStatementDate: latest.statementDate,
       statementBalance: latest.statementBalance,
       paymentsSinceStatement: latest.paymentsSinceStatement,
+      cardStatement: latest.cardStatement,
     })
   }
 

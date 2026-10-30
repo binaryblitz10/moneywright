@@ -569,6 +569,17 @@ export interface Account {
   statementBalance?: number | null
   /** Credit card payments made after the latest statement (0 when none) */
   paymentsSinceStatement?: number
+  /** Credit card billing details from the latest statement */
+  cardStatement?: CardStatementInfo | null
+}
+
+/** Billing details printed on a credit card statement (dates are YYYY-MM-DD) */
+export interface CardStatementInfo {
+  periodStart: string | null
+  periodEnd: string | null
+  dueDate: string | null
+  minimumDue: number | null
+  creditLimit: number | null
 }
 
 /**
