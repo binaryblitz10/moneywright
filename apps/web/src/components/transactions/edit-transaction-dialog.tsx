@@ -27,9 +27,9 @@ export function EditTransactionDialog({
   return (
     <Dialog open={!!transaction} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        // Fixed height so the dialog doesn't grow when the Create rule button appears.
-        // The header and the form's buttons stay put; only the fields scroll.
-        className="flex h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+        // Fits its content up to a maximum height; past that the header and the form's
+        // buttons stay put and only the fields scroll.
+        className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         // Don't auto-focus (and select) the first input when opening
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
