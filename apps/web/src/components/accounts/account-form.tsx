@@ -21,17 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { createAccount, updateAccount, type Account, type AccountType } from '@/lib/api'
-import { cn } from '@/lib/utils'
 import { useConstants } from '@/hooks'
 
 interface AccountFormProps {
@@ -57,7 +48,6 @@ export function AccountForm({
   const [accountNumber, setAccountNumber] = useState('')
   const [currency, setCurrency] = useState(account?.currency || 'INR')
   const [isActive, setIsActive] = useState(account?.isActive ?? true)
-  const [institutionOpen, setInstitutionOpen] = useState(false)
 
   // Get institutions from constants
   const { rawInstitutions } = useConstants()
@@ -68,10 +58,24 @@ export function AccountForm({
     return [...rawInstitutions].sort((a, b) => a.name.localeCompare(b.name))
   }, [rawInstitutions])
 
-  // Get selected institution details
-  const selectedInstitution = useMemo(() => {
-    return sortedInstitutions.find((i) => i.id === institution)
-  }, [sortedInstitutions, institution])
+  const institutionOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      sortedInstitutions.map((inst) => ({
+        value: inst.id,
+        label: inst.name,
+        icon: (
+          <img
+            src={inst.logo}
+            alt=""
+            className="h-4 w-4 object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        ),
+      })),
+    [sortedInstitutions]
+  )
 
   const createMutation = useMutation({
     mutationFn: createAccount,
@@ -176,78 +180,18 @@ export function AccountForm({
           {/* Institution Dropdown */}
           <div className="space-y-2">
             <Label>Institution / Bank</Label>
-            <Popover open={institutionOpen} onOpenChange={setInstitutionOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={institutionOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  {selectedInstitution ? (
-                    <span className="flex items-center gap-2">
-                      <img
-                        src={selectedInstitution.logo}
-                        alt=""
-                        className="h-4 w-4 object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                      {selectedInstitution.name}
-                    </span>
-                  ) : institution ? (
-                    <span className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      {institution}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">Select institution...</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search institution..." />
-                  <CommandList>
-                    <CommandEmpty>No institution found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="__none__"
-                        onSelect={() => {
-                          setInstitution('')
-                          setInstitutionOpen(false)
-                        }}
-                      >
-                        <span className="text-muted-foreground">None / Other</span>
-                      </CommandItem>
-                      {sortedInstitutions.map((inst) => (
-                        <CommandItem
-                          key={inst.id}
-                          value={inst.name}
-                          onSelect={() => {
-                            setInstitution(inst.id)
-                            setInstitutionOpen(false)
-                          }}
-                        >
-                          <img
-                            src={inst.logo}
-                            alt=""
-                            className="mr-2 h-4 w-4 object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none'
-                            }}
-                          />
-                          <span className={cn(institution === inst.id && 'font-medium')}>
-                            {inst.name}
-                          </span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <SearchableSelect
+              value={institution}
+              onChange={setInstitution}
+              options={institutionOptions}
+              placeholder="Select institution..."
+              searchPlaceholder="Search institution..."
+              emptyLabel="No institution found."
+              noneLabel="None / Other"
+              triggerClassName="bg-background border-input hover:bg-background hover:border-border-hover"
+              fallbackLabel={institution || undefined}
+              fallbackIcon={<Building2 className="h-4 w-4 text-muted-foreground" />}
+            />
           </div>
 
           {/* Account Name */}
