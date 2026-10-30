@@ -34,7 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <img src="/logo.png" alt="" className="h-6 w-6" />
           <span className="text-base font-semibold font-display tracking-tight">Moneywright</span>
         </header>
-        <main className="flex-1 overflow-x-auto overflow-y-scroll overscroll-none p-6 lg:p-8">
+        <main className="page-content flex-1 overflow-x-auto overflow-y-scroll overscroll-none p-6 lg:p-8">
           <BackButton />
           {children}
         </main>

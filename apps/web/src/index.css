@@ -293,11 +293,11 @@
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: scale(0.992);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: scale(1);
   }
 }
 
@@ -324,9 +324,38 @@
   }
 }
 
+/* Page changes: only the main content cross-fades, the sidebar stays put */
+.page-content {
+  view-transition-name: page-content;
+}
+
+::view-transition-group(root) {
+  animation: none;
+}
+
+::view-transition-old(page-content),
+::view-transition-new(page-content) {
+  animation-duration: 160ms;
+  animation-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
 /* Utility classes for animations */
 .animate-fade-in {
-  animation: fade-in 0.7s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation-duration: 0.01ms;
+  }
 }
 
 .animate-fade-in-scale {
