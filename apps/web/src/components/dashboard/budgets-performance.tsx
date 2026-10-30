@@ -49,11 +49,8 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
           {months.map((m) => (
             <li key={m.month} className="min-w-0 flex-1">
               <Link
-                to="/transactions"
-                search={{
-                  category: m.entries.map((e) => e.category).join(','),
-                  ...monthRangeOf(m.month),
-                }}
+                to="/budgets"
+                search={{ month: m.month }}
                 title={`${m.month}${m.inProgress ? ' (so far)' : ''}: ${money(m.totalSpent)} of ${money(m.totalAvailable)}`}
                 aria-label={`${m.month}: ${money(m.totalSpent)} of ${money(m.totalAvailable)} budgeted`}
                 className="flex h-full flex-col justify-end rounded-md bg-muted transition-colors hover:bg-muted/70 dark:bg-foreground/15 dark:hover:bg-foreground/20"

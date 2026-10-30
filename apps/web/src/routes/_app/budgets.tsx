@@ -30,8 +30,19 @@ import {
 } from '@/hooks'
 import type { Budget } from '@/lib/api'
 
+interface BudgetsSearchParams {
+  /** Month to open, as YYYY-MM; defaults to the current month */
+  month?: string
+}
+
 export const Route = createFileRoute('/_app/budgets')({
   component: BudgetsPage,
+  validateSearch: (search: Record<string, unknown>): BudgetsSearchParams => ({
+    month:
+      typeof search.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(search.month)
+        ? search.month
+        : undefined,
+  }),
 })
 
 function currentMonth(): string {
@@ -42,7 +53,8 @@ function currentMonth(): string {
 function BudgetsPage() {
   const { activeProfileId, showFamilyView } = useProfileSelection()
 
-  const [month, setMonth] = useState(currentMonth)
+  const { month: initialMonth } = Route.useSearch()
+  const [month, setMonth] = useState(initialMonth ?? currentMonth())
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<Budget | null>(null)
   const [deleting, setDeleting] = useState<Budget | null>(null)
