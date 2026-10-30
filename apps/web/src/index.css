@@ -359,7 +359,9 @@
 
 /* Utility classes for animations */
 .animate-fade-in {
-  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* backwards, not both: the end state is the normal state, so a finished card doesn't keep a
+     transform layer, which keeps the page cross-fade on theme switch clean */
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -470,4 +472,24 @@
   mask-size: 200% 100%;
   -webkit-mask-size: 200% 100%;
   animation: shimmer-sweep 2.5s linear infinite;
+}
+
+/* A theme switch cross-fades a snapshot of the page (see useTheme), so per-element colour
+   transitions are off meanwhile: they would otherwise play inside the new snapshot and lag */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* The toggle that was clicked keeps its hover look through the switch: the browser doesn't
+   re-apply :hover until the pointer next moves, so it would blink off after the fade */
+[data-theme-toggle][data-hover-hold] {
+  background-color: var(--surface-hover);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 250ms;
+  animation-timing-function: ease-in-out;
 }
