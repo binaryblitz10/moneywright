@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Receipt,
   Calendar,
+  CalendarClock,
   Wallet,
   ChevronRight,
   Loader2,
@@ -41,6 +42,7 @@ import type { Account, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
 import { OverdueBadge } from '@/components/ui/overdue-badge'
 import { isStatementOverdue } from '@/lib/statement-overdue'
+import { getCardDueStatus, type CardDueTone } from '@/lib/card-due'
 import { useCreditCardPaymentHistory } from '@/hooks'
 import { MetaLabel } from '@/components/ui/meta-label'
 
@@ -57,6 +59,13 @@ interface CreditCardDisplayProps {
   showProfileBadge?: boolean
   /** Callback when card is clicked to show detail modal */
   onSelect?: () => void
+}
+
+const DUE_TONE_STYLES: Record<CardDueTone, string> = {
+  neutral: 'bg-muted/50 text-muted-foreground',
+  positive: 'bg-positive/10 text-positive',
+  warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  negative: 'bg-negative/10 text-negative',
 }
 
 export function CreditCardDisplay({
@@ -82,12 +91,19 @@ export function CreditCardDisplay({
     (account.accountName?.includes('-') ? account.accountName.split(' - ')[1] : null) ||
     'Credit Card'
 
-  const balanceDate = account.latestStatementDate
-    ? new Date(account.latestStatementDate).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })
+  const formatShortDate = (date: string, withYear: boolean) =>
+    new Date(date).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: withYear ? 'numeric' : undefined,
+    })
+
+  const statementStart = account.cardStatement?.periodStart
+  const statementEnd = account.cardStatement?.periodEnd ?? account.latestStatementDate
+  const statementRange = statementEnd
+    ? statementStart
+      ? `${formatShortDate(statementStart, false)} – ${formatShortDate(statementEnd, true)}`
+      : `as of ${formatShortDate(statementEnd, true)}`
     : null
 
   const formatCurrency = (amount: number) => {
@@ -98,6 +114,13 @@ export function CreditCardDisplay({
       maximumFractionDigits: 0,
     }).format(amount)
   }
+
+  const due = getCardDueStatus(account)
+  const creditLimit = account.cardStatement?.creditLimit ?? null
+  const utilization =
+    creditLimit && account.latestBalance !== null
+      ? Math.min(Math.max(account.latestBalance / creditLimit, 0), 1)
+      : null
 
   return (
     <div
@@ -208,9 +231,54 @@ export function CreditCardDisplay({
           <p className="text-xl font-semibold text-negative tabular-nums">
             {account.latestBalance !== null ? formatCurrency(account.latestBalance) : '—'}
           </p>
-          {balanceDate && <p className="text-xs text-muted-foreground">as of {balanceDate}</p>}
+          {statementRange && <p className="text-xs text-muted-foreground">{statementRange}</p>}
         </div>
+
+        {utilization !== null && creditLimit && (
+          <div className="mt-3">
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all',
+                  utilization > 0.7
+                    ? 'bg-negative'
+                    : utilization > 0.3
+                      ? 'bg-amber-500'
+                      : 'bg-positive'
+                )}
+                style={{ width: `${utilization * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {Math.round(utilization * 100)}% of {formatCurrency(creditLimit)} limit used
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Payment due */}
+      {due && (
+        <div
+          className={cn(
+            'mt-4 rounded-lg px-3 py-2.5 flex items-center gap-2.5',
+            DUE_TONE_STYLES[due.tone]
+          )}
+        >
+          <CalendarClock className="h-5 w-5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{due.label}</p>
+            {due.detail && <p className="text-xs opacity-80">{due.detail}</p>}
+          </div>
+          {due.amountDue !== null && (
+            <div className="text-right">
+              <p className="text-sm font-semibold tabular-nums">{formatCurrency(due.amountDue)}</p>
+              {due.minimumDue !== null && (
+                <p className="text-xs opacity-80">Min {formatCurrency(due.minimumDue)}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
