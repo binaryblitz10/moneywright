@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
+import { useTheme } from '@/hooks/useTheme'
+import { Button } from '@/components/ui/button'
 import { ProfileSelector } from './profile-selector'
 import { cn } from '@/lib/utils'
 import { isMacDesktop } from '@/lib/desktop'
@@ -18,7 +20,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
-import { Download, Search, X } from 'lucide-react'
+import { Download, Moon, Search, Sun, X } from 'lucide-react'
 import { MOD_KEY } from '@/lib/platform'
 import { askPennyNavItem, getNavGroups, settingsNavItem, type NavItem } from './nav-items'
 
@@ -27,6 +29,8 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
+  const { theme, setTheme } = useTheme()
+  const isDark = theme === 'dark'
   const navigate = useNavigate()
   const location = useLocation()
   // The pressed item is highlighted straight away and stays so until the location catches up,
@@ -213,9 +217,24 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 
       <SidebarSeparator className="mx-0 w-full bg-(--border-subtle)" />
 
-      {/* Footer: Settings link and the profile switcher */}
+      {/* Footer: Settings link, the theme toggle and the profile switcher */}
       <SidebarFooter className="flex-row items-center gap-1 px-2 py-2">
         <SidebarMenu className="min-w-0 flex-1">{renderNavItem(settingsNavItem)}</SidebarMenu>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 rounded-md transition-colors duration-50 hover:bg-surface-hover focus-visible:ring-0"
+          data-theme-toggle
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        >
+          {isDark ? (
+            <Sun className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <Moon className="h-4 w-4 text-muted-foreground" />
+          )}
+        </Button>
         <ProfileSelector
           compact
           selectedProfileId={selectorProfileId}
