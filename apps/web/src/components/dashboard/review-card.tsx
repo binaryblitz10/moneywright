@@ -5,6 +5,7 @@ import { EditTransactionDialog } from '@/components/transactions'
 import { Button } from '@/components/ui/button'
 import { SectionCard } from '@/components/ui/section-card'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { cn } from '@/lib/utils'
 import { useAccounts, useDataHealth, useReviewCounts, useTransactions } from '@/hooks'
 import { ReviewDeck, type ReviewQueue } from './review-deck'
 import { ReviewHealth } from './review-health'
@@ -59,8 +60,12 @@ export function ReviewCard({
   return (
     <SectionCard
       title="Review"
-      description={toReview > 0 ? `${toReview} transactions need a look` : 'Nothing to review'}
-      className={className}
+      description={
+        toReview > 0
+          ? `${toReview} ${toReview === 1 ? 'transaction' : 'transactions'}`
+          : 'Nothing to review'
+      }
+      className={cn('gap-2', className)}
       contentClassName="space-y-5"
       action={
         <Link
@@ -96,7 +101,7 @@ export function ReviewCard({
             value: 'check',
             label: (
               <>
-                Check <span className="tabular-nums opacity-70">{checkCount}</span>
+                Low confidence <span className="tabular-nums opacity-70">{checkCount}</span>
               </>
             ),
           },
@@ -108,7 +113,6 @@ export function ReviewCard({
         key={queue}
         queue={queue}
         transactions={data?.transactions ?? []}
-        total={data?.total ?? 0}
         isLoading={isLoading}
         accounts={accounts ?? []}
         categories={categories}
