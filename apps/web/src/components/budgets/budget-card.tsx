@@ -156,9 +156,9 @@ export function BudgetCard({
 
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 flex h-16 items-end justify-center rounded-b-xl bg-linear-to-t from-white via-white/70 to-transparent pb-5 opacity-0 transition-opacity group-hover:opacity-100"
+        className="pointer-events-none absolute inset-x-0 bottom-0 flex h-16 items-end justify-center rounded-b-xl bg-linear-to-t from-card via-card/70 to-transparent pb-5 opacity-0 transition-opacity group-hover:opacity-100"
       >
-        <span className="rounded-full border border-border-subtle bg-white px-3 py-1.5 text-xs font-medium text-neutral-900 shadow-lg">
+        <span className="rounded-full border border-border-subtle bg-surface-elevated px-3 py-1.5 text-xs font-medium text-foreground shadow-lg">
           Show transactions
         </span>
       </div>
