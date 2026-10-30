@@ -77,7 +77,7 @@ export function ReviewCard({
             size="sm"
             className="h-7 text-xs text-muted-foreground hover:text-foreground"
           >
-            Open
+            View all
             <ChevronRight className="ml-1 h-3 w-3" />
           </Button>
         </Link>
