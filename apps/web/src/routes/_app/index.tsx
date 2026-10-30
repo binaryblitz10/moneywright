@@ -36,6 +36,7 @@ import {
   type DashboardWidgetId,
   type SectionWidgetId,
 } from '@/lib/dashboard-widgets'
+import { getBudgetMonths } from '@/components/dashboard/budget-months'
 import { getRangeLabel } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
 
@@ -227,10 +228,11 @@ function DashboardPage() {
   })
 
   // Budgets follow the timeframe, a month at a time. They belong to one profile, so family view skips them.
+  const budgetMonths = useMemo(() => getBudgetMonths(dateRange), [dateRange])
   const { data: budgetRange, isLoading: budgetRangeLoading } = useBudgetRange(
     profileId,
-    dateRange.startDate.substring(0, 7),
-    dateRange.endDate.substring(0, 7),
+    budgetMonths.startMonth,
+    budgetMonths.endMonth,
     timeframeQueriesEnabled && show('budgets')
   )
 

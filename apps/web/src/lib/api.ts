@@ -3580,7 +3580,7 @@ export interface BudgetMonthEntry extends BudgetProgress {
 export interface BudgetMonth {
   /** YYYY-MM */
   month: string
-  /** The month we're in now: not counted as a miss yet */
+  /** The month we're in now: it counts by what is spent so far */
   inProgress: boolean
   entries: BudgetMonthEntry[]
   totalAvailable: number
@@ -3609,7 +3609,7 @@ export interface BudgetRangeSummary {
   budgetCount: number
   /** Months of the range that had budgets, oldest first */
   months: BudgetMonth[]
-  completedMonths: number
+  monthCount: number
   monthsWithinBudget: number
   /** Worst first */
   categories: BudgetCategoryHistory[]

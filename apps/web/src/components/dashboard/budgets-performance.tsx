@@ -24,7 +24,7 @@ interface BudgetsPerformanceProps {
 
 /** Several months of budgets: how many held, a bar per month and the categories that keep going over */
 export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerformanceProps) {
-  const { currency, months, completedMonths, monthsWithinBudget } = summary
+  const { currency, months, monthCount, monthsWithinBudget } = summary
   const money = (amount: number) => formatBudgetAmount(amount, currency)
   const repeatOffenders = summary.categories
     .filter((c) => c.monthsOver > 0)
@@ -36,9 +36,9 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
         <p className="text-2xl font-semibold tracking-tight">
           Within budget{' '}
           <span className="tabular-nums">
-            {monthsWithinBudget} of {completedMonths}
+            {monthsWithinBudget} of {monthCount}
           </span>{' '}
-          {completedMonths === 1 ? 'month' : 'months'}
+          {monthCount === 1 ? 'month' : 'months'}
         </p>
         <p className="text-sm text-muted-foreground tabular-nums">
           {money(summary.totalSpent)} spent of {money(summary.totalAvailable)} budgeted
@@ -62,8 +62,7 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
                 <span
                   className={cn(
                     'block min-h-1 rounded-md transition-[height] duration-700 ease-out',
-                    STATUS_BAR[m.status],
-                    m.inProgress && 'opacity-50'
+                    STATUS_BAR[m.status]
                   )}
                   style={{ height: `${Math.min(100, m.percentUsed)}%` }}
                 />
@@ -82,11 +81,6 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
               </li>
             ))}
           </ul>
-        )}
-        {months.some((m) => m.inProgress) && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            The faded bar is this month so far; it counts once the month is over.
-          </p>
         )}
       </div>
 
