@@ -364,6 +364,7 @@ function DashboardPage() {
   const sectionNodes: Record<SectionWidgetId, ReactNode> = {
     income_vs_expenses: (
       <IncomeExpensesCard
+        periodLabel={selectedTimeframeLabel}
         trendsData={trendsData}
         isLoading={trendsLoading}
         onMonthClick={handleMonthClick}
@@ -381,6 +382,7 @@ function DashboardPage() {
               }
             : undefined
         }
+        periodLabel={selectedTimeframeLabel}
         isLoading={summaryLoading}
         showMonthlyAverage={showMonthlyAverage}
         onShowMonthlyAverageChange={setShowMonthlyAverage}
@@ -397,6 +399,7 @@ function DashboardPage() {
         incomeBreakdown={summary?.transactions.incomeBreakdown}
         totalIncome={summary?.transactions.totalIncome ?? 0}
         currency={summary?.transactions.currency ?? 'INR'}
+        periodLabel={selectedTimeframeLabel}
         isLoading={summaryLoading}
         showMonthlyAverage={showMonthlyAverage}
         onShowMonthlyAverageChange={setShowMonthlyAverage}

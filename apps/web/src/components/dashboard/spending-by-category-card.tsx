@@ -31,12 +31,15 @@ interface SpendingByCategoryCardProps {
   getCategoryColor: (code: string) => string
   startDate?: string
   endDate?: string
+  /** Selected timeframe, shown under the title */
+  periodLabel: string
   /** Spending in the previous period of the same length; null when there is no full data */
   previousPeriod: PreviousPeriodSpending | null | undefined
 }
 
 export function SpendingByCategoryCard({
   categoryStats,
+  periodLabel,
   isLoading,
   showMonthlyAverage,
   onShowMonthlyAverageChange,
@@ -58,6 +61,7 @@ export function SpendingByCategoryCard({
     <>
       <SectionCard
         title="Spending by Category"
+        description={periodLabel}
         className={cn(hasData && 'cursor-pointer')}
         contentClassName="flex-1 flex flex-col"
         onClick={hasData ? () => setDialogOpen(true) : undefined}

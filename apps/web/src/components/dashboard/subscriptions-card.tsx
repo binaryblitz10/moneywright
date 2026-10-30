@@ -31,6 +31,9 @@ export function SubscriptionsCard({
   return (
     <SectionCard
       title="Subscriptions"
+      description={
+        subscriptions.length > 0 ? `${subscriptions.length} active` : 'Recurring charges'
+      }
       className={className}
       contentClassName="flex flex-1 flex-col"
       action={

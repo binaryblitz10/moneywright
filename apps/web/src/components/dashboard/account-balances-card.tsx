@@ -22,6 +22,7 @@ export function AccountBalancesCard({ accounts, countryCode }: AccountBalancesCa
   return (
     <SectionCard
       title="Account Balances"
+      description={`${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'}`}
       className="mb-6"
       action={
         <Link to="/accounts">

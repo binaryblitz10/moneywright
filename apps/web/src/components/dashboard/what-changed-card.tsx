@@ -71,7 +71,8 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
   return (
     <SectionCard
       title="Spending Changes"
-      description={data && shownMonth ? getSubtitle(data) : undefined}
+      // A non-breaking space keeps the subtitle line while loading so the content doesn't shift
+      description={data && shownMonth ? getSubtitle(data) : '\u00A0'}
       className="h-full"
       action={
         shownMonth && (

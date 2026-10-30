@@ -26,12 +26,15 @@ interface IncomeByCategoryCardProps {
   getCategoryColor: (code: string) => string
   startDate?: string
   endDate?: string
+  /** Selected timeframe, shown under the title */
+  periodLabel: string
 }
 
 export function IncomeByCategoryCard({
   incomeBreakdown,
   totalIncome,
   currency,
+  periodLabel,
   isLoading,
   showMonthlyAverage,
   onShowMonthlyAverageChange,
@@ -49,6 +52,7 @@ export function IncomeByCategoryCard({
     <>
       <SectionCard
         title="Income by Category"
+        description={periodLabel}
         className={cn(hasData && 'cursor-pointer')}
         contentClassName="flex-1 flex flex-col"
         onClick={hasData ? () => setDialogOpen(true) : undefined}
