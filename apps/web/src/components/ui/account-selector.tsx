@@ -224,6 +224,16 @@ export function AccountSelector({
                       {values.length}
                     </span>
                   )}
+                  {mode === 'single' &&
+                    showInstitutionLogo &&
+                    selectedAccounts[0]?.institution &&
+                    institutionLogos[selectedAccounts[0].institution] && (
+                      <img
+                        src={institutionLogos[selectedAccounts[0].institution]}
+                        alt=""
+                        className="h-5 w-5 shrink-0 rounded object-contain"
+                      />
+                    )}
                   <span className="truncate">{getTriggerLabel()}</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />

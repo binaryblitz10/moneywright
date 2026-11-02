@@ -280,8 +280,11 @@ export function MessagesTable({
       </p>
 
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
+        <DialogContent
+          className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Review message</DialogTitle>
             <DialogDescription>
               Check the details, then add it as a transaction or dismiss it.
