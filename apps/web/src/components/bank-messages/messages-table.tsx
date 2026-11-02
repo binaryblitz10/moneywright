@@ -252,6 +252,7 @@ export function MessagesTable({
             else setEditing(txn)
           }}
           isSelectable={(txn) => !statusById.has(txn.id)}
+          isCategoryEditable={(txn) => !statusById.has(txn.id)}
           selectedIds={selectionMode ? selectedIds : undefined}
           onSelectionChange={selectionMode ? setSelectedIds : undefined}
           renderBadge={(txn) => {

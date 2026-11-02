@@ -59,6 +59,8 @@ interface TransactionTableProps {
   isEditable?: (transaction: Transaction) => boolean
   /** Whether a row can be selected (default: always) */
   isSelectable?: (transaction: Transaction) => boolean
+  /** Whether a row's category can be changed in place (default: always) */
+  isCategoryEditable?: (transaction: Transaction) => boolean
 }
 
 // Sort indicator component
@@ -155,6 +157,7 @@ export function TransactionTable({
   renderBadge,
   isEditable,
   isSelectable,
+  isCategoryEditable,
 }: TransactionTableProps) {
   const updateTransaction = useUpdateTransaction()
   const { institutions } = useConstants()
@@ -423,6 +426,7 @@ export function TransactionTable({
                       categories={categories}
                       label={getCategoryLabel(txn.category)}
                       colorClass={getCategoryColor(txn.category)}
+                      editable={isCategoryEditable?.(txn) ?? true}
                       onChange={(category) =>
                         updateTransaction.mutate({ transactionId: txn.id, data: { category } })
                       }
@@ -537,6 +541,7 @@ export function TransactionTable({
                       categories={categories}
                       label={getCategoryLabel(txn.category)}
                       colorClass={getCategoryColor(txn.category)}
+                      editable={isCategoryEditable?.(txn) ?? true}
                       onChange={(category) =>
                         updateTransaction.mutate({ transactionId: txn.id, data: { category } })
                       }
@@ -580,12 +585,14 @@ function CategoryCell({
   categories,
   label,
   colorClass,
+  editable,
   onChange,
 }: {
   transaction: Transaction
   categories: Category[]
   label: string
   colorClass: string | undefined
+  editable: boolean
   onChange: (category: string) => void
 }) {
   const uncategorized =
@@ -593,6 +600,8 @@ function CategoryCell({
     (!transaction.category ||
       PLACEHOLDER_CATEGORIES.has(transaction.category) ||
       !categories.some((c) => c.code === transaction.category))
+
+  if (!editable) return null
 
   const pill = (
     <button
