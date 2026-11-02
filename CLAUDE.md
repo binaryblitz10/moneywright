@@ -66,9 +66,12 @@ APP="$HOME/Library/Application Support/com.moneywright.desktop"
 COPY=<scratchpad>/mw-data
 rm -rf "$COPY" && mkdir "$COPY" && cp -R "$APP"/{.env,data,drizzle} "$COPY"/
 pkill -f "bun.*dev"; pkill -f vite          # stop any stale dev servers first
-set -a; . "$COPY/.env"; set +a; export PORT=17777
-DATA_DIR="$COPY" bun run dev                # web :3000, api :17777
+set -a; . "$COPY/.env"; set +a; export PORT=17778
+DATA_DIR="$COPY" bun run dev:api &          # api :17778
+(cd apps/web && bunx vite --port 3001) &    # web :3001, proxies /api to $PORT
 ```
+
+**Always use these alternate ports (api 17778, web 3001)**, never 17777/3000: the user keeps the Mac app open at the same time and it owns 17777. The Vite proxy follows `PORT`.
 
 Verify the API log shows no `decrypt` / `no such table` errors. Never print the secret values.
 
