@@ -6,10 +6,17 @@ import { Button } from '@/components/ui/button'
 import { SectionCard } from '@/components/ui/section-card'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
-import { useAccounts, useDataHealth, useReviewCounts, useTransactions } from '@/hooks'
+import {
+  useAccounts,
+  useDataHealth,
+  usePreferences,
+  useReviewCounts,
+  useTransactions,
+} from '@/hooks'
 import { ReviewDeck, type ReviewQueue } from './review-deck'
 import { ReviewHealth } from './review-health'
-import type { Category, Transaction } from '@/lib/api'
+import { PREFERENCE_KEYS, type Category, type Transaction } from '@/lib/api'
+import { countOpenDataIssues } from '@/components/settings'
 
 /** Cards loaded at a time; settling them refetches the next ones */
 const DECK_SIZE = 20
@@ -37,6 +44,7 @@ export function ReviewCard({
   const { data: counts } = useReviewCounts(profileId)
   const { data: accounts } = useAccounts(profileId, { enabled })
   const { data: health } = useDataHealth(profileId, { enabled })
+  const { data: preferences } = usePreferences()
 
   const categorizeCount = counts ? counts.pending + counts.other : 0
   const checkCount = counts?.lowConfidence ?? 0
@@ -50,11 +58,10 @@ export function ReviewCard({
     { page: 1, limit: DECK_SIZE, sortBy: 'amount', sortOrder: 'desc' }
   )
 
-  // The shaky-category check is already its own queue here
-  const dataIssues = Math.max(
-    0,
-    (health?.issueCount ?? 0) - ((health?.lowConfidence.count ?? 0) > 0 ? 1 : 0)
-  )
+  // Checks ignored in Settings stay out; the shaky-category check is already its own queue here
+  const dataIssues = health
+    ? countOpenDataIssues(health, preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS])
+    : 0
   const toReview = categorizeCount + checkCount
 
   return (
