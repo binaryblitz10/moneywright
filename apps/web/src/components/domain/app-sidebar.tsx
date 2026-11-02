@@ -65,8 +65,14 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const { data: smsStatus } = useSmsImportStatus()
   const navGroups = getNavGroups(!!smsStatus?.enabled)
 
+  const badgeCounts: Record<string, number> = {
+    '/review': reviewTotal,
+    '/bank-messages': smsStatus?.enabled ? smsStatus.pendingCount : 0,
+  }
+
   const renderNavItem = (item: NavItem) => {
     const isActive = activeHref === item.href
+    const badge = badgeCounts[item.href] ?? 0
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
@@ -98,9 +104,9 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
           )}
           <item.icon className={cn('h-4 w-4', isActive && 'text-primary')} />
           <span className="text-sm">{item.title}</span>
-          {item.href === '/review' && reviewTotal > 0 && (
-            <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-              {reviewTotal > 99 ? '99+' : reviewTotal}
+          {badge > 0 && (
+            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1 text-[10px] font-medium text-primary">
+              {badge > 99 ? '99+' : badge}
             </span>
           )}
         </SidebarMenuButton>
