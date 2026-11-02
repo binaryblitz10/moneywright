@@ -6,7 +6,7 @@
  * be finished automatically waits in a review list so the user can complete or dismiss it.
  */
 
-import { and, eq, desc, gte, inArray, like, or } from 'drizzle-orm'
+import { and, eq, desc, gte, inArray, isNotNull, like, or } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Account } from '../db'
 import { decrypt, decryptOptional, encrypt } from '../lib/encryption'
@@ -23,7 +23,7 @@ import {
 } from '../lib/sms/messages-db'
 import { pickTransactionDate } from '../lib/sms/date'
 import { looksLikeTransaction, parseSms, toCompleteSms, type ParsedSms } from '../lib/sms/parse'
-import { senderTrust, type SenderCounts } from '../lib/sms/sender'
+import { accountForSender, senderTrust, type SenderCounts } from '../lib/sms/sender'
 import { parseSmsWithLLM } from '../llm/sms-parser'
 import { getLLMSettings } from './config'
 import { findUserById } from './user'
@@ -40,6 +40,8 @@ import { resolveRuleFields } from '../lib/transaction-rules'
 import { getPreference, setPreference, PREFERENCE_KEYS } from './preferences'
 
 const MIN_INSTITUTION_WORD = 3
+/** Past messages looked at when working out the account of a message that names none */
+const SENDER_HISTORY_LIMIT = 200
 
 export interface SmsImportStatus {
   /** Reading Messages only works in the macOS desktop / local app */
@@ -221,6 +223,43 @@ async function matchAccount(
     return words.some((word) => text.includes(word))
   })
   return named.length === 1 ? named[0]! : null
+}
+
+/**
+ * The account for a message that names none (UPI alerts say only "your A/c"), learned from where
+ * the latest messages of alike senders went. Null when that is not a single active account.
+ */
+async function accountFromSenderHistory(userId: string, sender: string): Promise<Account | null> {
+  const rows = await db
+    .select({ sender: tables.smsMessages.sender, accountId: tables.smsMessages.accountId })
+    .from(tables.smsMessages)
+    .where(
+      and(
+        eq(tables.smsMessages.userId, userId),
+        inArray(tables.smsMessages.status, ['imported', 'verified']),
+        isNotNull(tables.smsMessages.accountId)
+      )
+    )
+    .orderBy(desc(tables.smsMessages.receivedAt))
+    .limit(SENDER_HISTORY_LIMIT)
+
+  const accountId = accountForSender(
+    sender,
+    rows.map((row) => ({ sender: row.sender, accountId: row.accountId! }))
+  )
+  if (!accountId) return null
+
+  const [account] = await db
+    .select()
+    .from(tables.accounts)
+    .where(
+      and(
+        eq(tables.accounts.id, accountId),
+        eq(tables.accounts.userId, userId),
+        eq(tables.accounts.isActive, true)
+      )
+    )
+  return account ?? null
 }
 
 /** Name and category for a merchant from the user's transaction rules */
@@ -483,16 +522,19 @@ async function processMessage(
 
   // A sender unlike every bank seen so far (a vendor confirming a charge) is never imported
   // unattended: its message waits in review, read by the AI so the form is filled in
-  const fromVendor = senderTrust(message.sender, senders.verified, senders.dismissed) === 'vendor'
+  const trust = senderTrust(message.sender, senders.verified, senders.dismissed)
+  const fromVendor = trust === 'vendor'
   const parsed = await parseMessage(message.body, aiParsing, fromVendor)
   if (!parsed) return { outcome: 'ignored' }
 
   const complete = toCompleteSms(parsed)
   const account = parsed.last4
     ? await matchAccount(userId, parsed.last4, `${message.sender} ${message.body}`)
-    : null
+    : await accountFromSenderHistory(userId, message.sender)
 
-  if (!account && ignoreUnknownAccounts) return { outcome: 'ignored' }
+  // Without digits there is no sign the account is unknown, so a bank's message waits in review
+  const unplacedBankMessage = !parsed.last4 && trust === 'bank'
+  if (!account && ignoreUnknownAccounts && !unplacedBankMessage) return { outcome: 'ignored' }
 
   // A charge in another currency cannot be matched with the statement (which lists it converted)
   // and must not be added up with the account's own currency, so it waits for the user

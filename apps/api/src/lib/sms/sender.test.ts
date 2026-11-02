@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { senderSimilarity, senderTrust, type SenderCounts } from './sender'
+import { accountForSender, senderSimilarity, senderTrust, type SenderCounts } from './sender'
 
 const counts = (entries: Record<string, number>): SenderCounts => new Map(Object.entries(entries))
 
@@ -39,5 +39,32 @@ describe('senderTrust', () => {
   test('dismissed messages weigh against a sender', () => {
     expect(senderTrust('AMEXIN-S', verified, counts({ 'AMEXIN-S': 3 }))).toBe('vendor')
     expect(senderTrust('AMEXIN-S', verified, counts({ 'AMEXIN-S': 1 }))).toBe('bank')
+  })
+})
+
+describe('accountForSender', () => {
+  const record = (sender: string, accountId: string) => ({ sender, accountId })
+
+  test('follows the one account alike senders went to', () => {
+    const history = [record('AXISBK-S', 'savings'), record('AX-AXISBK-S', 'savings')]
+    expect(accountForSender('JD-AXISBK-S', history)).toBe('savings')
+  })
+
+  test('leaves it for the user when alike senders went to several accounts', () => {
+    const history = [record('AXISBK-S', 'savings'), record('VM-AXISBK-P', 'card')]
+    expect(accountForSender('JD-AXISBK-S', history)).toBeNull()
+  })
+
+  test('ignores unlike senders and has no answer without history', () => {
+    expect(accountForSender('JD-AXISBK-S', [record('AMEXIN-S', 'amex')])).toBeNull()
+    expect(accountForSender('JD-AXISBK-S', [])).toBeNull()
+  })
+
+  test('only the latest messages count', () => {
+    const history = [
+      ...Array.from({ length: 20 }, () => record('AXISBK-S', 'new')),
+      record('AXISBK-S', 'old'),
+    ]
+    expect(accountForSender('JD-AXISBK-S', history)).toBe('new')
   })
 })

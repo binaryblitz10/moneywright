@@ -72,3 +72,28 @@ export function senderTrust(
   if (verified.size === 0) return 'unknown'
   return evidence(sender, verified) > evidence(sender, dismissed) ? 'bank' : 'vendor'
 }
+
+/** A past message with the account it ended up in, newest first */
+export interface SenderAccountRecord {
+  sender: string
+  accountId: string
+}
+
+/** Only the latest messages count, so a closed account stops attracting new ones */
+const RECENT_MESSAGES = 20
+
+/**
+ * The account a message belongs to when it names none, learned from where the latest messages of
+ * alike senders went. Only a single account qualifies: with none, or with several, the message is
+ * left for the user instead of guessing.
+ */
+export function accountForSender(sender: string, history: SenderAccountRecord[]): string | null {
+  const accountIds = new Set<string>()
+  let seen = 0
+  for (const record of history) {
+    if (senderSimilarity(sender, record.sender) < CLOSE_SIMILARITY) continue
+    accountIds.add(record.accountId)
+    if (++seen >= RECENT_MESSAGES) break
+  }
+  return accountIds.size === 1 ? [...accountIds][0]! : null
+}
