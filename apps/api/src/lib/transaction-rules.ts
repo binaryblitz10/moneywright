@@ -1,7 +1,7 @@
 /**
  * Transaction rules matching
  *
- * A rule matches a transaction when every one of its terms matches the original description,
+ * A rule matches a transaction when any one of its terms matches the original description,
  * and the direction and amount agree when the rule limits them.
  * Pure functions, no database access, so imports and previews behave the same on SQLite and Postgres.
  */
@@ -93,7 +93,7 @@ export function parseAmountLimit(value: string | number | null): number | null {
 }
 
 /**
- * Whether a rule matches a transaction: all terms must match, and the direction and amount
+ * Whether a rule matches a transaction: at least one term must match, and the direction and amount
  * must agree when the rule limits them. Amount limits compare the absolute amount.
  */
 export function ruleMatches(
@@ -105,7 +105,7 @@ export function ruleMatches(
   const amount = Math.abs(txn.amount)
   if (rule.minAmount !== null && amount < rule.minAmount) return false
   if (rule.maxAmount !== null && amount > rule.maxAmount) return false
-  return rule.matchTerms.every((term) => termMatches(term, txn.description))
+  return rule.matchTerms.some((term) => termMatches(term, txn.description))
 }
 
 function amountLimitCount(rule: RuleForMatching): number {
@@ -117,12 +117,12 @@ function totalTermLength(rule: RuleForMatching): number {
 }
 
 /**
- * Order rules from most to least specific: more terms, then more amount limits,
+ * Order rules from most to least specific: fewer terms (each extra term widens a rule), then more amount limits,
  * then longer terms overall, then most recently updated.
  */
 function compareSpecificity(a: RuleForMatching, b: RuleForMatching): number {
   return (
-    b.matchTerms.length - a.matchTerms.length ||
+    a.matchTerms.length - b.matchTerms.length ||
     amountLimitCount(b) - amountLimitCount(a) ||
     totalTermLength(b) - totalTermLength(a) ||
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

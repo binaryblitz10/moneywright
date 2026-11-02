@@ -78,15 +78,16 @@ describe('termMatches', () => {
 })
 
 describe('ruleMatches', () => {
-  test('all terms must match, in any order', () => {
+  test('matches when any term matches, in any order', () => {
     const txn = { description: ZERODHA, type: 'debit', amount: 100 }
     expect(ruleMatches(rule({ matchTerms: ['zerodha', 'ach'] }), txn)).toBe(true)
     expect(ruleMatches(rule({ matchTerms: ['ach', 'zerodha'] }), txn)).toBe(true)
+    expect(ruleMatches(rule({ matchTerms: ['zerodha', 'groww'] }), txn)).toBe(true)
   })
 
-  test('fails when a term is missing', () => {
+  test('fails when no term matches', () => {
     const txn = { description: ZERODHA, type: 'debit', amount: 100 }
-    expect(ruleMatches(rule({ matchTerms: ['zerodha', 'groww'] }), txn)).toBe(false)
+    expect(ruleMatches(rule({ matchTerms: ['groww', 'upstox'] }), txn)).toBe(false)
   })
 
   test('a rule without terms never matches', () => {
@@ -133,11 +134,11 @@ describe('resolveRuleFields', () => {
 
   test('resolves each field independently from the most specific rule that sets it', () => {
     const rules = [
-      rule({ matchTerms: ['uber'], name: 'Uber', category: 'transport' }),
-      rule({ matchTerms: ['uber', 'amsterdam'], name: 'Uber Amsterdam' }),
+      rule({ matchTerms: ['uber', 'lyft'], name: 'Rides', category: 'transport' }),
+      rule({ matchTerms: ['uber'], name: 'Uber' }),
     ]
     expect(resolveRuleFields(rules, txn)).toEqual({
-      name: 'Uber Amsterdam',
+      name: 'Uber',
       category: 'transport',
     })
   })

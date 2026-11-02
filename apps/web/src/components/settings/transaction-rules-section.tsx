@@ -1,6 +1,6 @@
 /**
  * Transaction rules section component
- * Rules set the name and/or category of transactions whose description contains all of their terms,
+ * Rules set the name and/or category of transactions whose description contains any of their terms,
  * optionally limited to one direction and an amount range
  */
 
@@ -106,7 +106,7 @@ export function TransactionRulesSection() {
   return (
     <SectionCard
       title="Transaction Rules"
-      description="Set the name or category of transactions that match all terms. Applied before the AI."
+      description="Set the name or category of transactions that match any term. Applied before the AI."
       action={
         <Button size="sm" onClick={() => setEditing('new')}>
           <Plus className="mr-2 h-4 w-4" />
@@ -344,7 +344,7 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
         <DialogHeader>
           <DialogTitle>{rule ? 'Edit Rule' : 'Add Rule'}</DialogTitle>
           <DialogDescription>
-            Set the name and/or category of transactions that match every term
+            Set the name and/or category of transactions that match any term
           </DialogDescription>
         </DialogHeader>
 
