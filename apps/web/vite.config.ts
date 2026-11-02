@@ -5,6 +5,9 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import pkg from './package.json'
 
+// Dev API port: PORT lets a dev server run next to the desktop app, which owns 17777
+const apiTarget = `http://localhost:${process.env.PORT ?? 17777}`
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [TanStackRouterVite({ quoteStyle: 'single' }), react(), tailwindcss(), tsconfigPaths()],
@@ -14,11 +17,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:17777',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:17777',
+        target: apiTarget,
         changeOrigin: true,
       },
     },
