@@ -7,7 +7,7 @@ import { createHash } from 'crypto'
 import { and, eq, gte, lte, ne, notLike } from 'drizzle-orm'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
-import { duplicateKey, selectRowsToInsert } from '../duplicate-key'
+import { duplicateBucketKey, selectRowsToInsert } from '../duplicate-key'
 import { reconcileSmsTransactions } from '../../services/sms-matching'
 import type { RawPdfTransaction, InsertResult } from './types'
 
@@ -34,16 +34,16 @@ function generateTransactionHash(
 }
 
 /**
- * Count the account's existing transactions from other statements per duplicate key,
+ * List the descriptions of the account's existing transactions from other statements per duplicate bucket,
  * limited to the date range of the incoming rows. Hidden transactions count: they still exist.
  */
-async function countExistingByKey(
+async function findExistingDescriptions(
   accountId: string,
   statementId: string,
   transactions: RawPdfTransaction[]
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>()
-  if (transactions.length === 0) return counts
+): Promise<Map<string, string[]>> {
+  const existing = new Map<string, string[]>()
+  if (transactions.length === 0) return existing
 
   let minDate = transactions[0]!.date
   let maxDate = minDate
@@ -72,16 +72,17 @@ async function countExistingByKey(
     )
 
   for (const row of rows) {
-    const key = duplicateKey({
+    const bucket = duplicateBucketKey({
       accountId,
       date: row.date,
       type: row.type,
       amount: parseFloat(String(row.amount)),
-      description: row.description,
     })
-    counts.set(key, (counts.get(key) ?? 0) + 1)
+    const descriptions = existing.get(bucket) ?? []
+    descriptions.push(row.description)
+    existing.set(bucket, descriptions)
   }
-  return counts
+  return existing
 }
 
 /**
@@ -106,16 +107,14 @@ export async function insertRawTransactions(
   const insertedIds: string[] = []
 
   // Skip rows already imported from an earlier statement that overlaps this one
-  const existingCounts = await countExistingByKey(accountId, statementId, transactions)
+  const existing = await findExistingDescriptions(accountId, statementId, transactions)
   const keyed = transactions.map((txn, position) => ({ txn, position }))
-  const { toInsert, skipped } = selectRowsToInsert(keyed, existingCounts, ({ txn }) =>
-    duplicateKey({
-      accountId,
-      date: txn.date,
-      type: txn.type,
-      amount: txn.amount,
-      description: txn.description,
-    })
+  const { toInsert, skipped } = selectRowsToInsert(
+    keyed,
+    existing,
+    ({ txn }) =>
+      duplicateBucketKey({ accountId, date: txn.date, type: txn.type, amount: txn.amount }),
+    ({ txn }) => txn.description
   )
   let skippedCount = skipped
 

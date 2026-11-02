@@ -26,7 +26,7 @@ import { merchantKey, merchantName } from './spending-changes'
 import { getSubscriptionOverrides } from './subscription-overrides'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
 import { decryptOptional } from '../lib/encryption'
-import { duplicateKey } from '../lib/duplicate-key'
+import { clusterDuplicates } from '../lib/duplicate-key'
 import { countPossibleMatches } from './sms-matching'
 import { parseAmountSearch, parseSearchTerms, type SearchTerm } from '../lib/amount-search'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
@@ -869,8 +869,8 @@ export interface DuplicateGroup {
 }
 
 /**
- * Find likely duplicate transactions: same account, date, type, amount and
- * (case/whitespace-insensitive) description. Rows within a group are ordered
+ * Find likely duplicate transactions: same account, date, type, amount and a
+ * loosely matching description. Rows within a group are ordered
  * oldest-created first, so the first row is the one to keep.
  * Groups the user marked as not duplicates are left out, or returned alone with `dismissed`.
  */
@@ -886,23 +886,13 @@ export async function findDuplicateGroups(
     .where(and(...buildFilterConditions(userId, filters)))
     .orderBy(asc(tables.transactions.createdAt), asc(tables.transactions.id))
 
-  const groups = new Map<string, TransactionResponse[]>()
-  for (const row of rows) {
-    const txn = toTransactionResponse(row)
-    const key = duplicateKey({
-      accountId: txn.accountId,
-      date: txn.date,
-      type: txn.type,
-      amount: txn.amount,
-      description: txn.originalDescription,
-    })
-    const group = groups.get(key)
-    if (group) {
-      group.push(txn)
-    } else {
-      groups.set(key, [txn])
-    }
-  }
+  const groups = clusterDuplicates(rows.map(toTransactionResponse), (txn) => ({
+    accountId: txn.accountId,
+    date: txn.date,
+    type: txn.type,
+    amount: txn.amount,
+    description: txn.originalDescription,
+  }))
 
   return [...groups.entries()]
     .filter(([, transactions]) => transactions.length > 1)

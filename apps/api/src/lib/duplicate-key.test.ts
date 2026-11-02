@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { duplicateKey, selectRowsToInsert } from './duplicate-key'
+import {
+  clusterDuplicates,
+  descriptionsMatch,
+  duplicateBucketKey,
+  duplicateKey,
+  selectRowsToInsert,
+} from './duplicate-key'
 
 const base = {
   accountId: 'acc1',
@@ -17,13 +23,17 @@ interface Row {
   description: string
 }
 
-const keyOf = (r: Row): string => duplicateKey(r)
+const bucketOf = (r: Row): string => duplicateBucketKey(r)
+const descOf = (r: Row): string => r.description
 
-function counts(rows: Row[]): Map<string, number> {
-  const map = new Map<string, number>()
-  for (const r of rows) map.set(keyOf(r), (map.get(keyOf(r)) ?? 0) + 1)
+function existing(rows: Row[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const r of rows) map.set(bucketOf(r), [...(map.get(bucketOf(r)) ?? []), r.description])
   return map
 }
+
+const select = (rows: Row[], present: Row[]) =>
+  selectRowsToInsert(rows, existing(present), bucketOf, descOf)
 
 describe('duplicateKey', () => {
   test('ignores case, extra whitespace and sub-paisa amount noise', () => {
@@ -48,45 +58,76 @@ describe('selectRowsToInsert', () => {
   const c: Row = { ...base, date: '2026-09-12', description: 'Lunch', amount: 200 }
 
   test('exact overlap inserts nothing', () => {
-    const result = selectRowsToInsert([a, b, c], counts([a, b, c]), keyOf)
+    const result = select([a, b, c], [a, b, c])
     expect(result.toInsert).toEqual([])
     expect(result.skipped).toBe(3)
   })
 
   test('partial overlap inserts only the new rows', () => {
-    const result = selectRowsToInsert([a, b, c], counts([a, b]), keyOf)
+    const result = select([a, b, c], [a, b])
     expect(result.toInsert).toEqual([c])
     expect(result.skipped).toBe(2)
   })
 
   test('identical same-day rows in one file are kept when not already present', () => {
-    const result = selectRowsToInsert([a, a], new Map(), keyOf)
+    const result = select([a, a], [])
     expect(result.toInsert).toHaveLength(2)
     expect(result.skipped).toBe(0)
   })
 
   test('inserts N - M of identical rows', () => {
-    const result = selectRowsToInsert([a, a, a], counts([a]), keyOf)
+    const result = select([a, a, a], [a])
     expect(result.toInsert).toHaveLength(2)
     expect(result.skipped).toBe(1)
   })
 
   test('different descriptions are not deduped', () => {
     const other = { ...a, description: 'Coffee Shop' }
-    const result = selectRowsToInsert([other], counts([a]), keyOf)
+    const result = select([other], [a])
     expect(result.toInsert).toEqual([other])
     expect(result.skipped).toBe(0)
   })
 
   test('different accounts are not deduped', () => {
     const other = { ...a, accountId: 'acc2' }
-    const result = selectRowsToInsert([other], counts([a]), keyOf)
+    const result = select([other], [a])
     expect(result.toInsert).toEqual([other])
     expect(result.skipped).toBe(0)
   })
 
   test('preserves file order of the rows that are kept', () => {
-    const result = selectRowsToInsert([c, a, b], counts([a]), keyOf)
+    const result = select([c, a, b], [a])
     expect(result.toInsert).toEqual([c, b])
+  })
+})
+
+describe('descriptionsMatch', () => {
+  test('matches a prefixed or trimmed form of the same description', () => {
+    expect(
+      descriptionsMatch(
+        'MOBILE BANKING Sagar Sing MMT/IMPS/627417543590/Sagar Sing/UTIB0000015',
+        'MMT/IMPS/627417543590/Sagar Sing/UTIB0000015'
+      )
+    ).toBe(true)
+    expect(descriptionsMatch('UPI/Zomato/4455', 'upi-zomato-4455-ref99')).toBe(true)
+  })
+
+  test('does not match unrelated descriptions', () => {
+    expect(descriptionsMatch('Tea Stall', 'Coffee Shop')).toBe(false)
+    expect(descriptionsMatch('UPI/Zomato/4455', 'UPI/Swiggy/9981')).toBe(false)
+    expect(descriptionsMatch('', 'Tea Stall')).toBe(false)
+  })
+})
+
+describe('clusterDuplicates', () => {
+  test('groups loosely matching rows and keeps others apart', () => {
+    const rows: Row[] = [
+      { ...base, description: 'IMPS/6274/Sagar' },
+      { ...base, description: 'MOBILE BANKING IMPS/6274/Sagar' },
+      { ...base, description: 'Coffee Shop' },
+      { ...base, date: '2026-09-11', description: 'IMPS/6274/Sagar' },
+    ]
+    const clusters = [...clusterDuplicates(rows, (r) => r).values()]
+    expect(clusters.map((c) => c.length)).toEqual([2, 1, 1])
   })
 })
