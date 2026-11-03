@@ -37,6 +37,7 @@ import {
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
+import { buildDataHealthSummary } from './data-health-summary'
 import {
   getBudgetRangeSummary,
   getBudgetSummary,
@@ -1069,6 +1070,31 @@ Returns status 'insufficient_history' when fewer than 3 baseline months exist. I
           month: params.month,
           baselineMonths: params.baselineMonths,
         })
+      },
+    }),
+
+    getDataHealth: tool({
+      description: `Check the user's data for problems: statement gaps, overlaps, balance breaks, statement totals that do not match, stale accounts, card payments to check, uncertain categories and duplicate transactions. Read-only - it never changes data.
+Each issue has: kind, summary, account, dates, amount and howToFix (the exact place in the app). Real issues come first; issues with likelyFalseAlarm are not errors (say why, from falseAlarmReason).
+A statement_mismatch may carry suspectTransactions (transactions whose amount equals the difference; likelyDuplicate means another source holds the same amount nearby) and the duplicateGroup they belong to. autoFixable counts what the Review → Fix issues button can fix.
+Use this for "what's wrong with my data?", "why don't my balances match?" or "do I have duplicates?". Quote amounts as given.`,
+      inputSchema: z.object({
+        includeDetails: z
+          .boolean()
+          .optional()
+          .describe('Return more issues (up to 60 instead of 25). Default false'),
+      }),
+      execute: async (params) => {
+        try {
+          return await buildDataHealthSummary(
+            userId,
+            profileIdForQuery,
+            params.includeDetails ?? false
+          )
+        } catch (error) {
+          logger.error('[Chat] getDataHealth failed:', error)
+          return { error: 'Could not check data health' }
+        }
       },
     }),
 
