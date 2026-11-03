@@ -166,6 +166,15 @@ export function CategoryPicker(props: CategoryPickerProps) {
     }
   }
 
+  // Typing on the focused trigger (e.g. after Tab) opens the list and starts the search
+  const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
+    if (open || disabled || e.key.length !== 1 || e.key === ' ') return
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    e.preventDefault()
+    handleOpenChange(true)
+    setSearch(e.key)
+  }
+
   const select = (code: string) => {
     if (props.multiple) {
       props.onValuesChange(
@@ -206,7 +215,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
 
   return (
     <Popover modal open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger asChild onKeyDown={handleTriggerKeyDown}>
         {!props.multiple && props.trigger ? (
           props.trigger
         ) : (

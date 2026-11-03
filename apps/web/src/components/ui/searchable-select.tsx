@@ -109,12 +109,21 @@ export function SearchableSelect({
     }
   }
 
+  // Typing on the focused trigger (e.g. after Tab) opens the list and starts the search
+  const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
+    if (open || e.key.length !== 1 || e.key === ' ') return
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    e.preventDefault()
+    handleOpenChange(true)
+    setSearch(e.key)
+  }
+
   const triggerLabel = selected?.label ?? fallbackLabel
   const triggerIcon = selected ? selected.icon : fallbackLabel ? fallbackIcon : undefined
 
   return (
     <Popover modal open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger asChild onKeyDown={handleTriggerKeyDown}>
         <Button
           id={id}
           type="button"
