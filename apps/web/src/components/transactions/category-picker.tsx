@@ -111,6 +111,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
   const [kindFilter, setKindFilter] = useState<CategoryKind | null>(null)
   // Option highlighted for the keyboard; null falls back to the default below
   const [activeCode, setActiveCode] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   // Option last highlighted by the pointer, which must not scroll the list under the cursor
   const hoveredCodeRef = useRef<string | null>(null)
@@ -173,6 +174,15 @@ export function CategoryPicker(props: CategoryPickerProps) {
     e.preventDefault()
     handleOpenChange(true)
     setSearch(e.key)
+  }
+
+  // Radix selects the focused input's text, which would let the next key replace the typed one
+  const focusSearchAtEnd = (e: Event) => {
+    e.preventDefault()
+    const input = searchRef.current
+    if (!input) return
+    input.focus()
+    input.setSelectionRange(input.value.length, input.value.length)
   }
 
   const select = (code: string) => {
@@ -242,10 +252,15 @@ export function CategoryPicker(props: CategoryPickerProps) {
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className={cn(PICKER_CONTENT_CLASS, contentClassName)} align={contentAlign}>
+      <PopoverContent
+        className={cn(PICKER_CONTENT_CLASS, contentClassName)}
+        align={contentAlign}
+        onOpenAutoFocus={focusSearchAtEnd}
+      >
         <div className="relative border-b border-border-subtle">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder="Search categories..."
             value={search}
             onChange={(e) => {

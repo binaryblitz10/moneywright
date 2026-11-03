@@ -56,6 +56,7 @@ export function SearchableSelect({
   const [search, setSearch] = useState('')
   // Option highlighted for the keyboard; null falls back to the default below
   const [activeValue, setActiveValue] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   // Option last highlighted by the pointer, which must not scroll the list under the cursor
   const hoveredValueRef = useRef<string | null>(null)
@@ -118,6 +119,15 @@ export function SearchableSelect({
     setSearch(e.key)
   }
 
+  // Radix selects the focused input's text, which would let the next key replace the typed one
+  const focusSearchAtEnd = (e: Event) => {
+    e.preventDefault()
+    const input = searchRef.current
+    if (!input) return
+    input.focus()
+    input.setSelectionRange(input.value.length, input.value.length)
+  }
+
   const triggerLabel = selected?.label ?? fallbackLabel
   const triggerIcon = selected ? selected.icon : fallbackLabel ? fallbackIcon : undefined
 
@@ -144,10 +154,15 @@ export function SearchableSelect({
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className={PICKER_CONTENT_CLASS} align="start">
+      <PopoverContent
+        className={PICKER_CONTENT_CLASS}
+        align="start"
+        onOpenAutoFocus={focusSearchAtEnd}
+      >
         <div className="relative border-b border-border-subtle">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => {
