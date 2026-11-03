@@ -21,6 +21,7 @@
         "minHeight": 600,
         "center": true,
         "maximized": true,
+        "dragDropEnabled": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
       }
