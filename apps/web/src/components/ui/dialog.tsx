@@ -70,6 +70,15 @@ function DialogContent({
   )
 }
 
+/**
+ * `onOpenAutoFocus` handler that keeps the first field from being focused and selected, but still
+ * moves focus into the dialog so Tab starts there instead of in the page behind it
+ */
+function focusDialogOnOpen(e: Event) {
+  e.preventDefault()
+  if (e.target instanceof HTMLElement) e.target.focus()
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
@@ -114,6 +123,7 @@ function DialogDescription({
 }
 
 export {
+  focusDialogOnOpen,
   Dialog,
   DialogClose,
   DialogContent,

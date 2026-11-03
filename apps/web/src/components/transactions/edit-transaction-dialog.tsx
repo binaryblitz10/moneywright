@@ -5,6 +5,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  focusDialogOnOpen,
 } from '@/components/ui/dialog'
 import type { Category, Transaction } from '@/lib/api'
 import { TransactionEditForm } from './transaction-edit-form'
@@ -31,7 +32,7 @@ export function EditTransactionDialog({
         // buttons stay put and only the fields scroll.
         className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         // Don't auto-focus (and select) the first input when opening
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={focusDialogOnOpen}
       >
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Edit Transaction</DialogTitle>

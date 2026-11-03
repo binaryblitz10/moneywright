@@ -8,6 +8,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  focusDialogOnOpen,
 } from '@/components/ui/dialog'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { getTransactionIds, type Transaction, type TransactionFilters } from '@/lib/api'
@@ -338,7 +339,7 @@ function TransactionsPage() {
 
       {/* Add Transaction Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent onOpenAutoFocus={focusDialogOnOpen}>
           <DialogHeader>
             <DialogTitle>Add Transaction</DialogTitle>
             <DialogDescription>

@@ -15,6 +15,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  focusDialogOnOpen,
 } from '@/components/ui/dialog'
 import { ReviewForm } from '@/components/bank-messages/review-form'
 import {
@@ -286,7 +287,7 @@ export function MessagesTable({
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>
         <DialogContent
           className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={focusDialogOnOpen}
         >
           <DialogHeader className="px-6 pt-6">
             <DialogTitle>Review message</DialogTitle>
