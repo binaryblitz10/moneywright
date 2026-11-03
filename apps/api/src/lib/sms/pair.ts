@@ -5,6 +5,10 @@
  * equal. Among those, a pair counts as a confirmed match when the merchant texts overlap; pairs
  * that agree on the numbers but not on the text are only possible matches for the user to decide.
  * Matching is one-to-one, so several identical purchases pair up without being confused.
+ *
+ * Hand-entered transactions are paired the same way, with more slack: the user wrote the name and
+ * may have picked a day or two off, so a statement line that is the only one with the same account,
+ * direction and amount within a couple of days counts as the match even without shared text.
  */
 
 import { overlapScore } from './match'
@@ -83,6 +87,67 @@ export function pairTransactions<T extends PairRow>(
       const options = leftoverTargets.filter((t) => !isDismissed(s.id, t.id))
       if (options.length > 0) result.possible.push({ sms: s, candidates: options })
     }
+  }
+
+  return result
+}
+
+/** How many days a hand-entered date may differ from the statement line's date */
+const MANUAL_DATE_WINDOW_DAYS = 2
+
+function dayNumber(date: string): number {
+  return Math.round(Date.parse(`${date}T00:00:00Z`) / 86_400_000)
+}
+
+function sameMoney(a: PairRow, b: PairRow): boolean {
+  return (
+    a.accountId === b.accountId &&
+    a.type === b.type &&
+    Number(a.amount).toFixed(2) === Number(b.amount).toFixed(2)
+  )
+}
+
+function withinWindow(a: PairRow, b: PairRow): boolean {
+  return Math.abs(dayNumber(a.date) - dayNumber(b.date)) <= MANUAL_DATE_WINDOW_DAYS
+}
+
+/**
+ * Pairing for hand-entered transactions. Same-day pairs with overlapping text match as for SMS.
+ * Otherwise a statement line within the date window that is the only candidate, and that no other
+ * provisional row (`others`, e.g. SMS transactions) is also waiting for, matches too. Anything
+ * less clear is a possible match across the whole window.
+ */
+export function pairManualTransactions<T extends PairRow>(
+  manualRows: T[],
+  candidates: T[],
+  others: T[] = [],
+  isDismissed: (manualId: string, targetId: string) => boolean = () => false
+): PairResult<T> {
+  const result: PairResult<T> = {
+    matched: pairTransactions(manualRows, candidates).matched,
+    possible: [],
+  }
+  const used = new Set(result.matched.flatMap((m) => [m.sms.id, m.target.id]))
+  const pending = manualRows.filter((m) => !used.has(m.id))
+
+  for (const manual of pending) {
+    const near = candidates.filter(
+      (t) => !used.has(t.id) && sameMoney(manual, t) && withinWindow(manual, t)
+    )
+    const [only] = near
+    if (near.length === 1 && only) {
+      const competing = [...pending, ...others].some(
+        (r) => r.id !== manual.id && !used.has(r.id) && sameMoney(r, only) && withinWindow(r, only)
+      )
+      if (!competing) {
+        used.add(manual.id)
+        used.add(only.id)
+        result.matched.push({ sms: manual, target: only })
+        continue
+      }
+    }
+    const options = near.filter((t) => !isDismissed(manual.id, t.id))
+    if (options.length > 0) result.possible.push({ sms: manual, candidates: options })
   }
 
   return result

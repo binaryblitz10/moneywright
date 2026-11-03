@@ -46,6 +46,9 @@ export const profiles = sqliteTable(
     name: text('name').notNull(), // e.g., "Personal", "Spouse"
     relationship: text('relationship'), // e.g., "self", "spouse", "parent"
     summary: text('summary'), // Free-form text about the profile owner (employer, income sources, etc.) - used to help LLM categorize transactions
+    learnedNotes: text('learned_notes'), // Short notes distilled from the user's corrections, appended to the categorization prompt
+    learnedNotesUpdatedAt: text('learned_notes_updated_at'), // When the notes were last regenerated
+    learnedNotesEditedAt: text('learned_notes_edited_at'), // When the user last edited the notes by hand
     createdAt: text('created_at')
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -191,6 +194,7 @@ export const statements = sqliteTable(
     originalFilename: text('original_filename').notNull(),
     fileType: text('file_type').notNull(), // pdf, csv, xlsx
     fileSizeBytes: integer('file_size_bytes'),
+    fileHash: text('file_hash'), // SHA256 of the uploaded file, used to spot re-uploads
 
     // Statement period
     periodStart: text('period_start'), // ISO date string
@@ -230,6 +234,7 @@ export const statements = sqliteTable(
     index('statements_user_id_idx').on(table.userId),
     index('statements_status_idx').on(table.status),
     index('statements_document_type_idx').on(table.documentType),
+    index('statements_user_file_hash_idx').on(table.userId, table.fileHash),
   ]
 )
 
@@ -271,6 +276,9 @@ export const transactions = sqliteTable(
     category: text('category').notNull(),
     categoryConfidence: real('category_confidence'),
     isSubscription: integer('is_subscription', { mode: 'boolean' }), // LLM-detected recurring subscription
+    merchantFingerprint: text('merchant_fingerprint'), // Normalized merchant key from the description, used to reuse past corrections
+    categorySource: text('category_source'), // Who set the category: 'user' | 'rule' | 'memory' | 'ai'
+    nameSource: text('name_source'), // Who set the name (summary): 'user' | 'rule' | 'memory' | 'ai'
 
     // Deduplication
     hash: text('hash').notNull(), // SHA256
@@ -284,6 +292,7 @@ export const transactions = sqliteTable(
     isHidden: integer('is_hidden', { mode: 'boolean' }).default(false), // true if user hides this transaction from queries
     notes: text('notes'), // free-form note written by the user
     smsVerified: integer('sms_verified', { mode: 'boolean' }).notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
+    duplicateOfId: text('duplicate_of_id'), // ID of the transaction this one was flagged as a duplicate of
 
     createdAt: text('created_at')
       .notNull()
@@ -299,8 +308,93 @@ export const transactions = sqliteTable(
     index('transactions_user_id_idx').on(table.userId),
     index('transactions_date_idx').on(table.date),
     index('transactions_category_idx').on(table.category),
+    index('transactions_user_merchant_fingerprint_idx').on(table.userId, table.merchantFingerprint),
     unique('transactions_account_hash_unique').on(table.accountId, table.hash),
   ]
+)
+
+/**
+ * Categorization events table - every correction or confirmation of a category or name,
+ * the raw material the app learns from
+ */
+export const categorizationEvents = sqliteTable(
+  'categorization_events',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    profileId: text('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    transactionId: text('transaction_id'), // Kept after the transaction is deleted
+    merchantFingerprint: text('merchant_fingerprint'),
+    description: text('description').notNull(), // Original description of the transaction
+    field: text('field').notNull(), // 'category' | 'name'
+    fromValue: text('from_value'),
+    toValue: text('to_value'),
+    fromSource: text('from_source'), // 'user' | 'rule' | 'memory' | 'ai'
+    action: text('action').notNull(), // 'correct' | 'confirm'
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index('categorization_events_user_created_idx').on(table.userId, table.createdAt),
+    index('categorization_events_user_merchant_idx').on(table.userId, table.merchantFingerprint),
+  ]
+)
+
+/**
+ * Auto-fix batches table - one run of the automatic data fixers (after an import or on demand)
+ */
+export const autoFixBatches = sqliteTable(
+  'auto_fix_batches',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    profileId: text('profile_id').references(() => profiles.id, { onDelete: 'cascade' }),
+    trigger: text('trigger').notNull(), // 'import' | 'manual'
+    statementIds: text('statement_ids').notNull(), // JSON array of statement IDs
+    summary: text('summary').notNull(), // JSON object with counts per fixer
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    undoneAt: text('undone_at'), // Set when the whole batch was undone
+  },
+  (table) => [index('auto_fix_batches_user_created_idx').on(table.userId, table.createdAt)]
+)
+
+/**
+ * Auto-fix changes table - each single change a batch made, with enough to undo it
+ */
+export const autoFixChanges = sqliteTable(
+  'auto_fix_changes',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    batchId: text('batch_id')
+      .notNull()
+      .references(() => autoFixBatches.id, { onDelete: 'cascade' }),
+    fixer: text('fixer').notNull(),
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    description: text('description').notNull(),
+    before: text('before').notNull(), // JSON snapshot of the changed fields before the fix
+    after: text('after').notNull(), // JSON snapshot of the changed fields after the fix
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    undoneAt: text('undone_at'),
+  },
+  (table) => [index('auto_fix_changes_batch_id_idx').on(table.batchId)]
 )
 
 /**
@@ -753,7 +847,7 @@ export const transactionRules = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
 
-    // Matching: every term must match the original description
+    // Matching: any one term matching the original description is enough
     matchTerms: text('match_terms').notNull(), // JSON array of strings
     transactionType: text('transaction_type'), // credit or debit, null = both
     minAmount: real('min_amount'), // inclusive, null = no lower limit
@@ -823,6 +917,15 @@ export type NewStatement = typeof statements.$inferInsert
 
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
+
+export type CategorizationEvent = typeof categorizationEvents.$inferSelect
+export type NewCategorizationEvent = typeof categorizationEvents.$inferInsert
+
+export type AutoFixBatch = typeof autoFixBatches.$inferSelect
+export type NewAutoFixBatch = typeof autoFixBatches.$inferInsert
+
+export type AutoFixChange = typeof autoFixChanges.$inferSelect
+export type NewAutoFixChange = typeof autoFixChanges.$inferInsert
 
 export type SubscriptionOverride = typeof subscriptionOverrides.$inferSelect
 export type NewSubscriptionOverride = typeof subscriptionOverrides.$inferInsert

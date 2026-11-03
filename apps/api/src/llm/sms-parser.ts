@@ -4,7 +4,7 @@
  */
 
 import { generateObject } from 'ai'
-import { createLLMClientFromSettings } from './index'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from './index'
 import { smsTransactionSchema } from './schemas'
 import type { ParsedSms } from '../lib/sms/parse'
 import { logger } from '../lib/logger'
@@ -23,12 +23,15 @@ that is not a completed transaction. Do not guess: use null for any field the me
 MESSAGE:
 ${body}`
 
-  const { object } = await generateObject({
-    model,
-    schema: smsTransactionSchema,
-    prompt,
-    providerOptions,
-  })
+  const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.short, (abortSignal) =>
+    generateObject({
+      model,
+      schema: smsTransactionSchema,
+      prompt,
+      providerOptions,
+      abortSignal,
+    })
+  )
   logger.debug(`[SmsParser] AI parsed message, is_transaction=${object.is_transaction}`)
 
   if (!object.is_transaction) return null

@@ -13,7 +13,7 @@ import { findUserById } from './user'
 
 /**
  * Transaction rules service
- * Rules set the name and/or category of transactions whose description contains all of their terms,
+ * Rules set the name and/or category of transactions whose description contains any of their terms,
  * optionally limited to one direction and an amount range
  */
 

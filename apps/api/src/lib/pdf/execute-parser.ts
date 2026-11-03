@@ -17,7 +17,6 @@ import type {
   RawInvestmentHolding,
   ExecutionResult,
   ExpectedSummary,
-  ExtractedTotals,
 } from './types'
 import type { ParserCodeEntry } from './parser-code-cache'
 import { recordSuccess, recordFailure } from './parser-code-cache'
@@ -27,12 +26,9 @@ import {
   normalizeTransaction,
   isValidHolding,
   normalizeHolding,
+  validateParsedTransactions,
+  type ParsedValidation,
 } from './validation'
-
-/**
- * Tolerance for amount comparison (to handle rounding differences)
- */
-const AMOUNT_TOLERANCE = 10
 
 /**
  * Maximum execution time in milliseconds
@@ -215,6 +211,7 @@ export async function runParserLocal(
       return {
         success: true,
         transactions: validTransactions,
+        droppedRowCount: invalidCount,
         executionTimeMs,
       }
     }
@@ -233,144 +230,8 @@ export async function runParserLocal(
 export interface MultiVersionResult extends ExecutionResult {
   usedVersion?: number
   triedVersions: number[]
-  validationPassed?: boolean
-}
-
-/**
- * Check if we have any validation data
- */
-function hasValidationData(summary: ExpectedSummary): boolean {
-  return (
-    summary.debitCount !== null ||
-    summary.creditCount !== null ||
-    summary.totalDebits !== null ||
-    summary.totalCredits !== null ||
-    summary.openingBalance !== null ||
-    summary.closingBalance !== null
-  )
-}
-
-/**
- * Calculate totals from extracted transactions
- */
-function calculateTotals(transactions: RawPdfTransaction[]): ExtractedTotals {
-  let debitCount = 0
-  let creditCount = 0
-  let totalDebits = 0
-  let totalCredits = 0
-
-  for (const txn of transactions) {
-    if (txn.type === 'debit') {
-      debitCount++
-      totalDebits += txn.amount
-    } else {
-      creditCount++
-      totalCredits += txn.amount
-    }
-  }
-
-  // Calculate opening and closing balance from transactions
-  let openingBalance: number | null = null
-  let closingBalance: number | null = null
-
-  // Filter transactions that have a balance
-  const txnsWithBalance = transactions.filter((t) => t.balance != null)
-
-  if (txnsWithBalance.length > 0) {
-    // Sort by date to find chronologically first and last transactions
-    const sortedByDate = [...txnsWithBalance].sort((a, b) => {
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    })
-
-    const chronologicallyFirst = sortedByDate[0]!
-    const chronologicallyLast = sortedByDate[sortedByDate.length - 1]!
-
-    // Closing balance is the balance after the most recent transaction
-    closingBalance = chronologicallyLast.balance!
-
-    // Opening balance is derived from the oldest transaction
-    // Opening balance = first transaction balance - credit + debit
-    if (chronologicallyFirst.type === 'credit') {
-      openingBalance = chronologicallyFirst.balance! - chronologicallyFirst.amount
-    } else {
-      openingBalance = chronologicallyFirst.balance! + chronologicallyFirst.amount
-    }
-
-    // Round to 2 decimal places
-    openingBalance = Math.round(openingBalance * 100) / 100
-    closingBalance = Math.round(closingBalance * 100) / 100
-  }
-
-  return {
-    debitCount,
-    creditCount,
-    totalDebits: Math.round(totalDebits * 100) / 100,
-    totalCredits: Math.round(totalCredits * 100) / 100,
-    openingBalance,
-    closingBalance,
-  }
-}
-
-/**
- * Validate extracted totals against expected summary
- */
-function validateTotals(
-  extracted: ExtractedTotals,
-  expected: ExpectedSummary
-): { isValid: boolean; details: string[]; message?: string } {
-  const issues: string[] = []
-
-  // Check debit count (exact match required)
-  if (expected.debitCount !== null && extracted.debitCount !== expected.debitCount) {
-    issues.push(`Debit count: ${extracted.debitCount} vs expected ${expected.debitCount}`)
-  }
-
-  // Check credit count (exact match required)
-  if (expected.creditCount !== null && extracted.creditCount !== expected.creditCount) {
-    issues.push(`Credit count: ${extracted.creditCount} vs expected ${expected.creditCount}`)
-  }
-
-  // Check total debits (tolerance allowed)
-  if (expected.totalDebits !== null) {
-    const diff = Math.abs(extracted.totalDebits - expected.totalDebits)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(`Total debits: ${extracted.totalDebits} vs expected ${expected.totalDebits}`)
-    }
-  }
-
-  // Check total credits (tolerance allowed)
-  if (expected.totalCredits !== null) {
-    const diff = Math.abs(extracted.totalCredits - expected.totalCredits)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(`Total credits: ${extracted.totalCredits} vs expected ${expected.totalCredits}`)
-    }
-  }
-
-  // Check opening balance (tolerance allowed)
-  if (expected.openingBalance !== null && extracted.openingBalance !== null) {
-    const diff = Math.abs(extracted.openingBalance - expected.openingBalance)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(
-        `Opening balance: ${extracted.openingBalance} vs expected ${expected.openingBalance}`
-      )
-    }
-  }
-
-  // Check closing balance (tolerance allowed)
-  if (expected.closingBalance !== null && extracted.closingBalance !== null) {
-    const diff = Math.abs(extracted.closingBalance - expected.closingBalance)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(
-        `Closing balance: ${extracted.closingBalance} vs expected ${expected.closingBalance}`
-      )
-    }
-  }
-
-  return {
-    isValid: issues.length === 0,
-    details: issues,
-    message: issues.length > 0 ? issues.join('; ') : undefined,
-  }
+  /** How the rows were checked, and what was off. Absent when no version produced rows. */
+  validation?: ParsedValidation
 }
 
 /**
@@ -390,7 +251,6 @@ export async function runParserWithVersions(
   expectedSummary?: ExpectedSummary
 ): Promise<MultiVersionResult> {
   const triedVersions: number[] = []
-  const shouldValidate = expectedSummary && hasValidationData(expectedSummary)
 
   for (const entry of parserCodes) {
     triedVersions.push(entry.version)
@@ -399,50 +259,22 @@ export async function runParserWithVersions(
     const result = await runParser(entry.code, pdfText)
 
     if (result.success && result.transactions && result.transactions.length > 0) {
-      // Execution succeeded, now validate if we have expected summary
-      if (shouldValidate) {
-        const extractedTotals = calculateTotals(result.transactions)
-        const validation = validateTotals(extractedTotals, expectedSummary)
+      // Execution succeeded; judge the rows by printed totals or, failing that, the running balance
+      const validation = validateParsedTransactions(expectedSummary ?? null, result.transactions)
 
-        if (validation.isValid) {
-          // Both execution and validation passed
-          await recordSuccess(bankKey, entry.version)
-          logger.debug(
-            `[ExecuteParser] ${bankKey} v${entry.version} succeeded with ${result.transactions.length} transactions (validation passed)`
-          )
-          return {
-            ...result,
-            usedVersion: entry.version,
-            triedVersions,
-            validationPassed: true,
-          }
-        } else {
-          // Execution succeeded but validation failed - try next version
-          await recordFailure(bankKey, entry.version)
-          logger.warn(
-            `[ExecuteParser] ${bankKey} v${entry.version} failed validation: ${validation.details.join(', ')}`
-          )
-          logger.warn(
-            `[ExecuteParser] Extracted: debits=${extractedTotals.debitCount}/${extractedTotals.totalDebits}, credits=${extractedTotals.creditCount}/${extractedTotals.totalCredits}, openBal=${extractedTotals.openingBalance}, closeBal=${extractedTotals.closingBalance}`
-          )
-          logger.warn(
-            `[ExecuteParser] Expected: debits=${expectedSummary.debitCount}/${expectedSummary.totalDebits}, credits=${expectedSummary.creditCount}/${expectedSummary.totalCredits}, openBal=${expectedSummary.openingBalance}, closeBal=${expectedSummary.closingBalance}`
-          )
-          // Continue to try next version
-        }
-      } else {
-        // No validation data, trust execution result
+      if (validation.passed) {
         await recordSuccess(bankKey, entry.version)
         logger.debug(
-          `[ExecuteParser] ${bankKey} v${entry.version} succeeded with ${result.transactions.length} transactions (no validation data)`
+          `[ExecuteParser] ${bankKey} v${entry.version} succeeded with ${result.transactions.length} transactions (validation: ${validation.method})`
         )
-        return {
-          ...result,
-          usedVersion: entry.version,
-          triedVersions,
-          validationPassed: false,
-        }
+        return { ...result, usedVersion: entry.version, triedVersions, validation }
       }
+
+      // Execution succeeded but validation failed - try next version
+      await recordFailure(bankKey, entry.version)
+      logger.warn(
+        `[ExecuteParser] ${bankKey} v${entry.version} failed validation (${validation.method}): ${validation.issues.join(', ')}`
+      )
     } else {
       // Execution failed, record and try next version
       await recordFailure(bankKey, entry.version)
@@ -453,13 +285,9 @@ export async function runParserWithVersions(
   }
 
   // All versions failed (either execution or validation)
-  const failureReason = shouldValidate
-    ? `All ${parserCodes.length} cached parser versions failed execution or validation`
-    : `All ${parserCodes.length} cached parser versions failed`
-
   return {
     success: false,
-    error: failureReason,
+    error: `All ${parserCodes.length} cached parser versions failed execution or validation`,
     executionTimeMs: 0,
     triedVersions,
   }

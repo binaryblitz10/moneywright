@@ -938,6 +938,9 @@ export type AccountTypeCode = (typeof ACCOUNT_TYPES)[CountryCode][number]['code'
 
 export type CategoryKind = 'income' | 'expense' | 'investment' | 'transfer'
 
+/** Who set a transaction's category or name */
+export type LabelSource = 'user' | 'rule' | 'memory' | 'ai'
+
 /**
  * Transaction categories by country
  */

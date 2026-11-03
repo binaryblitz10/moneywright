@@ -86,6 +86,8 @@ export interface ExecutionResult {
   success: boolean
   transactions?: RawPdfTransaction[]
   holdings?: RawInvestmentHolding[]
+  /** Rows the parser returned that failed validation and were dropped (local execution only) */
+  droppedRowCount?: number
   error?: string
   executionTimeMs: number
 }
@@ -96,6 +98,10 @@ export interface ExecutionResult {
 export interface InsertResult {
   insertedCount: number
   skippedDuplicates: number
+  /** Bank message or manual rows merged into the new statement lines */
+  mergedWithBankMessages: number
+  /** Bank message or manual rows that look like a new line but need the user to confirm */
+  possibleMatches: number
   transactionIds: string[]
 }
 

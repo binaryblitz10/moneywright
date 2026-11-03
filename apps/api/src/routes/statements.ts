@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod/v4'
 import { auth, type AuthVariables } from '../middleware/auth'
@@ -6,6 +7,7 @@ import {
   getStatementById,
   getStatementStatus,
   createStatement,
+  findImportedStatementByHash,
   deleteStatement,
   bulkDeleteStatements,
   updateStatementDetails,
@@ -20,6 +22,10 @@ import type { FileType } from '../lib/constants'
 import { decryptOptional } from '../lib/encryption'
 import { SUPPORTED_FILE_TYPES, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
+
+/** Largest statement file accepted per upload (bytes) */
+const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024
+const FILE_TOO_LARGE_ERROR = 'File is larger than 25 MB'
 
 const statementRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -179,9 +185,35 @@ statementRoutes.post('/upload', async (c) => {
         continue
       }
 
+      if (file.size > MAX_UPLOAD_FILE_BYTES) {
+        errors.push({ filename: file.name, error: FILE_TOO_LARGE_ERROR })
+        continue
+      }
+
       // Read file
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
+
+      // Reject a file that was already imported (same bytes), before spending any extraction work
+      const fileHash = createHash('sha256').update(buffer).digest('hex')
+      const alreadyImported = await findImportedStatementByHash(userId, fileHash)
+      if (alreadyImported) {
+        if (files.length === 1) {
+          return c.json(
+            {
+              error: 'already_imported',
+              message: `This file was already imported as ${alreadyImported.originalFilename}`,
+              statement: alreadyImported,
+            },
+            409
+          )
+        }
+        errors.push({
+          filename: file.name,
+          error: `Already imported on ${new Date(alreadyImported.createdAt).toISOString().slice(0, 10)}`,
+        })
+        continue
+      }
 
       // Extract text
       let pages: string[] = []
@@ -283,6 +315,7 @@ statementRoutes.post('/upload', async (c) => {
         originalFilename: file.name,
         fileType,
         fileSizeBytes: buffer.length,
+        fileHash,
         documentType: documentType || undefined,
       })
 
@@ -303,6 +336,16 @@ statementRoutes.post('/upload', async (c) => {
 
     // If no valid files, return error
     if (statements.length === 0) {
+      if (errors.length > 0 && errors.every((e) => e.error === FILE_TOO_LARGE_ERROR)) {
+        return c.json(
+          {
+            error: 'file_too_large',
+            message: `Files must be smaller than 25 MB: ${errors.map((e) => e.filename).join(', ')}`,
+            errors,
+          },
+          413
+        )
+      }
       return c.json(
         {
           error: 'validation_error',

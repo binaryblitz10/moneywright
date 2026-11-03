@@ -6,21 +6,22 @@
 
 import { ToolLoopAgent, tool, stepCountIs, hasToolCall } from 'ai'
 import { z } from 'zod'
-import { createLLMClientFromSettings } from '../../llm'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from '../../llm'
 import { logger } from '../logger'
 import { runParser } from './execute-parser'
-import type { ExpectedSummary, ExtractedTotals, RawPdfTransaction } from './types'
+import type { ExpectedSummary, ExtractedTotals } from './types'
+import {
+  calculateTotals,
+  hasValidationData,
+  validateParsedTransactions,
+  type ParsedValidation,
+} from './validation'
 import type { FileType } from '../constants'
 
 /**
  * Maximum retry attempts for fixing code errors
  */
 const MAX_STEPS = 8
-
-/**
- * Tolerance for amount comparison (to handle rounding differences)
- */
-const AMOUNT_TOLERANCE = 10
 
 /**
  * Base system prompt for PDF code generation
@@ -463,103 +464,111 @@ If there's a mismatch, investigate why and fix your code. Common issues:
 }
 
 /**
- * Check if we have any validation data
+ * Build the feedback the code-generation agent gets when its rows do not match the totals
+ * printed on the statement, with a diagnosis of the most likely cause
  */
-function hasValidationData(summary: ExpectedSummary): boolean {
-  return (
-    summary.debitCount !== null ||
-    summary.creditCount !== null ||
-    summary.totalDebits !== null ||
-    summary.totalCredits !== null
-  )
+function describePrintedTotalsMismatch(
+  extractedTotals: ExtractedTotals,
+  expectedSummary: ExpectedSummary
+): string {
+  // Analyze the mismatch to give specific guidance
+  const totalTxnCount = extractedTotals.debitCount + extractedTotals.creditCount
+  const expectedTotalCount = (expectedSummary.debitCount || 0) + (expectedSummary.creditCount || 0)
+  const countMatch = totalTxnCount === expectedTotalCount
+  const debitCountDiff = extractedTotals.debitCount - (expectedSummary.debitCount || 0)
+
+  let guidance = ''
+
+  // Check for balance mismatch
+  const hasBalanceMismatch =
+    (expectedSummary.closingBalance !== null &&
+      extractedTotals.closingBalance !== null &&
+      Math.abs(extractedTotals.closingBalance - expectedSummary.closingBalance) > 10) ||
+    (expectedSummary.openingBalance !== null &&
+      extractedTotals.openingBalance !== null &&
+      Math.abs(extractedTotals.openingBalance - expectedSummary.openingBalance) > 10)
+
+  if (hasBalanceMismatch && countMatch) {
+    // Counts match but balance doesn't - likely amount extraction issue
+    guidance = `
+DIAGNOSIS: Transaction counts are correct but balance doesn't match.
+This usually means amounts are being extracted incorrectly.
+
+LIKELY CAUSES:
+1. Amount regex is capturing wrong numbers (e.g., reference numbers instead of amounts)
+2. Balance column is being confused with amount column
+3. Decimal places are being parsed incorrectly
+
+FIX:
+- Check your amount extraction regex - make sure it captures the correct column
+- Verify the balance field is extracting from the Balance column, not Amount
+- Check if amounts need decimal adjustment (e.g., "1,234.56" vs "123456")`
+  } else if (countMatch && debitCountDiff !== 0) {
+    // Total count matches but debit/credit split is wrong
+    guidance = `
+DIAGNOSIS: Total transaction count is correct (${totalTxnCount}), but credit/debit classification is wrong.
+${debitCountDiff > 0 ? `You're marking ${debitCountDiff} extra transactions as DEBIT that should be CREDIT.` : `You're marking ${-debitCountDiff} extra transactions as CREDIT that should be DEBIT.`}
+
+LIKELY CAUSE: Your balance comparison logic is inverted.
+FIX: If using balance-based detection, try flipping the comparison:
+  - If you have: type = (currentBalance > previousBalance) ? 'credit' : 'debit'
+  - Try: type = (currentBalance > previousBalance) ? 'debit' : 'credit'
+  OR you may have the transaction order wrong (ascending vs descending dates).`
+  } else if (!countMatch) {
+    guidance = `
+DIAGNOSIS: Transaction count mismatch. You found ${totalTxnCount} but expected ${expectedTotalCount}.
+${
+  totalTxnCount > expectedTotalCount
+    ? `You have ${totalTxnCount - expectedTotalCount} extra transactions - likely including summary/header rows.`
+    : `You're missing ${expectedTotalCount - totalTxnCount} transactions - your regex may be too strict.`
+}
+
+FIX:
+- Check for and skip lines containing: "Opening Balance", "Closing Balance", "Total", "Summary", "B/F"
+- Make sure your date regex matches all transaction date formats in the statement`
+  }
+
+  return `
+VALIDATION: ❌ FAILED - Totals don't match the statement summary!
+
+EXPECTED (from statement summary):
+- Debit count: ${expectedSummary.debitCount}
+- Credit count: ${expectedSummary.creditCount}
+- Total debits: ${expectedSummary.totalDebits}
+- Total credits: ${expectedSummary.totalCredits}
+- Opening balance: ${expectedSummary.openingBalance}
+- Closing balance: ${expectedSummary.closingBalance}
+
+YOUR EXTRACTED:
+- Debit count: ${extractedTotals.debitCount}
+- Credit count: ${extractedTotals.creditCount}
+- Total debits: ${extractedTotals.totalDebits}
+- Total credits: ${extractedTotals.totalCredits}
+- Opening balance: ${extractedTotals.openingBalance ?? 'N/A (no balance data)'}
+- Closing balance: ${extractedTotals.closingBalance ?? 'N/A (no balance data)'}
+${guidance}
+
+Please fix the code and call submitCode again.`
 }
 
 /**
- * Calculate totals from extracted transactions
+ * Build the feedback the code-generation agent gets when the row balances do not follow from
+ * the amounts (statements without printed totals, e.g. CSV/XLSX)
  */
-function calculateTotals(transactions: RawPdfTransaction[]): ExtractedTotals {
-  let debitCount = 0
-  let creditCount = 0
-  let totalDebits = 0
-  let totalCredits = 0
+function describeRunningBalanceMismatch(issues: string[]): string {
+  return `
+VALIDATION: ❌ FAILED - The balance column does not add up row by row!
 
-  for (const txn of transactions) {
-    if (txn.type === 'debit') {
-      debitCount++
-      totalDebits += txn.amount
-    } else {
-      creditCount++
-      totalCredits += txn.amount
-    }
-  }
+${issues.join('\n')}
 
-  return {
-    debitCount,
-    creditCount,
-    totalDebits: Math.round(totalDebits * 100) / 100,
-    totalCredits: Math.round(totalCredits * 100) / 100,
-    openingBalance: null,
-    closingBalance: null,
-  }
-}
+DIAGNOSIS: Each row's balance should equal the previous row's balance plus a credit or minus a debit.
 
-/**
- * Compare extracted totals with expected summary
- * Returns validation result with details
- */
-function validateTotals(
-  extracted: ExtractedTotals,
-  expected: ExpectedSummary
-): { isValid: boolean; message: string; details: string[] } {
-  const issues: string[] = []
+LIKELY CAUSES:
+1. Credit/debit type is flipped for some or all rows (check which column holds debits vs credits)
+2. Some rows were skipped, merged or duplicated
+3. The amount column is wrong (e.g. picking up the balance or a reference number)
 
-  // Check debit count (exact match required)
-  if (expected.debitCount !== null && extracted.debitCount !== expected.debitCount) {
-    issues.push(
-      `Debit count: extracted ${extracted.debitCount}, expected ${expected.debitCount} (diff: ${extracted.debitCount - expected.debitCount})`
-    )
-  }
-
-  // Check credit count (exact match required)
-  if (expected.creditCount !== null && extracted.creditCount !== expected.creditCount) {
-    issues.push(
-      `Credit count: extracted ${extracted.creditCount}, expected ${expected.creditCount} (diff: ${extracted.creditCount - expected.creditCount})`
-    )
-  }
-
-  // Check total debits (tolerance allowed)
-  if (expected.totalDebits !== null) {
-    const diff = Math.abs(extracted.totalDebits - expected.totalDebits)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(
-        `Total debits: extracted ${extracted.totalDebits}, expected ${expected.totalDebits} (diff: ${diff.toFixed(2)})`
-      )
-    }
-  }
-
-  // Check total credits (tolerance allowed)
-  if (expected.totalCredits !== null) {
-    const diff = Math.abs(extracted.totalCredits - expected.totalCredits)
-    if (diff > AMOUNT_TOLERANCE) {
-      issues.push(
-        `Total credits: extracted ${extracted.totalCredits}, expected ${expected.totalCredits} (diff: ${diff.toFixed(2)})`
-      )
-    }
-  }
-
-  if (issues.length === 0) {
-    return {
-      isValid: true,
-      message: 'All validation checks passed!',
-      details: [],
-    }
-  }
-
-  return {
-    isValid: false,
-    message: `Validation failed with ${issues.length} issue(s)`,
-    details: issues,
-  }
+Please fix the code and call submitCode again.`
 }
 
 /**
@@ -579,6 +588,10 @@ export interface AgenticParserResult {
     type: 'credit' | 'debit'
     description: string
   }>
+  /** Rows the final parser run returned that were rejected as unreadable */
+  droppedRowCount?: number
+  /** How the final run's rows were checked */
+  validation?: ParsedValidation
 }
 
 /**
@@ -624,6 +637,8 @@ export async function generateParserCode(
   let attempts = 0
   let lastError: string | undefined
   let lastSuccessfulTransactions: AgenticParserResult['transactions'] | undefined
+  let lastDroppedRowCount = 0
+  let lastValidation: ParsedValidation | undefined
   let validationPassed = false
 
   // Create the agent with tools
@@ -661,6 +676,7 @@ export async function generateParserCode(
 
           if (result.success && result.transactions && result.transactions.length > 0) {
             lastSuccessfulTransactions = result.transactions
+            lastDroppedRowCount = result.droppedRowCount ?? 0
             logger.debug(`[PDFParser] Code works! Found ${result.transactions.length} transactions`)
 
             // Calculate extracted totals
@@ -690,112 +706,41 @@ Sample transactions:
 ${sampleStr}
 `
 
-            // Validate against expected summary if available
-            if (expectedSummary && hasValidationData(expectedSummary)) {
-              const validation = validateTotals(extractedTotals, expectedSummary)
+            // Judge the rows by the printed totals, or by the running balance when none are printed
+            const validation = validateParsedTransactions(
+              expectedSummary ?? null,
+              result.transactions
+            )
 
-              if (validation.isValid) {
-                validationPassed = true
-                lastError = undefined
-                response += `
-VALIDATION: ✅ PASSED - All totals match the statement summary!
-You can now call the 'done' tool.`
-                logger.debug(`[PDFParser] Validation passed!`)
-              } else {
-                validationPassed = false
-                lastError = validation.message
+            lastValidation = validation
 
-                // Analyze the mismatch to give specific guidance
-                const totalTxnCount = extractedTotals.debitCount + extractedTotals.creditCount
-                const expectedTotalCount =
-                  (expectedSummary.debitCount || 0) + (expectedSummary.creditCount || 0)
-                const countMatch = totalTxnCount === expectedTotalCount
-                const debitCountDiff =
-                  extractedTotals.debitCount - (expectedSummary.debitCount || 0)
-
-                let guidance = ''
-
-                // Check for balance mismatch
-                const hasBalanceMismatch =
-                  (expectedSummary.closingBalance !== null &&
-                    extractedTotals.closingBalance !== null &&
-                    Math.abs(extractedTotals.closingBalance - expectedSummary.closingBalance) >
-                      10) ||
-                  (expectedSummary.openingBalance !== null &&
-                    extractedTotals.openingBalance !== null &&
-                    Math.abs(extractedTotals.openingBalance - expectedSummary.openingBalance) > 10)
-
-                if (hasBalanceMismatch && countMatch) {
-                  // Counts match but balance doesn't - likely amount extraction issue
-                  guidance = `
-DIAGNOSIS: Transaction counts are correct but balance doesn't match.
-This usually means amounts are being extracted incorrectly.
-
-LIKELY CAUSES:
-1. Amount regex is capturing wrong numbers (e.g., reference numbers instead of amounts)
-2. Balance column is being confused with amount column
-3. Decimal places are being parsed incorrectly
-
-FIX:
-- Check your amount extraction regex - make sure it captures the correct column
-- Verify the balance field is extracting from the Balance column, not Amount
-- Check if amounts need decimal adjustment (e.g., "1,234.56" vs "123456")`
-                } else if (countMatch && debitCountDiff !== 0) {
-                  // Total count matches but debit/credit split is wrong
-                  guidance = `
-DIAGNOSIS: Total transaction count is correct (${totalTxnCount}), but credit/debit classification is wrong.
-${debitCountDiff > 0 ? `You're marking ${debitCountDiff} extra transactions as DEBIT that should be CREDIT.` : `You're marking ${-debitCountDiff} extra transactions as CREDIT that should be DEBIT.`}
-
-LIKELY CAUSE: Your balance comparison logic is inverted.
-FIX: If using balance-based detection, try flipping the comparison:
-  - If you have: type = (currentBalance > previousBalance) ? 'credit' : 'debit'
-  - Try: type = (currentBalance > previousBalance) ? 'debit' : 'credit'
-  OR you may have the transaction order wrong (ascending vs descending dates).`
-                } else if (!countMatch) {
-                  guidance = `
-DIAGNOSIS: Transaction count mismatch. You found ${totalTxnCount} but expected ${expectedTotalCount}.
-${
-  totalTxnCount > expectedTotalCount
-    ? `You have ${totalTxnCount - expectedTotalCount} extra transactions - likely including summary/header rows.`
-    : `You're missing ${expectedTotalCount - totalTxnCount} transactions - your regex may be too strict.`
-}
-
-FIX:
-- Check for and skip lines containing: "Opening Balance", "Closing Balance", "Total", "Summary", "B/F"
-- Make sure your date regex matches all transaction date formats in the statement`
-                }
-
-                response += `
-VALIDATION: ❌ FAILED - Totals don't match the statement summary!
-
-EXPECTED (from statement summary):
-- Debit count: ${expectedSummary.debitCount}
-- Credit count: ${expectedSummary.creditCount}
-- Total debits: ${expectedSummary.totalDebits}
-- Total credits: ${expectedSummary.totalCredits}
-- Opening balance: ${expectedSummary.openingBalance}
-- Closing balance: ${expectedSummary.closingBalance}
-
-YOUR EXTRACTED:
-- Debit count: ${extractedTotals.debitCount}
-- Credit count: ${extractedTotals.creditCount}
-- Total debits: ${extractedTotals.totalDebits}
-- Total credits: ${extractedTotals.totalCredits}
-- Opening balance: ${extractedTotals.openingBalance ?? 'N/A (no balance data)'}
-- Closing balance: ${extractedTotals.closingBalance ?? 'N/A (no balance data)'}
-${guidance}
-
-Please fix the code and call submitCode again.`
-                logger.warn(`[PDFParser] Validation failed: ${validation.details.join(', ')}`)
-              }
-            } else {
-              // No validation data - just check if it looks reasonable
+            if (validation.method === 'none') {
+              // No summary or usable balance column - just check if it looks reasonable
               validationPassed = true
               lastError = undefined
               response += `
 No statement summary available for validation.
 If these look correct (amounts, credit/debit types, descriptions), call the 'done' tool.
 If something looks wrong (e.g., summary lines included, wrong amounts), fix the code and resubmit.`
+            } else if (validation.passed) {
+              validationPassed = true
+              lastError = undefined
+              response += `
+VALIDATION: ✅ PASSED - ${
+                validation.method === 'printed_totals'
+                  ? 'All totals match the statement summary!'
+                  : 'Every row balance follows from the previous one!'
+              }
+You can now call the 'done' tool.`
+              logger.debug(`[PDFParser] Validation passed (${validation.method})`)
+            } else {
+              validationPassed = false
+              lastError = validation.issues.join('; ')
+              response +=
+                validation.method === 'printed_totals' && expectedSummary
+                  ? describePrintedTotalsMismatch(extractedTotals, expectedSummary)
+                  : describeRunningBalanceMismatch(validation.issues)
+              logger.warn(`[PDFParser] Validation failed: ${validation.issues.join(', ')}`)
             }
 
             return response
@@ -842,9 +787,9 @@ The code receives 'text' variable and must return array of: { date: 'YYYY-MM-DD'
 Use the submitCode tool to test your code. If it fails or validation fails, fix and resubmit. When working AND validated, call done.`
 
   try {
-    const result = await agent.generate({
-      prompt: userPrompt,
-    })
+    const result = await withLlmTimeout(LLM_TIMEOUT_MS.parserAgent, (abortSignal) =>
+      agent.generate({ prompt: userPrompt, abortSignal })
+    )
 
     logger.debug(
       `[PDFParser] Agent completed in ${attempts} attempt(s), validation: ${validationPassed ? 'passed' : 'failed/skipped'}`
@@ -860,6 +805,8 @@ Use the submitCode tool to test your code. If it fails or validation fails, fix 
       attempts,
       finalError: lastError,
       transactions: lastSuccessfulTransactions,
+      droppedRowCount: lastDroppedRowCount,
+      validation: lastValidation,
     }
   } catch (error) {
     logger.error(`[PDFParser] Agent error:`, error)

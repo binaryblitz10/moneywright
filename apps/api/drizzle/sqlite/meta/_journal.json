@@ -120,6 +120,13 @@
       "when": 1793294150894,
       "tag": "0016_romantic_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793637423407,
+      "tag": "0017_chief_power_man",
+      "breakpoints": true
     }
   ]
 }

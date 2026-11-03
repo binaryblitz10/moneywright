@@ -5,30 +5,7 @@
  * that say nothing about the merchant are ignored. Pure functions, no I/O.
  */
 
-const FILLER = new Set([
-  'razorpay',
-  'raz',
-  'upi',
-  'imps',
-  'neft',
-  'rtgs',
-  'p2a',
-  'p2m',
-  'pvt',
-  'ltd',
-  'limited',
-  'private',
-  'india',
-  'bank',
-  'ref',
-  'txn',
-  'www',
-  'com',
-  'the',
-  'and',
-  'int',
-  'inc',
-])
+import { FILLER_WORDS } from '../text-filler'
 
 const MIN_WORD_LENGTH = 3
 /** Reference numbers (UPI / IMPS) at least this long identify one payment */
@@ -43,7 +20,7 @@ export function significantTokens(text: string): string[] {
     .split(/[^a-z0-9]+/)
     .filter((token) => {
       if (/^\d+$/.test(token)) return token.length >= MIN_REFERENCE_DIGITS
-      return token.length >= MIN_WORD_LENGTH && !FILLER.has(token)
+      return token.length >= MIN_WORD_LENGTH && !FILLER_WORDS.has(token)
     })
 }
 

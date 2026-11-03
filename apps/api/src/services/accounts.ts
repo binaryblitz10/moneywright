@@ -1,4 +1,4 @@
-import { eq, and, desc, gt, ne } from 'drizzle-orm'
+import { eq, and, desc, gt, inArray, ne } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import type { Account } from '../db'
@@ -153,7 +153,8 @@ async function getLatestAccountBalance(
     .where(
       and(
         eq(tables.statements.accountId, account.id),
-        eq(tables.statements.status, 'completed'),
+        // A categorizing statement is already parsed: its period and balances are final
+        inArray(tables.statements.status, ['completed', 'categorizing']),
         // Manual entries have no period or balance (and Postgres sorts NULLs first in DESC)
         ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE)
       )

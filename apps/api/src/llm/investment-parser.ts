@@ -11,7 +11,7 @@
  */
 
 import { generateObject } from 'ai'
-import { createLLMClientFromSettings } from './index'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from './index'
 import {
   documentInfoSchema,
   investmentMetadataSchema,
@@ -148,12 +148,15 @@ Determine what type of document this is:
   logger.debug(`[InvestmentParser] Document info prompt length: ${prompt.length} chars`)
 
   try {
-    const { object } = await generateObject({
-      model,
-      schema: documentInfoSchema,
-      prompt,
-      providerOptions,
-    })
+    const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.document, (abortSignal) =>
+      generateObject({
+        model,
+        schema: documentInfoSchema,
+        prompt,
+        providerOptions,
+        abortSignal,
+      })
+    )
 
     logger.debug(
       `[InvestmentParser] Document info extracted: type=${object.document_type}, source=${object.source_type || 'N/A'}`
@@ -256,12 +259,15 @@ The summary is used for validation. Invented/calculated values will cause parsin
 - Be precise - this metadata is used to identify unique accounts`
 
   try {
-    const { object } = await generateObject({
-      model,
-      schema: investmentMetadataSchema,
-      prompt,
-      providerOptions,
-    })
+    const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.accountInfo, (abortSignal) =>
+      generateObject({
+        model,
+        schema: investmentMetadataSchema,
+        prompt,
+        providerOptions,
+        abortSignal,
+      })
+    )
 
     logger.debug(
       `[InvestmentParser] Metadata extracted: identifier=${object.account_identifier || 'N/A'}, institution=${object.institution || 'N/A'}`

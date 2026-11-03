@@ -27,7 +27,9 @@ import { accountForSender, senderTrust, type SenderCounts } from '../lib/sms/sen
 import { parseSmsWithLLM } from '../llm/sms-parser'
 import { getLLMSettings } from './config'
 import { findUserById } from './user'
+import { applySafeFixesAfterImport } from './auto-fix/after-import'
 import { linkEntitiesForAccount } from './entity-linking'
+import { maybeRefreshLearnedNotes } from './learned-notes'
 import type { CountryCode } from '../lib/constants'
 import {
   createSmsTransaction,
@@ -268,13 +270,19 @@ async function resolveNaming(
   merchant: string,
   type: 'credit' | 'debit',
   amount: number
-): Promise<{ summary: string; category: string; ruleMatched: boolean }> {
+): Promise<{
+  summary: string
+  category: string
+  ruleMatched: boolean
+  nameRuleMatched: boolean
+}> {
   const rules = await getRulesForUser(userId)
   const fields = resolveRuleFields(rules, { description: merchant, type, amount })
   return {
     summary: fields.name ?? merchant,
     category: fields.category ?? 'other',
     ruleMatched: fields.category !== undefined,
+    nameRuleMatched: fields.name !== undefined,
   }
 }
 
@@ -298,7 +306,7 @@ async function importTransaction(
   useAi: boolean
 ): Promise<ImportedRef> {
   const naming = useAi
-    ? { summary: null, category: 'other', ruleMatched: false }
+    ? { summary: null, category: 'other', ruleMatched: false, nameRuleMatched: false }
     : await resolveNaming(userId, input.merchant, input.type, input.amount)
   const created = await createSmsTransaction(userId, {
     accountId: input.accountId,
@@ -375,6 +383,7 @@ async function categorizeImported(userId: string, refs: ImportedRef[]): Promise<
         defaultHints
       )
       await linkEntitiesForAccount(ref.accountId, userId, categorizationModel)
+      await maybeRefreshLearnedNotes(userId, ref.profileId, categorizationModel)
     } catch (error) {
       logger.error(`[SmsImport] Categorization failed for account ${ref.accountId}:`, error)
     }
@@ -562,6 +571,13 @@ async function processMessage(
   return { outcome: 'imported', imported: created }
 }
 
+/** Apply the safe fixes to what a sync brought in; the sync never fails because of them */
+async function autoFixAfterSync(userId: string): Promise<void> {
+  const user = await findUserById(userId)
+  if (!user?.country) return
+  await applySafeFixesAfterImport({ userId, countryCode: user.country as CountryCode }, [])
+}
+
 async function runSync(userId: string, since?: Date): Promise<SyncResult> {
   const result: SyncResult = { imported: 0, needsReview: 0, verified: 0 }
   if (checkMessagesAccess() !== 'ok') return result
@@ -611,6 +627,7 @@ async function runSync(userId: string, since?: Date): Promise<SyncResult> {
   result.imported -= result.verified
 
   if (useAi) await categorizeImported(userId, importedRefs)
+  if (result.imported + result.verified > 0) await autoFixAfterSync(userId)
 
   lastSyncAt = new Date().toISOString()
   if (result.imported + result.needsReview + result.verified > 0) {

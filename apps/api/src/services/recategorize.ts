@@ -135,6 +135,8 @@ export async function recategorizeTransactions(
       summary: null,
       category: 'other',
       categoryConfidence: null,
+      categorySource: null,
+      nameSource: null,
       isSubscription: false,
       isManuallyCategorized: false,
       updatedAt: now as Date,

@@ -165,6 +165,12 @@ export type {
   NewBudget,
   TransactionRule,
   NewTransactionRule,
+  CategorizationEvent,
+  NewCategorizationEvent,
+  AutoFixBatch,
+  NewAutoFixBatch,
+  AutoFixChange,
+  NewAutoFixChange,
   InvestmentSource,
   NewInvestmentSource,
   InvestmentHolding,
@@ -204,6 +210,9 @@ const tablesImpl = isPostgres
       transactions: pgSchema.transactions,
       budgets: pgSchema.budgets,
       transactionRules: pgSchema.transactionRules,
+      categorizationEvents: pgSchema.categorizationEvents,
+      autoFixBatches: pgSchema.autoFixBatches,
+      autoFixChanges: pgSchema.autoFixChanges,
       subscriptionOverrides: pgSchema.subscriptionOverrides,
       investmentSources: pgSchema.investmentSources,
       investmentHoldings: pgSchema.investmentHoldings,
@@ -228,6 +237,9 @@ const tablesImpl = isPostgres
       transactions: sqliteSchema.transactions,
       budgets: sqliteSchema.budgets,
       transactionRules: sqliteSchema.transactionRules,
+      categorizationEvents: sqliteSchema.categorizationEvents,
+      autoFixBatches: sqliteSchema.autoFixBatches,
+      autoFixChanges: sqliteSchema.autoFixChanges,
       subscriptionOverrides: sqliteSchema.subscriptionOverrides,
       investmentSources: sqliteSchema.investmentSources,
       investmentHoldings: sqliteSchema.investmentHoldings,
@@ -253,6 +265,9 @@ export const tables = tablesImpl as {
   transactions: typeof pgSchema.transactions
   budgets: typeof pgSchema.budgets
   transactionRules: typeof pgSchema.transactionRules
+  categorizationEvents: typeof pgSchema.categorizationEvents
+  autoFixBatches: typeof pgSchema.autoFixBatches
+  autoFixChanges: typeof pgSchema.autoFixChanges
   subscriptionOverrides: typeof pgSchema.subscriptionOverrides
   investmentSources: typeof pgSchema.investmentSources
   investmentHoldings: typeof pgSchema.investmentHoldings

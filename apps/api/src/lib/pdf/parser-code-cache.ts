@@ -18,17 +18,27 @@ import type { FileType } from '../constants'
  * Generate a normalized bank key from institution ID, account type, and file type
  * e.g., "HDFC" + "savings_account" + "pdf" -> "hdfc_savings_account:pdf"
  *
+ * Unknown banks ("OTHER" or no institution) have nothing in common, so each account gets its
+ * own key: "OTHER" + "savings_account" + "csv" + "abc123" -> "other_abc123_savings_account:csv"
+ *
  * @param institutionId - Institution ID code (e.g., HDFC, ICICI, SBI)
  * @param accountType - Account type code (e.g., savings_account, credit_card)
  * @param fileType - File type (pdf, csv, xlsx)
+ * @param accountId - Account the statement belongs to, used in the key for unknown banks
  */
 export function generateBankKey(
   institutionId: string,
   accountType: string,
-  fileType: FileType = 'pdf'
+  fileType: FileType = 'pdf',
+  accountId?: string
 ): string {
   const normalizedInstitution = institutionId.toLowerCase().replace(/[^a-z0-9]+/g, '_')
   const normalizedType = accountType.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+
+  if ((normalizedInstitution === 'other' || normalizedInstitution === '') && accountId) {
+    const normalizedAccount = accountId.replace(/[^a-zA-Z0-9]+/g, '_')
+    return `other_${normalizedAccount}_${normalizedType}:${fileType}`
+  }
 
   return `${normalizedInstitution}_${normalizedType}:${fileType}`
 }

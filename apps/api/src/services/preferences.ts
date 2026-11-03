@@ -8,6 +8,7 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_CHART_TIMEFRAME: 'dashboard.chart_timeframe',
   DASHBOARD_HIDDEN_WIDGETS: 'dashboard.hidden_widgets',
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
+  AUTO_FIX_AFTER_IMPORT: 'auto_fix.after_import',
   DISMISSED_DUPLICATES: 'review.dismissed_duplicates',
   DISMISSED_SMS_MATCHES: 'review.dismissed_sms_matches',
   DISMISSED_CARD_PAYMENTS: 'data_health.dismissed_card_payments',
@@ -202,6 +203,16 @@ function parseCategoryList(value: string): string[] {
   } catch {
     return []
   }
+}
+
+/**
+ * Helper: Whether safe fixes are applied automatically after an import (on unless switched off)
+ */
+export async function isAutoFixAfterImportEnabled(
+  userId: string,
+  profileId?: string | null
+): Promise<boolean> {
+  return (await getPreference(userId, PREFERENCE_KEYS.AUTO_FIX_AFTER_IMPORT, profileId)) !== 'false'
 }
 
 /**

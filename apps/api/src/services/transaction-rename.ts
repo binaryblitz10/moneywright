@@ -7,7 +7,7 @@
 import { and, eq, isNull, isNotNull, count } from 'drizzle-orm'
 import { nanoid } from '../lib/id'
 import { db, tables, dbType } from '../db'
-import { createLLMClientFromSettings, type LLMClientResult } from '../llm'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, type LLMClientResult } from '../llm'
 import { logger } from '../lib/logger'
 import type { CountryCode } from '../lib/constants'
 import { quoteCSVField, streamCsvLines } from '../lib/pdf/csv'
@@ -156,18 +156,24 @@ ${namesInUse}START OUTPUT NOW:`
 
   let saved = 0
   try {
-    await streamCsvLines(llmClient, system, prompt, async (line) => {
-      const parsed = parseNameLine(line)
-      if (!parsed || !batchIds.has(parsed.id)) return
-      try {
-        if (await saveName(userId, parsed.id, parsed.name)) {
-          saved++
-          onRenamed()
+    await streamCsvLines(
+      llmClient,
+      system,
+      prompt,
+      async (line) => {
+        const parsed = parseNameLine(line)
+        if (!parsed || !batchIds.has(parsed.id)) return
+        try {
+          if (await saveName(userId, parsed.id, parsed.name)) {
+            saved++
+            onRenamed()
+          }
+        } catch (err) {
+          logger.warn(`[Rename] Failed to save transaction ${parsed.id}:`, err)
         }
-      } catch (err) {
-        logger.warn(`[Rename] Failed to save transaction ${parsed.id}:`, err)
-      }
-    })
+      },
+      LLM_TIMEOUT_MS.categorizeBatch
+    )
   } catch (error) {
     logger.error('[Rename] Streaming error:', error)
   }

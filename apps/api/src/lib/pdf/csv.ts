@@ -38,18 +38,26 @@ export function parseCSVLine(line: string): string[] {
 /**
  * Stream an LLM response and hand each complete CSV line to `onLine` as it arrives.
  * Blank lines and the header line (starting with "id,") are skipped.
+ * Rejects if the stream errors or runs past `timeoutMs`.
  */
 export async function streamCsvLines(
   llmClient: LLMClientResult,
   system: string,
   prompt: string,
-  onLine: (line: string) => Promise<void>
+  onLine: (line: string) => Promise<void>,
+  timeoutMs: number
 ): Promise<void> {
+  const abortSignal = AbortSignal.timeout(timeoutMs)
+  let streamError: unknown
   const { textStream } = streamText({
     model: llmClient.model,
     system,
     prompt,
     providerOptions: llmClient.providerOptions,
+    abortSignal,
+    onError: ({ error }) => {
+      streamError = error
+    },
   })
 
   let buffer = ''
@@ -66,6 +74,10 @@ export async function streamCsvLines(
       await onLine(line)
     }
   }
+
+  // streamText ends quietly on abort or error, so surface both as a rejection
+  if (abortSignal.aborted) throw new Error(`AI request timed out after ${timeoutMs / 1000}s`)
+  if (streamError) throw streamError instanceof Error ? streamError : new Error(String(streamError))
 
   // Process remaining buffer (last line without newline)
   if (buffer.trim() && !buffer.toLowerCase().startsWith('id,')) {

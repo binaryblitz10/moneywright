@@ -7,8 +7,10 @@ import { createHash } from 'crypto'
 import { and, eq, gte, lte, ne, notLike } from 'drizzle-orm'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
-import { duplicateBucketKey, selectRowsToInsert } from '../duplicate-key'
-import { reconcileSmsTransactions } from '../../services/sms-matching'
+import { merchantFingerprint } from '../merchant-fingerprint'
+import { selectRowsToInsert, type DuplicateKeyInput } from '../duplicate-key'
+import { invalidateDuplicateCache } from '../../services/duplicates'
+import { reconcileWithCounts } from '../../services/sms-matching'
 import type { RawPdfTransaction, InsertResult } from './types'
 
 /**
@@ -33,17 +35,25 @@ function generateTransactionHash(
   return createHash('sha256').update(data).digest('hex')
 }
 
+/** Days either side of the incoming date range searched, as a shared reference matches across days */
+const REFERENCE_WINDOW_DAYS = 3
+
+function shiftDate(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`)
+  shifted.setUTCDate(shifted.getUTCDate() + days)
+  return shifted.toISOString().slice(0, 10)
+}
+
 /**
- * List the descriptions of the account's existing transactions from other statements per duplicate bucket,
- * limited to the date range of the incoming rows. Hidden transactions count: they still exist.
+ * List the account's existing transactions from other statements around the date range of the
+ * incoming rows. Hidden transactions count: they still exist.
  */
-async function findExistingDescriptions(
+async function findExistingTransactions(
   accountId: string,
   statementId: string,
   transactions: RawPdfTransaction[]
-): Promise<Map<string, string[]>> {
-  const existing = new Map<string, string[]>()
-  if (transactions.length === 0) return existing
+): Promise<DuplicateKeyInput[]> {
+  if (transactions.length === 0) return []
 
   let minDate = transactions[0]!.date
   let maxDate = minDate
@@ -64,25 +74,21 @@ async function findExistingDescriptions(
       and(
         eq(tables.transactions.accountId, accountId),
         ne(tables.transactions.statementId, statementId),
-        gte(tables.transactions.date, minDate),
-        lte(tables.transactions.date, maxDate),
-        // Transactions from bank message alerts are matched with the statement afterwards
-        notLike(tables.transactions.hash, 'sms:%')
+        gte(tables.transactions.date, shiftDate(minDate, -REFERENCE_WINDOW_DAYS)),
+        lte(tables.transactions.date, shiftDate(maxDate, REFERENCE_WINDOW_DAYS)),
+        // Bank message alerts are matched with the statement afterwards, manual entries separately
+        notLike(tables.transactions.hash, 'sms:%'),
+        notLike(tables.transactions.hash, 'manual:%')
       )
     )
 
-  for (const row of rows) {
-    const bucket = duplicateBucketKey({
-      accountId,
-      date: row.date,
-      type: row.type,
-      amount: parseFloat(String(row.amount)),
-    })
-    const descriptions = existing.get(bucket) ?? []
-    descriptions.push(row.description)
-    existing.set(bucket, descriptions)
-  }
-  return existing
+  return rows.map((row) => ({
+    accountId,
+    date: row.date,
+    type: row.type,
+    amount: parseFloat(String(row.amount)),
+    description: row.description,
+  }))
 }
 
 /**
@@ -107,87 +113,71 @@ export async function insertRawTransactions(
   const insertedIds: string[] = []
 
   // Skip rows already imported from an earlier statement that overlaps this one
-  const existing = await findExistingDescriptions(accountId, statementId, transactions)
+  const existing = await findExistingTransactions(accountId, statementId, transactions)
   const keyed = transactions.map((txn, position) => ({ txn, position }))
-  const { toInsert, skipped } = selectRowsToInsert(
-    keyed,
-    existing,
-    ({ txn }) =>
-      duplicateBucketKey({ accountId, date: txn.date, type: txn.type, amount: txn.amount }),
-    ({ txn }) => txn.description
-  )
+  const { toInsert, skipped } = selectRowsToInsert(keyed, existing, ({ txn }) => ({
+    accountId,
+    date: txn.date,
+    type: txn.type,
+    amount: txn.amount,
+    description: txn.description,
+  }))
   let skippedCount = skipped
 
-  // Process in batches
-  for (let i = 0; i < toInsert.length; i += INSERT_BATCH_SIZE) {
-    const batch = toInsert.slice(i, i + INSERT_BATCH_SIZE)
+  // All chunks go in one transaction so a failed import never leaves a partial set of rows.
+  // Rows whose hash already exists for the account are skipped by the conflict clause;
+  // any other error propagates and fails the import.
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < toInsert.length; i += INSERT_BATCH_SIZE) {
+      const batch = toInsert.slice(i, i + INSERT_BATCH_SIZE)
 
-    for (const { txn, position } of batch) {
-      const hash = generateTransactionHash(
+      // summary=null indicates the transaction hasn't been categorized yet
+      const rows = batch.map(({ txn, position }) => ({
         accountId,
-        txn.date,
-        txn.amount,
-        txn.description,
-        position
-      )
+        statementId,
+        profileId,
+        userId,
+        date: txn.date,
+        type: txn.type,
+        amount: txn.amount.toString(),
+        currency,
+        balance: txn.balance != null ? txn.balance.toString() : null,
+        originalDescription: txn.description,
+        merchantFingerprint: merchantFingerprint(txn.description),
+        summary: null,
+        category: 'other', // Default, will be updated by categorization
+        categoryConfidence: null,
+        hash: generateTransactionHash(accountId, txn.date, txn.amount, txn.description, position),
+        createdAt: now as Date,
+        updatedAt: now as Date,
+      }))
 
-      // Check for duplicate
-      const [existing] = await db
-        .select({ id: tables.transactions.id })
-        .from(tables.transactions)
-        .where(eq(tables.transactions.hash, hash))
-        .limit(1)
+      const inserted = await tx
+        .insert(tables.transactions)
+        .values(rows)
+        .onConflictDoNothing({
+          target: [tables.transactions.accountId, tables.transactions.hash],
+        })
+        .returning({ id: tables.transactions.id })
 
-      if (existing) {
-        skippedCount++
-        continue
-      }
-
-      try {
-        // Insert with null summary - will be set by categorization
-        // summary=null indicates transaction hasn't been categorized yet
-        const [inserted] = await db
-          .insert(tables.transactions)
-          .values({
-            accountId,
-            statementId,
-            profileId,
-            userId,
-            date: txn.date,
-            type: txn.type,
-            amount: txn.amount.toString(),
-            currency,
-            balance: txn.balance != null ? txn.balance.toString() : null,
-            originalDescription: txn.description,
-            summary: null, // null = not yet categorized
-            category: 'other', // Default, will be updated by categorization
-            categoryConfidence: null,
-            hash,
-            createdAt: now as Date,
-            updatedAt: now as Date,
-          })
-          .returning({ id: tables.transactions.id })
-
-        if (inserted) {
-          insertedIds.push(inserted.id)
-        }
-      } catch {
-        // Likely a duplicate constraint violation, skip
-        logger.debug(
-          `[InsertTransactions] Skipped duplicate transaction: ${txn.date} ${txn.amount}`
-        )
-        skippedCount++
-      }
+      insertedIds.push(...inserted.map((row) => row.id))
+      skippedCount += rows.length - inserted.length
     }
-  }
+  })
+
+  invalidateDuplicateCache(userId)
 
   logger.debug(
     `[InsertTransactions] Inserted ${insertedIds.length} transactions, skipped ${skippedCount} duplicates`
   )
 
   // Match the new lines with transactions already imported from bank message alerts
+  let mergedWithBankMessages = 0
+  let possibleMatches = 0
   try {
-    await reconcileSmsTransactions(userId, [accountId])
+    const reconciled = await reconcileWithCounts(userId, [accountId])
+    mergedWithBankMessages = reconciled.matched
+    possibleMatches = reconciled.possible
   } catch (error) {
     logger.error('[InsertTransactions] Matching with SMS transactions failed:', error)
   }
@@ -196,39 +186,7 @@ export async function insertRawTransactions(
     insertedCount: insertedIds.length,
     skippedDuplicates: skippedCount,
     transactionIds: insertedIds,
+    mergedWithBankMessages,
+    possibleMatches,
   }
-}
-
-/**
- * Update transactions with categorization results
- */
-export async function updateTransactionCategories(
-  categorizations: Array<{
-    id: string
-    category: string
-    confidence: number
-    summary: string
-  }>
-): Promise<void> {
-  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
-
-  logger.debug(`[InsertTransactions] Updating ${categorizations.length} transaction categories`)
-
-  for (const cat of categorizations) {
-    try {
-      await db
-        .update(tables.transactions)
-        .set({
-          category: cat.category,
-          categoryConfidence: cat.confidence.toString(),
-          summary: cat.summary,
-          updatedAt: now as Date,
-        })
-        .where(eq(tables.transactions.id, cat.id))
-    } catch (error) {
-      logger.warn(`[InsertTransactions] Failed to update category for ${cat.id}:`, error)
-    }
-  }
-
-  logger.debug(`[InsertTransactions] Category updates complete`)
 }

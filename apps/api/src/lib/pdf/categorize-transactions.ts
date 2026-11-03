@@ -6,17 +6,22 @@
  * Supports streaming mode with mini-batches for real-time updates
  */
 
-import { eq, inArray, and, isNull, desc } from 'drizzle-orm'
-import { createLLMClientFromSettings, type LLMClientResult } from '../../llm'
-import { getCategoriesForCountry, type CategoryKind, type CountryCode } from '../constants'
+import { eq, inArray, and, isNull } from 'drizzle-orm'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, type LLMClientResult } from '../../llm'
+import {
+  getCategoriesForCountry,
+  type CategoryKind,
+  type CountryCode,
+  type LabelSource,
+} from '../constants'
 import { db, tables, dbType } from '../../db'
 import { logger } from '../logger'
-import {
-  parseAmountLimit,
-  parseMatchTerms,
-  resolveRuleFields,
-  type RuleForMatching,
-} from '../transaction-rules'
+import { resolveRuleFields } from '../transaction-rules'
+import { getRulesForUser } from '../../services/transaction-rules'
+import { loadMemory, loadRecentCorrections } from '../../services/categorization-learning'
+import { adjustConfidence, lookupMemory, type MemoryEntry } from '../categorization-memory'
+import { formatCorrections, formatPastDecisions, selectExamples } from '../categorization-examples'
+import { merchantFingerprint } from '../merchant-fingerprint'
 import { parseCSVLine, quoteCSVField, streamCsvLines } from './csv'
 import {
   NAME_FORMAT,
@@ -25,6 +30,48 @@ import {
   getNamesInUse,
 } from './transaction-names'
 import type { CategorizedTransaction, TransactionForCategorization } from './types'
+
+/** A transaction waiting for a category, with the key its merchant is remembered by */
+interface PendingTransaction extends TransactionForCategorization {
+  fingerprint: string
+}
+
+/** A categorization result together with who chose the category and the name */
+interface LabeledCategorization extends CategorizedTransaction {
+  categorySource: LabelSource
+  nameSource: LabelSource
+}
+
+/** What the categorizer has learned from this user, loaded once per run */
+export interface LearningContext {
+  memory: Map<string, MemoryEntry>
+  /** Recent AI mistakes the user corrected, already formatted for the prompt */
+  corrections: string
+  /** Notes about the user kept for the profile (see services/learned-notes) */
+  learnedNotes?: string | null
+}
+
+/** How many transactions each step of the pipeline settled */
+export interface CategorizedBySource {
+  rule: number
+  memory: number
+  ai: number
+}
+
+/** Number of names offered to the LLM for consistency; past decisions carry the rest */
+const MAX_NAMES_IN_PROMPT = 150
+
+/** The remembered history for a transaction's merchant: the exact one, else a loose match */
+function memoryEntryFor(
+  memory: Map<string, MemoryEntry> | undefined,
+  txn: PendingTransaction | undefined
+): MemoryEntry | undefined {
+  if (!memory || !txn) return undefined
+  return (
+    memory.get(`${txn.fingerprint}|${txn.type}`) ??
+    lookupMemory(memory, txn.fingerprint, txn.type)?.entry
+  )
+}
 
 /**
  * Country-specific categorization hints for the LLM
@@ -180,7 +227,7 @@ const ACCOUNT_TYPE_HINTS: Record<string, string> = {
 /**
  * Format the category list grouped by kind, for the LLM prompt
  */
-function formatCategoryList(categories: ReturnType<typeof getCategoriesForCountry>): string {
+export function formatCategoryList(categories: ReturnType<typeof getCategoriesForCountry>): string {
   const groups: { kind: CategoryKind; heading: string }[] = [
     { kind: 'income', heading: 'INCOME:' },
     { kind: 'expense', heading: 'EXPENSE:' },
@@ -202,16 +249,25 @@ function formatCategoryList(categories: ReturnType<typeof getCategoriesForCountr
  * Build profile context hint from profile summary
  * This helps the LLM understand the person's financial context
  */
-function buildProfileContextHint(profileSummary?: string | null): string {
+function buildProfileContextHint(
+  profileSummary?: string | null,
+  learnedNotes?: string | null
+): string {
+  const notes = learnedNotes?.trim()
+    ? `NOTES ABOUT THIS USER (learned from their data and edits):
+${learnedNotes.trim()}
+`
+    : ''
+
   if (!profileSummary || profileSummary.trim().length === 0) {
-    return ''
+    return notes
   }
 
   return `PROFILE CONTEXT (use this to improve categorization accuracy):
 ${profileSummary.trim()}
 
 Apply this context when categorizing - e.g., if profile mentions "freelancer", irregular large credits may be freelance income (other_income); if "has rental property", regular credits from tenants are rental income (other_income); if "runs a business", business-related expenses should be identified. If a UPI/NEFT name matches the account holder's own name, it is a transfer between their own accounts.
-`
+${notes ? `\n${notes}` : ''}`
 }
 
 /**
@@ -233,7 +289,7 @@ const MAX_CATEGORIZATION_RETRIES = 5
  */
 async function fetchUncategorizedTransactions(
   transactionIds: string[]
-): Promise<TransactionForCategorization[]> {
+): Promise<PendingTransaction[]> {
   if (transactionIds.length === 0) return []
 
   const rows = await db
@@ -243,6 +299,7 @@ async function fetchUncategorizedTransactions(
       amount: tables.transactions.amount,
       type: tables.transactions.type,
       description: tables.transactions.originalDescription,
+      fingerprint: tables.transactions.merchantFingerprint,
     })
     .from(tables.transactions)
     .where(
@@ -255,6 +312,7 @@ async function fetchUncategorizedTransactions(
     amount: parseFloat(r.amount),
     type: r.type as 'credit' | 'debit',
     description: r.description || '',
+    fingerprint: r.fingerprint || merchantFingerprint(r.description || ''),
   }))
 }
 
@@ -262,7 +320,7 @@ async function fetchUncategorizedTransactions(
  * Update a single transaction's category in the database
  * Returns true if a row was updated, false if the ID didn't match any transaction
  */
-async function updateTransactionCategory(cat: CategorizedTransaction): Promise<boolean> {
+async function updateTransactionCategory(cat: LabeledCategorization): Promise<boolean> {
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
 
   // Ensure summary is never empty string - use a default if needed
@@ -272,6 +330,8 @@ async function updateTransactionCategory(cat: CategorizedTransaction): Promise<b
     .update(tables.transactions)
     .set({
       category: cat.category,
+      categorySource: cat.categorySource,
+      nameSource: cat.nameSource,
       categoryConfidence: cat.confidence.toString(),
       summary,
       nameVersion: NAME_VERSION,
@@ -297,28 +357,6 @@ interface RuleOverride {
 }
 
 /**
- * Load the user's transaction rules
- */
-async function fetchUserRules(userId: string): Promise<RuleForMatching[]> {
-  const rows = await db
-    .select()
-    .from(tables.transactionRules)
-    .where(eq(tables.transactionRules.userId, userId))
-    .orderBy(desc(tables.transactionRules.createdAt))
-
-  return rows.map((r) => ({
-    matchTerms: parseMatchTerms(r.matchTerms),
-    transactionType:
-      r.transactionType === 'credit' || r.transactionType === 'debit' ? r.transactionType : null,
-    minAmount: parseAmountLimit(r.minAmount),
-    maxAmount: parseAmountLimit(r.maxAmount),
-    name: r.name,
-    category: r.category,
-    updatedAt: r.updatedAt,
-  }))
-}
-
-/**
  * Names the user already has on transactions flagged as subscriptions
  */
 async function fetchSubscriptionNames(userId: string): Promise<Set<string>> {
@@ -340,13 +378,13 @@ async function fetchSubscriptionNames(userId: string): Promise<Set<string>> {
  */
 async function applyRules(
   userId: string,
-  transactions: TransactionForCategorization[],
+  transactions: PendingTransaction[],
   validCategories: string[]
 ): Promise<{ savedIds: Set<string>; overrides: Map<string, RuleOverride> }> {
   const savedIds = new Set<string>()
   const overrides = new Map<string, RuleOverride>()
 
-  const rules = await fetchUserRules(userId)
+  const rules = await getRulesForUser(userId)
   if (rules.length === 0) return { savedIds, overrides }
 
   let subscriptionNames: Set<string> | undefined
@@ -375,6 +413,8 @@ async function applyRules(
         confidence: 1,
         summary: name,
         isSubscription: subscriptionNames.has(name),
+        categorySource: 'rule',
+        nameSource: 'rule',
       })
       if (saved) savedIds.add(txn.id)
     } catch (err) {
@@ -387,21 +427,72 @@ async function applyRules(
 }
 
 /**
- * Process a single batch of transactions with streaming
- * Returns the number of successfully categorized transactions
+ * Answer transactions from the user's past decisions about the same merchant (no LLM).
+ * A field a rule set on its own still wins over the remembered one.
  */
-async function categorizeBatchStreaming(
-  transactions: TransactionForCategorization[],
+async function applyMemory(
+  transactions: PendingTransaction[],
+  memory: Map<string, MemoryEntry>,
   validCategories: string[],
-  categoryList: string,
-  countryCode: CountryCode,
-  llmClient: LLMClientResult,
-  onCategorized: (cat: CategorizedTransaction) => Promise<void>,
-  accountType?: string,
-  profileSummary?: string | null,
-  userCategorizationHints?: string,
-  userId?: string
-): Promise<{ success: number; failed: number }> {
+  overrides: Map<string, RuleOverride>
+): Promise<Set<string>> {
+  const savedIds = new Set<string>()
+  if (memory.size === 0) return savedIds
+
+  for (const txn of transactions) {
+    const resolved = lookupMemory(memory, txn.fingerprint, txn.type)?.resolved
+    if (!resolved || !validCategories.includes(resolved.category)) continue
+
+    const override = overrides.get(txn.id)
+    try {
+      const saved = await updateTransactionCategory({
+        id: txn.id,
+        category: override?.category ?? resolved.category,
+        confidence: resolved.confidence,
+        summary: override?.name ?? resolved.name,
+        isSubscription: resolved.isSubscription,
+        categorySource: override?.category ? 'rule' : 'memory',
+        nameSource: override?.name ? 'rule' : 'memory',
+      })
+      if (saved) savedIds.add(txn.id)
+    } catch (err) {
+      logger.warn(`[Categorize] Failed to save memory match for transaction ${txn.id}:`, err)
+    }
+  }
+
+  logger.debug(`[Categorize] Memory: ${savedIds.size} answered from past decisions`)
+  return savedIds
+}
+
+/** Everything the categorization prompt is built from */
+export interface CategorizationPromptInput {
+  transactions: TransactionForCategorization[]
+  categoryList: string
+  countryCode: CountryCode
+  accountType?: string
+  profileSummary?: string | null
+  userCategorizationHints?: string
+  /** Section listing names already in use (see buildNamesInUseSection) */
+  namesInUseSection?: string
+  /** Leave out to build the prompt without past decisions, corrections and learned notes */
+  learning?: LearningContext
+}
+
+/** Build the system and user prompt for one categorization batch (pure) */
+export function buildCategorizationPrompt(input: CategorizationPromptInput): {
+  systemPrompt: string
+  prompt: string
+} {
+  const {
+    transactions,
+    categoryList,
+    countryCode,
+    accountType,
+    profileSummary,
+    userCategorizationHints,
+    namesInUseSection = '',
+    learning,
+  } = input
   const txnList = transactions
     .map((t) => `${t.id},${t.date},${t.type},${t.amount},${quoteCSVField(t.description)}`)
     .join('\n')
@@ -410,14 +501,28 @@ async function categorizeBatchStreaming(
   const categoryHints = CATEGORY_HINTS[countryCode] || CATEGORY_HINTS.US
   const nameFormat = NAME_FORMAT[countryCode] || NAME_FORMAT.US
 
-  // Names already saved for this user (fetched per batch so names from earlier batches are included)
-  const namesInUseSection = userId ? buildNamesInUseSection(await getNamesInUse(userId)) : ''
+  // How the user handled similar merchants, and the AI answers they corrected
+  const pastDecisions = learning
+    ? formatPastDecisions(selectExamples(learning.memory, transactions))
+    : ''
+  const pastDecisionsSection = pastDecisions
+    ? `YOUR PAST DECISIONS (follow these for the same merchant unless the description clearly says otherwise)
+${pastDecisions}
+
+`
+    : ''
+  const correctionsSection = learning?.corrections
+    ? `YOUR CORRECTIONS (mistakes you made before that the user fixed)
+${learning.corrections}
+
+`
+    : ''
 
   // Get account type specific hints
   const accountTypeHint = accountType ? ACCOUNT_TYPE_HINTS[accountType] || '' : ''
 
   // Get profile context from user-provided summary
-  const profileContextHint = buildProfileContextHint(profileSummary)
+  const profileContextHint = buildProfileContextHint(profileSummary, learning?.learnedNotes)
 
   // Build user-provided categorization hints section
   const userHintsSection = userCategorizationHints?.trim()
@@ -463,7 +568,43 @@ ${categoryHints}
 
 ${nameFormat}
 
-${namesInUseSection}START OUTPUT NOW:`
+${pastDecisionsSection}${correctionsSection}${namesInUseSection}START OUTPUT NOW:`
+
+  return { systemPrompt, prompt }
+}
+
+/**
+ * Process a single batch of transactions with streaming
+ * Returns the number of successfully categorized transactions
+ */
+async function categorizeBatchStreaming(
+  transactions: PendingTransaction[],
+  validCategories: string[],
+  categoryList: string,
+  countryCode: CountryCode,
+  llmClient: LLMClientResult,
+  onCategorized: (cat: CategorizedTransaction) => Promise<void>,
+  accountType?: string,
+  profileSummary?: string | null,
+  userCategorizationHints?: string,
+  userId?: string,
+  learning?: LearningContext
+): Promise<{ success: number; failed: number }> {
+  // Names already saved for this user (fetched per batch so names from earlier batches are included)
+  const namesInUseSection = userId
+    ? buildNamesInUseSection((await getNamesInUse(userId)).slice(0, MAX_NAMES_IN_PROMPT))
+    : ''
+
+  const { systemPrompt, prompt } = buildCategorizationPrompt({
+    transactions,
+    categoryList,
+    countryCode,
+    accountType,
+    profileSummary,
+    userCategorizationHints,
+    namesInUseSection,
+    learning,
+  })
 
   let success = 0
   let failed = 0
@@ -471,33 +612,39 @@ ${namesInUseSection}START OUTPUT NOW:`
   try {
     logger.debug(`[Categorize] Starting stream for ${transactions.length} transactions`)
 
-    await streamCsvLines(llmClient, systemPrompt, prompt, async (line) => {
-      const fields = parseCSVLine(line)
-      const [id, category, confidenceStr, name, isSubStr] = fields
-      if (fields.length < 5 || !id) {
-        failed++
-        return
-      }
+    await streamCsvLines(
+      llmClient,
+      systemPrompt,
+      prompt,
+      async (line) => {
+        const fields = parseCSVLine(line)
+        const [id, category, confidenceStr, name, isSubStr] = fields
+        if (fields.length < 5 || !id) {
+          failed++
+          return
+        }
 
-      const categoryCode = category?.toLowerCase().trim() || 'other'
-      const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
-      const confidence = parseFloat(confidenceStr || '0.8')
-      const isSubscription = isSubStr?.trim() === '1'
+        const categoryCode = category?.toLowerCase().trim() || 'other'
+        const finalCategory = validCategories.includes(categoryCode) ? categoryCode : 'other'
+        const confidence = parseFloat(confidenceStr || '0.8')
+        const isSubscription = isSubStr?.trim() === '1'
 
-      try {
-        await onCategorized({
-          id: id.trim(),
-          category: finalCategory,
-          confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
-          summary: name?.trim() || '',
-          isSubscription,
-        })
-        success++
-      } catch (err) {
-        logger.warn(`[Categorize] Failed to save transaction ${id}:`, err)
-        failed++
-      }
-    })
+        try {
+          await onCategorized({
+            id: id.trim(),
+            category: finalCategory,
+            confidence: isNaN(confidence) ? 0.8 : Math.min(1, Math.max(0, confidence)),
+            summary: name?.trim() || '',
+            isSubscription,
+          })
+          success++
+        } catch (err) {
+          logger.warn(`[Categorize] Failed to save transaction ${id}:`, err)
+          failed++
+        }
+      },
+      LLM_TIMEOUT_MS.categorizeBatch
+    )
 
     // Log if we didn't get all transactions
     const total = success + failed
@@ -519,7 +666,7 @@ ${namesInUseSection}START OUTPUT NOW:`
  * Returns the number of successfully categorized transactions
  */
 async function runCategorizationPass(
-  transactions: TransactionForCategorization[],
+  transactions: PendingTransaction[],
   countryCode: CountryCode,
   llmClient: LLMClientResult,
   onProgress?: (categorized: number, total: number) => void,
@@ -529,7 +676,8 @@ async function runCategorizationPass(
   profileSummary?: string | null,
   userCategorizationHints?: string,
   userId?: string,
-  ruleOverrides?: Map<string, RuleOverride>
+  ruleOverrides?: Map<string, RuleOverride>,
+  learning?: LearningContext
 ): Promise<{ success: number; failed: number }> {
   const categories = getCategoriesForCountry(countryCode)
   const categoryList = formatCategoryList(categories)
@@ -549,7 +697,7 @@ async function runCategorizationPass(
   }
 
   // Split into batches only if needed
-  const batches: TransactionForCategorization[][] = []
+  const batches: PendingTransaction[][] = []
   if (shouldBatch) {
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
       batches.push(transactions.slice(i, i + BATCH_SIZE))
@@ -558,6 +706,7 @@ async function runCategorizationPass(
     batches.push(transactions) // Single batch with all transactions
   }
 
+  const transactionsById = new Map(transactions.map((t) => [t.id, t]))
   let totalSuccess = 0
   let totalFailed = 0
 
@@ -578,10 +727,19 @@ async function runCategorizationPass(
       llmClient,
       async (cat) => {
         const override = ruleOverrides?.get(cat.id)
+        // Check the AI's category against what the user did before (a rule's category needs no check)
+        const txn = transactionsById.get(cat.id)
+        const entry = memoryEntryFor(learning?.memory, txn)
+        const confidence = override?.category
+          ? cat.confidence
+          : adjustConfidence(entry, cat.category, cat.confidence)
         const updated = await updateTransactionCategory({
           ...cat,
+          confidence,
           category: override?.category ?? cat.category,
           summary: override?.name ?? cat.summary,
+          categorySource: override?.category ? 'rule' : 'ai',
+          nameSource: override?.name ? 'rule' : 'ai',
         })
         if (updated) {
           totalSuccess++
@@ -598,7 +756,8 @@ async function runCategorizationPass(
       accountType,
       profileSummary,
       userCategorizationHints,
-      userId
+      userId,
+      learning
     )
 
     if (shouldBatch) {
@@ -613,6 +772,14 @@ async function runCategorizationPass(
   }
 
   return { success: totalSuccess, failed: totalFailed }
+}
+
+async function loadLearning(userId: string): Promise<LearningContext> {
+  const [memory, corrections] = await Promise.all([
+    loadMemory(userId),
+    loadRecentCorrections(userId),
+  ])
+  return { memory, corrections: formatCorrections(corrections) }
 }
 
 /**
@@ -631,7 +798,8 @@ async function runCategorizationPass(
  * @param accountType - Optional account type for context (credit_card, savings_account, etc.)
  * @param profileSummary - Optional profile summary to provide context about the person (employer, income sources, etc.)
  * @param userCategorizationHints - Optional user-provided hints for categorization
- * @param userId - Optional user ID; when given, the user's existing transaction names are offered to the LLM for consistency
+ * @param userId - Optional user ID; when given, the user's rules, past decisions and existing transaction names are used
+ * @param learning - What was learned from the user; loaded here when a userId is given and none is passed
  */
 export async function categorizeTransactionsStreaming(
   transactionIds: string[],
@@ -642,9 +810,15 @@ export async function categorizeTransactionsStreaming(
   accountType?: string,
   profileSummary?: string | null,
   userCategorizationHints?: string,
-  userId?: string
-): Promise<{ categorizedCount: number; failedAtIndex?: number }> {
-  if (transactionIds.length === 0) return { categorizedCount: 0 }
+  userId?: string,
+  learning?: LearningContext
+): Promise<{
+  categorizedCount: number
+  failedAtIndex?: number
+  categorizedBy: CategorizedBySource
+}> {
+  const categorizedBy: CategorizedBySource = { rule: 0, memory: 0, ai: 0 }
+  if (transactionIds.length === 0) return { categorizedCount: 0, categorizedBy }
 
   const totalTransactions = transactionIds.length
 
@@ -658,29 +832,41 @@ export async function categorizeTransactionsStreaming(
 
   if (uncategorized.length === 0) {
     logger.debug(`[Categorize] All transactions already categorized`)
-    return { categorizedCount: totalTransactions }
+    return { categorizedCount: totalTransactions, categorizedBy }
   }
 
   logger.debug(`[Categorize] Found ${uncategorized.length} uncategorized transactions`)
 
-  // User rules: full matches are saved without the LLM, partial matches override the LLM result
+  // Rules first, then the user's past decisions; only what is left goes to the LLM
   let ruleOverrides: Map<string, RuleOverride> | undefined
   if (userId) {
+    learning ??= await loadLearning(userId)
     const validCategories = getCategoriesForCountry(countryCode).map((c) => c.code)
     const applied = await applyRules(userId, uncategorized, validCategories)
     ruleOverrides = applied.overrides
-    totalCategorized += applied.savedIds.size
-    if (applied.savedIds.size > 0) {
+    categorizedBy.rule = applied.savedIds.size
+    uncategorized = uncategorized.filter((t) => !applied.savedIds.has(t.id))
+
+    const remembered = await applyMemory(
+      uncategorized,
+      learning.memory,
+      validCategories,
+      ruleOverrides
+    )
+    categorizedBy.memory = remembered.size
+    uncategorized = uncategorized.filter((t) => !remembered.has(t.id))
+
+    totalCategorized += categorizedBy.rule + categorizedBy.memory
+    if (categorizedBy.rule + categorizedBy.memory > 0) {
       onProgress?.(totalCategorized, totalTransactions)
-      uncategorized = uncategorized.filter((t) => !applied.savedIds.has(t.id))
     }
   }
 
   if (uncategorized.length === 0) {
-    return { categorizedCount: totalCategorized }
+    return { categorizedCount: totalCategorized, categorizedBy }
   }
 
-  const llmClient = await createLLMClientFromSettings(modelOverride)
+  const llmClient = await createLLMClientFromSettings(modelOverride, 'categorization')
 
   // Keep retrying until all transactions are categorized or max retries reached
   while (uncategorized.length > 0 && retryCount < MAX_CATEGORIZATION_RETRIES) {
@@ -701,10 +887,12 @@ export async function categorizeTransactionsStreaming(
       profileSummary,
       userCategorizationHints,
       userId,
-      ruleOverrides
+      ruleOverrides,
+      learning
     )
 
     totalCategorized += success
+    categorizedBy.ai += success
 
     // Check if any transactions are still uncategorized (summary is null)
     uncategorized = await fetchUncategorizedTransactions(transactionIds)
@@ -729,6 +917,7 @@ export async function categorizeTransactionsStreaming(
   return {
     categorizedCount: totalCategorized,
     failedAtIndex: uncategorized.length > 0 ? totalCategorized : undefined,
+    categorizedBy,
   }
 }
 
@@ -750,9 +939,10 @@ export async function categorizeStatements(
   onProgress?: (categorized: number, total: number) => void,
   profileId?: string,
   userCategorizationHints?: string
-): Promise<{ categorizedCount: number; totalCount: number }> {
+): Promise<{ categorizedCount: number; totalCount: number; categorizedBy: CategorizedBySource }> {
+  const categorizedBy: CategorizedBySource = { rule: 0, memory: 0, ai: 0 }
   if (statementIds.length === 0) {
-    return { categorizedCount: 0, totalCount: 0 }
+    return { categorizedCount: 0, totalCount: 0, categorizedBy }
   }
 
   logger.debug(`[Categorize] Categorizing transactions for ${statementIds.length} statements`)
@@ -769,16 +959,14 @@ export async function categorizeStatements(
 
   if (transactions.length === 0) {
     logger.debug(`[Categorize] No transactions found for statements`)
-    return { categorizedCount: 0, totalCount: 0 }
+    return { categorizedCount: 0, totalCount: 0, categorizedBy }
   }
 
   logger.debug(`[Categorize] Found ${transactions.length} transactions to categorize`)
 
-  // Get account types for context (helps with credit card vs bank account categorization)
-  // Group transactions by account to get the most common account type
+  // Account type and saved hints differ per account, so each account is categorized on its own
   const accountIds = [...new Set(transactions.map((t) => t.accountId).filter(Boolean))] as string[]
-  let accountType: string | undefined
-  let savedAccountHints: string | null = null
+  const accountsById = new Map<string, { type: string; categorizationHints: string | null }>()
 
   if (accountIds.length > 0) {
     const accounts = await db
@@ -790,51 +978,76 @@ export async function categorizeStatements(
       .from(tables.accounts)
       .where(inArray(tables.accounts.id, accountIds))
 
-    // Use the first account's type and hints (callers categorize one account at a time)
-    accountType = accounts[0]?.type
-    savedAccountHints = accounts[0]?.categorizationHints ?? null
+    for (const account of accounts) accountsById.set(account.id, account)
   }
 
-  // Hints given for this run are prefilled from the account's saved hints by the UI, so they
-  // already include them; fall back to the saved hints only when none were given
-  const combinedHints = userCategorizationHints?.trim() || savedAccountHints?.trim() || undefined
+  const groups = new Map<string, typeof transactions>()
+  for (const t of transactions) {
+    const key = t.accountId ?? ''
+    groups.set(key, [...(groups.get(key) ?? []), t])
+  }
 
   // Fetch profile summary for context if profileId is provided
   let profileSummary: string | null = null
+  let learnedNotes: string | null = null
   if (profileId) {
     const [profile] = await db
-      .select({ summary: tables.profiles.summary })
+      .select({ summary: tables.profiles.summary, learnedNotes: tables.profiles.learnedNotes })
       .from(tables.profiles)
       .where(eq(tables.profiles.id, profileId))
       .limit(1)
 
     profileSummary = profile?.summary ?? null
+    learnedNotes = profile?.learnedNotes ?? null
     if (profileSummary) {
       logger.debug(`[Categorize] Using profile summary for context`)
     }
   }
 
-  const transactionIds = transactions.map((t) => t.id)
+  // What was learned from the user is the same for every account, so it is loaded once
+  const userId = transactions[0]!.userId
+  const learning = { ...(await loadLearning(userId)), learnedNotes }
 
-  // Run streaming categorization
-  const result = await categorizeTransactionsStreaming(
-    transactionIds,
-    countryCode,
-    categorizationModel,
-    0,
-    onProgress,
-    accountType,
-    profileSummary,
-    combinedHints,
-    transactions[0]?.userId
-  )
+  let categorizedCount = 0
+  let processed = 0
+
+  for (const group of groups.values()) {
+    const [first] = group
+    if (!first) continue
+    const account = first.accountId ? accountsById.get(first.accountId) : undefined
+    // Hints given for this run are prefilled from the account's saved hints by the UI, so they
+    // already include them; fall back to the saved hints only when none were given
+    const hints =
+      userCategorizationHints?.trim() || account?.categorizationHints?.trim() || undefined
+    const offset = processed
+
+    const result = await categorizeTransactionsStreaming(
+      group.map((t) => t.id),
+      countryCode,
+      categorizationModel,
+      0,
+      onProgress && ((done) => onProgress(offset + done, transactions.length)),
+      account?.type,
+      profileSummary,
+      hints,
+      first.userId,
+      learning
+    )
+
+    categorizedBy.rule += result.categorizedBy.rule
+    categorizedBy.memory += result.categorizedBy.memory
+    categorizedBy.ai += result.categorizedBy.ai
+    categorizedCount += result.categorizedCount
+    processed += group.length
+  }
 
   logger.debug(
-    `[Categorize] Completed: ${result.categorizedCount}/${transactions.length} transactions categorized`
+    `[Categorize] Completed: ${categorizedCount}/${transactions.length} transactions categorized`
   )
 
   return {
-    categorizedCount: result.categorizedCount,
+    categorizedCount,
     totalCount: transactions.length,
+    categorizedBy,
   }
 }

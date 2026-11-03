@@ -63,6 +63,8 @@ export interface RawStatement extends Omit<
 export interface TxnLite extends PaymentTxn {
   statementId: string | null
   summary: string | null
+  /** Set on a copy that was merged into another transaction */
+  duplicateOfId?: string | null
 }
 
 export interface DateGap {
@@ -569,6 +571,22 @@ export function findBalanceBreaks(statements: StatementLite[]): BalanceBreak[] {
 }
 
 /**
+ * The transactions a statement is checked against. A statement whose overlapping rows live under
+ * an earlier statement is checked against every transaction of the account in its period instead
+ * of only its own; merged copies are left out there, as the kept row already counts.
+ */
+export function transactionsToReconcile(
+  statement: StatementLite,
+  accountTxns: TxnLite[],
+  statementTxns: TxnLite[]
+): TxnLite[] {
+  if (statement.skippedDuplicateCount === 0) return statementTxns
+  return accountTxns.filter(
+    (t) => !t.duplicateOfId && t.date >= statement.periodStart && t.date <= statement.periodEnd
+  )
+}
+
+/**
  * Check opening + movements = closing for one statement. Pass ALL of the statement's
  * transactions, hidden ones included: hidden only means excluded from analytics.
  */
@@ -775,6 +793,7 @@ export async function getDataHealth(
     isHidden: !!t.isHidden,
     linkedEntityId: t.linkedEntityId,
     linkedEntityType: t.linkedEntityType,
+    duplicateOfId: t.duplicateOfId,
   }))
 
   const rawByAccount = new Map<string, RawStatement[]>()
@@ -824,16 +843,14 @@ export async function getDataHealth(
       missingPeriod: missingByAccount.get(account.id) ?? [],
       reconciliation: sorted
         .map((s) =>
-          // A statement whose overlapping rows live under an earlier statement is checked
-          // against every transaction of the account in its period instead of only its own
           reconcileStatement(
             kind,
             s,
-            s.skippedDuplicateCount > 0
-              ? (txnsByAccount.get(account.id) ?? []).filter(
-                  (t) => t.date >= s.periodStart && t.date <= s.periodEnd
-                )
-              : (txnsByStatement.get(s.id) ?? [])
+            transactionsToReconcile(
+              s,
+              txnsByAccount.get(account.id) ?? [],
+              txnsByStatement.get(s.id) ?? []
+            )
           )
         )
         .filter((r) => r.status !== 'ok'),

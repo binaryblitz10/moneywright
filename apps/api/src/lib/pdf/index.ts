@@ -14,7 +14,7 @@ export { generateParserCode } from './generate-parser-code'
 export { validateCode, checkSyntax } from './validate-code'
 export { runParser, runParserWithVersions } from './execute-parser'
 export { isE2BConfigured, runParserInE2B, type ParsingMode } from './e2b-executor'
-export { insertRawTransactions, updateTransactionCategories } from './insert-transactions'
+export { insertRawTransactions } from './insert-transactions'
 export { categorizeTransactionsStreaming, categorizeStatements } from './categorize-transactions'
 export {
   generateBankKey,

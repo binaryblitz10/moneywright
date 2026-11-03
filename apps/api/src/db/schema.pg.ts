@@ -53,6 +53,9 @@ export const profiles = pgTable(
     name: varchar('name', { length: 50 }).notNull(), // e.g., "Personal", "Spouse"
     relationship: varchar('relationship', { length: 20 }), // e.g., "self", "spouse", "parent"
     summary: text('summary'), // Free-form text about the profile owner (employer, income sources, etc.) - used to help LLM categorize transactions
+    learnedNotes: text('learned_notes'), // Short notes distilled from the user's corrections, appended to the categorization prompt
+    learnedNotesUpdatedAt: timestamp('learned_notes_updated_at', { withTimezone: true }), // When the notes were last regenerated
+    learnedNotesEditedAt: timestamp('learned_notes_edited_at', { withTimezone: true }), // When the user last edited the notes by hand
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -186,6 +189,7 @@ export const statements = pgTable(
     originalFilename: text('original_filename').notNull(),
     fileType: varchar('file_type', { length: 10 }).notNull(), // pdf, csv, xlsx
     fileSizeBytes: integer('file_size_bytes'),
+    fileHash: varchar('file_hash', { length: 64 }), // SHA256 of the uploaded file, used to spot re-uploads
 
     // Statement period
     periodStart: date('period_start'),
@@ -221,6 +225,7 @@ export const statements = pgTable(
     index('statements_user_id_idx').on(table.userId),
     index('statements_status_idx').on(table.status),
     index('statements_document_type_idx').on(table.documentType),
+    index('statements_user_file_hash_idx').on(table.userId, table.fileHash),
   ]
 )
 
@@ -262,6 +267,9 @@ export const transactions = pgTable(
     category: varchar('category', { length: 50 }).notNull(),
     categoryConfidence: decimal('category_confidence', { precision: 3, scale: 2 }),
     isSubscription: boolean('is_subscription'), // LLM-detected recurring subscription
+    merchantFingerprint: text('merchant_fingerprint'), // Normalized merchant key from the description, used to reuse past corrections
+    categorySource: varchar('category_source', { length: 10 }), // Who set the category: 'user' | 'rule' | 'memory' | 'ai'
+    nameSource: varchar('name_source', { length: 10 }), // Who set the name (summary): 'user' | 'rule' | 'memory' | 'ai'
 
     // Deduplication
     hash: varchar('hash', { length: 64 }).notNull(), // SHA256
@@ -275,6 +283,7 @@ export const transactions = pgTable(
     isHidden: boolean('is_hidden').default(false), // true if user hides this transaction from queries
     notes: text('notes'), // free-form note written by the user
     smsVerified: boolean('sms_verified').notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
+    duplicateOfId: varchar('duplicate_of_id', { length: 21 }), // ID of the transaction this one was flagged as a duplicate of
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -286,8 +295,89 @@ export const transactions = pgTable(
     index('transactions_user_id_idx').on(table.userId),
     index('transactions_date_idx').on(table.date),
     index('transactions_category_idx').on(table.category),
+    index('transactions_user_merchant_fingerprint_idx').on(table.userId, table.merchantFingerprint),
     unique('transactions_account_hash_unique').on(table.accountId, table.hash),
   ]
+)
+
+/**
+ * Categorization events table - every correction or confirmation of a category or name,
+ * the raw material the app learns from
+ */
+export const categorizationEvents = pgTable(
+  'categorization_events',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    profileId: varchar('profile_id', { length: 21 })
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    transactionId: varchar('transaction_id', { length: 21 }), // Kept after the transaction is deleted
+    merchantFingerprint: text('merchant_fingerprint'),
+    description: text('description').notNull(), // Original description of the transaction
+    field: varchar('field', { length: 10 }).notNull(), // 'category' | 'name'
+    fromValue: text('from_value'),
+    toValue: text('to_value'),
+    fromSource: varchar('from_source', { length: 10 }), // 'user' | 'rule' | 'memory' | 'ai'
+    action: varchar('action', { length: 10 }).notNull(), // 'correct' | 'confirm'
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('categorization_events_user_created_idx').on(table.userId, table.createdAt),
+    index('categorization_events_user_merchant_idx').on(table.userId, table.merchantFingerprint),
+  ]
+)
+
+/**
+ * Auto-fix batches table - one run of the automatic data fixers (after an import or on demand)
+ */
+export const autoFixBatches = pgTable(
+  'auto_fix_batches',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: varchar('user_id', { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    profileId: varchar('profile_id', { length: 21 }).references(() => profiles.id, {
+      onDelete: 'cascade',
+    }),
+    trigger: varchar('trigger', { length: 10 }).notNull(), // 'import' | 'manual'
+    statementIds: text('statement_ids').notNull(), // JSON array of statement IDs
+    summary: text('summary').notNull(), // JSON object with counts per fixer
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp('undone_at', { withTimezone: true }), // Set when the whole batch was undone
+  },
+  (table) => [index('auto_fix_batches_user_created_idx').on(table.userId, table.createdAt)]
+)
+
+/**
+ * Auto-fix changes table - each single change a batch made, with enough to undo it
+ */
+export const autoFixChanges = pgTable(
+  'auto_fix_changes',
+  {
+    id: varchar('id', { length: 21 })
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    batchId: varchar('batch_id', { length: 21 })
+      .notNull()
+      .references(() => autoFixBatches.id, { onDelete: 'cascade' }),
+    fixer: text('fixer').notNull(),
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    description: text('description').notNull(),
+    before: text('before').notNull(), // JSON snapshot of the changed fields before the fix
+    after: text('after').notNull(), // JSON snapshot of the changed fields after the fix
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+  },
+  (table) => [index('auto_fix_changes_batch_id_idx').on(table.batchId)]
 )
 
 /**
@@ -720,7 +810,7 @@ export const transactionRules = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
 
-    // Matching: every term must match the original description
+    // Matching: any one term matching the original description is enough
     matchTerms: text('match_terms').notNull(), // JSON array of strings
     transactionType: varchar('transaction_type', { length: 10 }), // credit or debit, null = both
     minAmount: decimal('min_amount', { precision: 15, scale: 2 }), // inclusive, null = no lower limit
@@ -757,6 +847,15 @@ export type NewStatement = typeof statements.$inferInsert
 
 export type Transaction = typeof transactions.$inferSelect
 export type NewTransaction = typeof transactions.$inferInsert
+
+export type CategorizationEvent = typeof categorizationEvents.$inferSelect
+export type NewCategorizationEvent = typeof categorizationEvents.$inferInsert
+
+export type AutoFixBatch = typeof autoFixBatches.$inferSelect
+export type NewAutoFixBatch = typeof autoFixBatches.$inferInsert
+
+export type AutoFixChange = typeof autoFixChanges.$inferSelect
+export type NewAutoFixChange = typeof autoFixChanges.$inferInsert
 
 /**
  * Subscription overrides - the user's changes to a detected subscription, keyed by merchant

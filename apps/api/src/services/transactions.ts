@@ -21,12 +21,15 @@ import { nanoid } from '../lib/id'
 import { MANUAL_DOCUMENT_TYPE, MANUAL_STATEMENT_FILENAME } from '../lib/manual-statement'
 import { getAccountByIdRaw } from './accounts'
 import { logger } from '../lib/logger'
-import { getDismissedDuplicates, setManuallyUnlinked } from './preferences'
+import { setManuallyUnlinked } from './preferences'
 import { merchantKey, merchantName } from './spending-changes'
 import { getSubscriptionOverrides } from './subscription-overrides'
 import { NAME_VERSION } from '../lib/pdf/transaction-names'
+import { merchantFingerprint } from '../lib/merchant-fingerprint'
+import { recordEvents } from './categorization-events'
+import type { NewCategorizationEvent } from '../db'
 import { decryptOptional } from '../lib/encryption'
-import { clusterDuplicates } from '../lib/duplicate-key'
+import { countDuplicateGroups, invalidateDuplicateCache } from './duplicates'
 import { countPossibleMatches } from './sms-matching'
 import { parseAmountSearch, parseSearchTerms, type SearchTerm } from '../lib/amount-search'
 import { getCategoryCodesByKind, type CategoryKind } from '../lib/constants'
@@ -103,6 +106,11 @@ export interface TransactionResponse {
   isManuallyCategorized: boolean
   isHidden: boolean
   notes: string | null
+  /** Normalized merchant key of the description, shared by transactions of one merchant */
+  merchantFingerprint: string | null
+  /** Who set the category / name: 'user' | 'rule' | 'memory' | 'ai'; null when never set */
+  categorySource: string | null
+  nameSource: string | null
   /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
@@ -142,7 +150,7 @@ export interface TransactionFilters {
 export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all'
 
 /** Low-confidence review queue: categorizations the model was unsure of */
-const LOW_CONFIDENCE_BELOW = 0.7
+export const LOW_CONFIDENCE_BELOW = 0.7
 
 /**
  * Rows for the low-confidence queue: categorized, into a category other than the 'other' fallback,
@@ -195,6 +203,9 @@ export function toTransactionResponse(txn: Transaction): TransactionResponse {
     isManuallyCategorized: txn.isManuallyCategorized ?? false,
     isHidden: txn.isHidden ?? false,
     notes: txn.notes ?? null,
+    merchantFingerprint: txn.merchantFingerprint ?? null,
+    categorySource: txn.categorySource ?? null,
+    nameSource: txn.nameSource ?? null,
     smsSource: txn.hash.startsWith('sms:'),
     smsVerified: txn.smsVerified ?? false,
     createdAt: txn.createdAt,
@@ -218,7 +229,7 @@ function sourceCondition(sources: string[]) {
 /**
  * Build the where-conditions shared by transaction listing and duplicate detection
  */
-function buildFilterConditions(userId: string, filters?: TransactionFilters) {
+export function buildFilterConditions(userId: string, filters?: TransactionFilters) {
   const conditions = [eq(tables.transactions.userId, userId)]
 
   // Handle hidden transactions filter
@@ -510,12 +521,14 @@ export async function updateTransaction(
     updateData.category = data.category
     // Reset confidence since user manually changed it
     updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
+    updateData.categorySource = 'user'
     categoryOrSummaryChanged = true
   }
 
   if (data.summary !== undefined && data.summary !== (existing.summary || '')) {
     updateData.summary = data.summary
     updateData.nameVersion = NAME_VERSION
+    updateData.nameSource = 'user'
     categoryOrSummaryChanged = true
   }
 
@@ -585,6 +598,36 @@ export async function updateTransaction(
     throw new Error('Failed to update transaction')
   }
 
+  const events: NewCategorizationEvent[] = []
+  const eventBase = {
+    userId,
+    profileId: existing.profileId,
+    transactionId,
+    merchantFingerprint: existing.merchantFingerprint,
+    description: existing.originalDescription,
+    action: 'correct',
+  }
+  if (updateData.category !== undefined) {
+    events.push({
+      ...eventBase,
+      field: 'category',
+      fromValue: existing.category,
+      toValue: updateData.category,
+      fromSource: existing.categorySource,
+    })
+  }
+  if (updateData.summary !== undefined) {
+    events.push({
+      ...eventBase,
+      field: 'name',
+      fromValue: existing.summary,
+      toValue: updateData.summary,
+      fromSource: existing.nameSource,
+    })
+  }
+  await recordEvents(events)
+
+  invalidateDuplicateCache(userId)
   logger.debug(`[Transaction] Updated transaction ${transactionId}`)
   return toTransactionResponse(updated)
 }
@@ -664,9 +707,12 @@ export async function createManualTransaction(
       amount: data.amount.toString(),
       currency: account.currency,
       originalDescription: data.summary,
+      merchantFingerprint: merchantFingerprint(data.summary),
       summary: data.summary,
       nameVersion: NAME_VERSION,
+      nameSource: 'user',
       category: data.category,
+      categorySource: 'user',
       categoryConfidence: '1.00' as unknown as Transaction['categoryConfidence'],
       isManuallyCategorized: true,
       isHidden: data.isHidden ?? false,
@@ -680,6 +726,7 @@ export async function createManualTransaction(
     throw new Error('Failed to create transaction')
   }
 
+  invalidateDuplicateCache(userId)
   logger.debug(`[Transaction] Added manual transaction ${created.id} to account ${account.id}`)
   return toTransactionResponse(created)
 }
@@ -703,7 +750,10 @@ export async function createSmsTransaction(
     /** null leaves the row for the categorizer, like a statement import */
     summary: string | null
     category: string
+    /** A transaction rule chose the category */
     ruleMatched: boolean
+    /** A transaction rule chose the name */
+    nameRuleMatched?: boolean
   }
 ): Promise<TransactionResponse> {
   const account = await getAccountByIdRaw(data.accountId, userId)
@@ -726,9 +776,12 @@ export async function createSmsTransaction(
       amount: data.amount.toString(),
       currency: data.currency,
       originalDescription: data.merchant,
+      merchantFingerprint: merchantFingerprint(data.merchant),
       summary: data.summary,
       nameVersion: NAME_VERSION,
+      nameSource: data.summary !== null && data.nameRuleMatched ? 'rule' : null,
       category: data.category,
+      categorySource: data.summary !== null && data.ruleMatched ? 'rule' : null,
       categoryConfidence: data.ruleMatched
         ? ('1.00' as unknown as Transaction['categoryConfidence'])
         : null,
@@ -742,6 +795,7 @@ export async function createSmsTransaction(
     throw new Error('Failed to create transaction')
   }
 
+  invalidateDuplicateCache(userId)
   logger.debug(`[Transaction] Added SMS transaction ${created.id} to account ${account.id}`)
   return toTransactionResponse(created)
 }
@@ -756,11 +810,28 @@ export async function createSmsTransaction(
 export async function bulkUpdateTransactions(
   transactionIds: string[],
   userId: string,
-  data: { category?: string; summary?: string; isHidden?: boolean; confirmCategory?: boolean }
+  data: { category?: string; summary?: string; isHidden?: boolean; confirmCategory?: boolean },
+  options: { source?: 'user' | 'rule' } = {}
 ): Promise<number> {
+  const source = options.source ?? 'user'
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
 
   const updateData: Partial<Transaction> = { updatedAt: now as Date }
+
+  // Old values, read before the update, for the events (a rule application records none)
+  const before =
+    source === 'user' &&
+    (data.category !== undefined || data.summary !== undefined || data.confirmCategory)
+      ? await db
+          .select()
+          .from(tables.transactions)
+          .where(
+            and(
+              inArray(tables.transactions.id, transactionIds),
+              eq(tables.transactions.userId, userId)
+            )
+          )
+      : []
 
   if (data.category !== undefined) {
     // Both sides of a card payment link go first, while the old category is still on the rows
@@ -784,6 +855,7 @@ export async function bulkUpdateTransactions(
     )
 
     updateData.category = data.category
+    updateData.categorySource = source
     updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
     updateData.linkedEntityId =
       sql`CASE WHEN ${tables.transactions.category} <> ${data.category} AND ${tables.transactions.linkedEntityType} IN ('insurance', 'loan') THEN NULL ELSE ${tables.transactions.linkedEntityId} END` as unknown as null
@@ -793,9 +865,11 @@ export async function bulkUpdateTransactions(
   if (data.summary !== undefined) {
     updateData.summary = data.summary
     updateData.nameVersion = NAME_VERSION
+    updateData.nameSource = source
   }
   if (data.confirmCategory) {
     updateData.categoryConfidence = '1.00' as unknown as typeof updateData.categoryConfidence
+    updateData.categorySource = source
   }
   if (data.category !== undefined || data.summary !== undefined || data.confirmCategory) {
     updateData.isManuallyCategorized = true
@@ -812,6 +886,49 @@ export async function bulkUpdateTransactions(
     )
     .returning({ id: tables.transactions.id })
 
+  const events: NewCategorizationEvent[] = []
+  for (const row of before) {
+    const base = {
+      userId,
+      profileId: row.profileId,
+      transactionId: row.id,
+      merchantFingerprint: row.merchantFingerprint,
+      description: row.originalDescription,
+    }
+    if (data.category !== undefined && data.category !== row.category) {
+      events.push({
+        ...base,
+        field: 'category',
+        fromValue: row.category,
+        toValue: data.category,
+        fromSource: row.categorySource,
+        action: 'correct',
+      })
+    }
+    if (data.summary !== undefined && data.summary !== (row.summary ?? '')) {
+      events.push({
+        ...base,
+        field: 'name',
+        fromValue: row.summary,
+        toValue: data.summary,
+        fromSource: row.nameSource,
+        action: 'correct',
+      })
+    }
+    if (data.confirmCategory && data.category === undefined) {
+      events.push({
+        ...base,
+        field: 'category',
+        fromValue: row.category,
+        toValue: row.category,
+        fromSource: row.categorySource,
+        action: 'confirm',
+      })
+    }
+  }
+  await recordEvents(events)
+
+  invalidateDuplicateCache(userId)
   logger.debug(`[Transaction] Bulk updated ${updated.length} transactions`)
   return updated.length
 }
@@ -845,64 +962,17 @@ export async function getReviewCounts(userId: string, profileId?: string): Promi
     countFor('pending'),
     countFor('other'),
     countFor('low_confidence'),
-    findDuplicateGroups(userId, { profileId }),
+    countDuplicateGroups(userId, profileId),
     countPossibleMatches(userId, profileId),
   ])
 
   return {
-    duplicateGroups: duplicateGroups.length,
+    duplicateGroups,
     pending,
     other,
     lowConfidence,
     possibleMatches,
   }
-}
-
-/**
- * A set of transactions that look like the same transaction entered more than once
- */
-export interface DuplicateGroup {
-  key: string
-  /** Group key plus its size: a new identical transaction changes it, so a dismissed group resurfaces */
-  signature: string
-  transactions: TransactionResponse[]
-}
-
-/**
- * Find likely duplicate transactions: same account, date, type, amount and a
- * loosely matching description. Rows within a group are ordered
- * oldest-created first, so the first row is the one to keep.
- * Groups the user marked as not duplicates are left out, or returned alone with `dismissed`.
- */
-export async function findDuplicateGroups(
-  userId: string,
-  filters?: TransactionFilters,
-  dismissed = false
-): Promise<DuplicateGroup[]> {
-  const dismissedSignatures = new Set(await getDismissedDuplicates(userId))
-  const rows = await db
-    .select()
-    .from(tables.transactions)
-    .where(and(...buildFilterConditions(userId, filters)))
-    .orderBy(asc(tables.transactions.createdAt), asc(tables.transactions.id))
-
-  const groups = clusterDuplicates(rows.map(toTransactionResponse), (txn) => ({
-    accountId: txn.accountId,
-    date: txn.date,
-    type: txn.type,
-    amount: txn.amount,
-    description: txn.originalDescription,
-  }))
-
-  return [...groups.entries()]
-    .filter(([, transactions]) => transactions.length > 1)
-    .map(([key, transactions]) => ({
-      key,
-      signature: `${key}#${transactions.length}`,
-      transactions,
-    }))
-    .filter((group) => dismissedSignatures.has(group.signature) === dismissed)
-    .sort((a, b) => b.transactions[0]!.date.localeCompare(a.transactions[0]!.date))
 }
 
 /**
@@ -952,6 +1022,7 @@ export async function bulkDeleteTransactions(
     )
   }
 
+  invalidateDuplicateCache(userId)
   logger.debug(`[Transaction] Bulk deleted ${deleted.length} transactions`)
   return deleted.length
 }

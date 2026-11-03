@@ -15,10 +15,35 @@ import {
   LLM_PROVIDERS,
   type LLMProvider,
   getDefaultParsingModelId,
+  getDefaultCategorizationModelId,
   getProviderModels,
   getGatewayProviderOptions,
   type GatewayProviderOptions,
 } from '../lib/ai'
+
+/** Per-call AI timeouts (ms) so a stalled provider fails the statement instead of blocking the queue */
+export const LLM_TIMEOUT_MS = {
+  accountInfo: 60_000,
+  categorizeBatch: 120_000,
+  parserAgent: 300_000,
+  short: 60_000,
+  document: 180_000,
+} as const
+
+/** Run an AI call with a timeout signal; a timeout rejects with a clear Error */
+export async function withLlmTimeout<T>(
+  timeoutMs: number,
+  run: (abortSignal: AbortSignal) => Promise<T>
+): Promise<T> {
+  try {
+    return await run(AbortSignal.timeout(timeoutMs))
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new Error(`AI request timed out after ${timeoutMs / 1000}s`)
+    }
+    throw error
+  }
+}
 
 /**
  * Check if DevTools should be enabled (development only)
@@ -175,12 +200,15 @@ export function isLLMConfigured(): boolean {
   }
 }
 
+type ModelPurpose = 'parsing' | 'categorization'
+
 /**
  * Parse model override string to extract provider and model
  * Format: "provider:model" (e.g., "openai:gpt-4o") or just "model" (uses first configured provider)
  */
 function parseModelOverride(
   modelOverride: string | undefined,
+  purpose: ModelPurpose,
   settings: {
     openaiApiKey: string | null
     anthropicApiKey: string | null
@@ -191,15 +219,16 @@ function parseModelOverride(
   }
 ): { provider: LLMProvider; model: string } {
   if (!modelOverride) {
-    // Find first configured provider and use its default model
-    if (settings.openaiApiKey) return { provider: 'openai', model: getDefaultModel('openai') }
-    if (settings.anthropicApiKey)
-      return { provider: 'anthropic', model: getDefaultModel('anthropic') }
-    if (settings.googleAiApiKey) return { provider: 'google', model: getDefaultModel('google') }
-    if (settings.vercelApiKey) return { provider: 'vercel', model: getDefaultModel('vercel') }
+    // Find first configured provider and use its default model for the purpose
+    const getDefault =
+      purpose === 'categorization' ? getDefaultCategorizationModelId : getDefaultModel
+    if (settings.openaiApiKey) return { provider: 'openai', model: getDefault('openai') }
+    if (settings.anthropicApiKey) return { provider: 'anthropic', model: getDefault('anthropic') }
+    if (settings.googleAiApiKey) return { provider: 'google', model: getDefault('google') }
+    if (settings.vercelApiKey) return { provider: 'vercel', model: getDefault('vercel') }
     if (settings.openrouterApiKey)
-      return { provider: 'openrouter', model: getDefaultModel('openrouter') }
-    if (settings.ollamaBaseUrl) return { provider: 'ollama', model: getDefaultModel('ollama') }
+      return { provider: 'openrouter', model: getDefault('openrouter') }
+    if (settings.ollamaBaseUrl) return { provider: 'ollama', model: getDefault('ollama') }
     throw new Error('No LLM provider configured')
   }
 
@@ -240,10 +269,12 @@ function parseModelOverride(
  * Create LLM client using database settings for API keys
  * Accepts model override in format "provider:model" (e.g., "openai:gpt-4o")
  * or just model name which will be inferred
+ * `purpose` picks the default model when no override is given
  * Returns both the model and any provider-specific options (e.g., gateway restrictions)
  */
 export async function createLLMClientFromSettings(
-  modelOverride?: string
+  modelOverride?: string,
+  purpose: ModelPurpose = 'parsing'
 ): Promise<LLMClientResult> {
   // Import here to avoid circular dependency
   const { getLLMSettings } = await import('../services/config')
@@ -253,7 +284,7 @@ export async function createLLMClientFromSettings(
     throw new Error('LLM is not configured. Please configure at least one provider.')
   }
 
-  const { provider, model } = parseModelOverride(modelOverride, settings)
+  const { provider, model } = parseModelOverride(modelOverride, purpose, settings)
 
   // Get the appropriate API key for the provider
   let apiKey: string | undefined

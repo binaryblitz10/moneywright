@@ -12,7 +12,10 @@ export const PLACEHOLDER_ACCOUNT_PREFIX = 'Pending - '
 /** Document types whose transactions go through categorization */
 const CATEGORIZABLE_DOCUMENT_TYPES = ['bank_statement', 'credit_card_statement']
 
-/** A statement is interrupted when it is still queued or mid-parse at startup */
+/**
+ * A statement is interrupted when it is still queued or mid-parse at startup. 'categorizing'
+ * is not: its rows are already saved, so recovery retries categorization instead of failing it.
+ */
 export function isInterruptedStatus(status: string): boolean {
   return status === 'pending' || status === 'parsing'
 }

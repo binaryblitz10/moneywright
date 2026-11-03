@@ -10,6 +10,7 @@ describe('isInterruptedStatus', () => {
   test('only pending and parsing are interrupted', () => {
     expect(isInterruptedStatus('pending')).toBe(true)
     expect(isInterruptedStatus('parsing')).toBe(true)
+    expect(isInterruptedStatus('categorizing')).toBe(false)
     expect(isInterruptedStatus('completed')).toBe(false)
     expect(isInterruptedStatus('failed')).toBe(false)
   })

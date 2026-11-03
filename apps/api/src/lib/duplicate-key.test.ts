@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import {
   clusterDuplicates,
   descriptionsMatch,
-  duplicateBucketKey,
   duplicateKey,
   selectRowsToInsert,
 } from './duplicate-key'
@@ -23,17 +22,7 @@ interface Row {
   description: string
 }
 
-const bucketOf = (r: Row): string => duplicateBucketKey(r)
-const descOf = (r: Row): string => r.description
-
-function existing(rows: Row[]): Map<string, string[]> {
-  const map = new Map<string, string[]>()
-  for (const r of rows) map.set(bucketOf(r), [...(map.get(bucketOf(r)) ?? []), r.description])
-  return map
-}
-
-const select = (rows: Row[], present: Row[]) =>
-  selectRowsToInsert(rows, existing(present), bucketOf, descOf)
+const select = (rows: Row[], present: Row[]) => selectRowsToInsert(rows, present, (r) => r)
 
 describe('duplicateKey', () => {
   test('ignores case, extra whitespace and sub-paisa amount noise', () => {
@@ -93,6 +82,20 @@ describe('selectRowsToInsert', () => {
     const result = select([other], [a])
     expect(result.toInsert).toEqual([other])
     expect(result.skipped).toBe(0)
+  })
+
+  test('skips a row sharing a reference number within 3 days of an existing one', () => {
+    const present: Row = { ...base, description: 'UPI/412345678901/Zomato' }
+    const incoming: Row = { ...base, date: '2026-09-13', description: 'Zomato order 412345678901' }
+    expect(select([incoming], [present])).toEqual({ toInsert: [], skipped: 1 })
+    const late: Row = { ...incoming, date: '2026-09-14' }
+    expect(select([late], [present]).toInsert).toEqual([late])
+  })
+
+  test('never skips a row whose reference conflicts with the existing one', () => {
+    const present: Row = { ...base, description: 'UPI/412345678901/Zomato' }
+    const incoming: Row = { ...base, description: 'UPI/412345678999/Zomato' }
+    expect(select([incoming], [present])).toEqual({ toInsert: [incoming], skipped: 0 })
   })
 
   test('preserves file order of the rows that are kept', () => {

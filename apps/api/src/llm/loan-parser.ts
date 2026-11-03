@@ -8,7 +8,7 @@
  */
 
 import { generateObject } from 'ai'
-import { createLLMClientFromSettings } from './index'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from './index'
 import { loanDocumentSchema, type LoanDocumentParsed } from './schemas'
 import { logger } from '../lib/logger'
 
@@ -190,12 +190,15 @@ Extract these fields that are common across all loan types:
   logger.debug(`[LoanParser] Prompt length: ${prompt.length} chars`)
 
   try {
-    const { object } = await generateObject({
-      model,
-      schema: loanDocumentSchema,
-      prompt,
-      providerOptions,
-    })
+    const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.document, (abortSignal) =>
+      generateObject({
+        model,
+        schema: loanDocumentSchema,
+        prompt,
+        providerOptions,
+        abortSignal,
+      })
+    )
 
     logger.debug(`[LoanParser] Parsed loan: type=${object.loan_type}, lender=${object.lender}`)
     logger.debug(`[LoanParser] Full result:`, JSON.stringify(object, null, 2))

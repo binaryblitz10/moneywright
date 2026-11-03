@@ -184,12 +184,3 @@ export async function extractXlsxText(
     throw new Error(`Failed to parse XLSX: ${message}`)
   }
 }
-
-/**
- * Convert spreadsheet data (CSV or XLSX) to a normalized CSV string
- * This is used to pass structured data to the LLM
- */
-export function normalizeSpreadsheetToCsv(pages: string[]): string {
-  // Join all pages/sheets with a separator
-  return pages.join('\n\n')
-}

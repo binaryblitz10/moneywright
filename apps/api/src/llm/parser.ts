@@ -21,7 +21,7 @@
  */
 
 import { generateObject } from 'ai'
-import { createLLMClientFromSettings } from './index'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS } from './index'
 import {
   accountInfoSchema,
   documentInfoSchema,
@@ -57,6 +57,7 @@ import {
   generateBankKey,
   type RawPdfTransaction,
 } from '../lib/pdf'
+import type { ParsedValidation } from '../lib/pdf/validation'
 import { parseInvestmentStatement } from './investment-parser'
 
 /**
@@ -278,6 +279,7 @@ Determine what type of document this is:
       schema: documentInfoSchema,
       prompt,
       providerOptions,
+      abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS.accountInfo),
     })
 
     logger.debug(`[Parser] Document type detected: ${object.document_type}`)
@@ -385,6 +387,7 @@ If this is CSV/Excel data (columnar transaction rows without a summary section):
       schema: accountInfoSchema,
       prompt,
       providerOptions,
+      abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS.accountInfo),
     })
 
     logger.debug(
@@ -804,7 +807,12 @@ export async function parseStatement(options: {
     throw new Error(errorMessage)
   }
 
-  const bankKey = generateBankKey(accountInfo.institution_id, accountInfo.account_type, fileType)
+  const bankKey = generateBankKey(
+    accountInfo.institution_id,
+    accountInfo.account_type,
+    fileType,
+    accountIdToUse
+  )
   logger.debug(`[Parser] Bank key: ${bankKey} (file type: ${fileType})`)
 
   // Build expected summary for validation (from Step 1 account info extraction)
@@ -822,6 +830,9 @@ export async function parseStatement(options: {
   // Step 2: Check for cached parser code
   let rawTransactions: RawPdfTransaction[] = []
   let usedCachedCode = false
+  // How the rows were checked, and how many returned rows were rejected as unreadable
+  let parsedValidation: ParsedValidation = { passed: true, method: 'none', issues: [] }
+  let droppedRowCount = 0
 
   const cachedCodes = await getParserCodes(bankKey)
   if (cachedCodes.length > 0) {
@@ -835,9 +846,10 @@ export async function parseStatement(options: {
     if (result.success && result.transactions && result.transactions.length > 0) {
       rawTransactions = result.transactions
       usedCachedCode = true
-      const validationStatus = result.validationPassed ? 'validation passed' : 'no validation data'
+      parsedValidation = result.validation ?? parsedValidation
+      droppedRowCount = result.droppedRowCount ?? 0
       logger.debug(
-        `[Parser] Used cached code v${result.usedVersion}: ${rawTransactions.length} transactions (${validationStatus})`
+        `[Parser] Used cached code v${result.usedVersion}: ${rawTransactions.length} transactions (validation: ${parsedValidation.method})`
       )
     } else {
       logger.warn(
@@ -865,11 +877,18 @@ export async function parseStatement(options: {
       `[Parser] Generated code for format: ${agentResult.detectedFormat} (confidence: ${agentResult.confidence}, attempts: ${agentResult.attempts})`
     )
 
+    // A balance column that does not add up is not worth failing the import over: keep the rows
+    // and flag the statement. Printed-total mismatches and empty results still fail.
+    const keepUnverified =
+      !!agentResult.finalError &&
+      agentResult.validation?.method === 'running_balance' &&
+      !!agentResult.transactions &&
+      agentResult.transactions.length > 0
+
     // Check if agent succeeded
     if (
-      agentResult.finalError ||
-      !agentResult.transactions ||
-      agentResult.transactions.length === 0
+      !keepUnverified &&
+      (agentResult.finalError || !agentResult.transactions || agentResult.transactions.length === 0)
     ) {
       logger.error(
         `[Parser] Agent failed after ${agentResult.attempts} attempts: ${agentResult.finalError || 'No transactions found'}`
@@ -880,16 +899,25 @@ export async function parseStatement(options: {
     }
 
     // Use transactions from the successful test run (no need to re-run parser)
-    rawTransactions = agentResult.transactions
+    rawTransactions = agentResult.transactions ?? []
+    parsedValidation = agentResult.validation ?? parsedValidation
+    droppedRowCount = agentResult.droppedRowCount ?? 0
     logger.debug(`[Parser] Using ${rawTransactions.length} transactions from agent test run`)
 
-    // Save new code as new version
-    const newVersion = await saveParserCode(bankKey, agentResult.code, {
-      detectedFormat: agentResult.detectedFormat,
-      dateFormat: agentResult.dateFormat,
-      confidence: agentResult.confidence,
-    })
-    logger.debug(`[Parser] Saved parser code as ${bankKey} v${newVersion}`)
+    if (keepUnverified) {
+      // Code whose rows fail their own balance check should not be reused for later statements
+      logger.warn(
+        `[Parser] Keeping rows that fail the running balance check: ${parsedValidation.issues.join('; ')}`
+      )
+    } else {
+      // Save new code as new version
+      const newVersion = await saveParserCode(bankKey, agentResult.code, {
+        detectedFormat: agentResult.detectedFormat,
+        dateFormat: agentResult.dateFormat,
+        confidence: agentResult.confidence,
+      })
+      logger.debug(`[Parser] Saved parser code as ${bankKey} v${newVersion}`)
+    }
   }
 
   if (rawTransactions.length === 0) {
@@ -948,9 +976,10 @@ export async function parseStatement(options: {
     }
   }
 
-  // Get user's currency
+  // Use the account's currency; the user's country is only a fallback
+  const finalAccount = await getAccountByIdRaw(accountIdToUse, userId)
   const [user] = await db.select().from(tables.users).where(eq(tables.users.id, userId)).limit(1)
-  const currency = user?.country === 'IN' ? 'INR' : 'USD'
+  const currency = finalAccount?.currency || (user?.country === 'IN' ? 'INR' : 'USD')
 
   // Step 5: Insert transactions (category will be null initially, updated by streaming categorization)
   logger.debug(`[Parser] Inserting transactions...`)
@@ -999,6 +1028,34 @@ export async function parseStatement(options: {
     }
   }
 
+  // What the import did; the category counts are filled in once categorization has run
+  statementSummary = {
+    ...(statementSummary ?? { type: 'bank_statement' as const }),
+    importReport: {
+      inserted: insertResult.insertedCount,
+      skippedDuplicates: insertResult.skippedDuplicates,
+      mergedWithBankMessages: insertResult.mergedWithBankMessages,
+      possibleMatches: insertResult.possibleMatches,
+      categorizedBy: { rule: 0, memory: 0, ai: 0 },
+      needsReview: 0,
+    },
+  }
+
+  // Record whether the parsed rows could be checked, and how many rows were unreadable
+  statementSummary = {
+    ...(statementSummary ?? { type: 'bank_statement' as const }),
+    validation: {
+      status: !parsedValidation.passed
+        ? 'mismatch'
+        : parsedValidation.method === 'none'
+          ? 'unchecked'
+          : 'verified',
+      method: parsedValidation.method,
+      issues: parsedValidation.issues,
+    },
+    ...(droppedRowCount > 0 ? { droppedRowCount } : {}),
+  }
+
   // Update statement with results
   await updateStatementResults(statementId, {
     periodStart,
@@ -1014,42 +1071,4 @@ export async function parseStatement(options: {
   logger.debug(
     `[Parser] Completed parsing statement ${statementId}: ${insertResult.insertedCount} transactions in ${parseDurationSec}s`
   )
-}
-
-/**
- * Parse options for a single statement
- */
-export interface ParseStatementOptions {
-  statementId: string
-  profileId: string
-  userId: string
-  countryCode: CountryCode
-  pages: string[]
-  fileType: FileType
-  documentType?: 'bank_statement' | 'investment_statement'
-  sourceType?: string
-  parsingModel?: string
-}
-
-/**
- * Parse multiple statements serially (for caching benefits)
- * Does NOT categorize - call categorizeStatements separately after all parsing is done
- */
-export async function parseStatements(statements: ParseStatementOptions[]): Promise<void> {
-  logger.debug(`[Parser] Starting batch parse of ${statements.length} statements`)
-
-  for (let i = 0; i < statements.length; i++) {
-    const stmt = statements[i]!
-    logger.debug(`[Parser] Processing statement ${i + 1}/${statements.length}: ${stmt.statementId}`)
-
-    try {
-      await parseStatement(stmt)
-    } catch (error) {
-      // Log error but continue with next statement
-      logger.error(`[Parser] Failed to parse statement ${stmt.statementId}:`, error)
-      // The parseStatement function already updates the statement status to 'failed'
-    }
-  }
-
-  logger.debug(`[Parser] Batch parse complete for ${statements.length} statements`)
 }

@@ -10,7 +10,6 @@ import {
   bulkDeleteTransactions,
   getTransactionIds,
   MAX_BULK_TRANSACTIONS,
-  findDuplicateGroups,
   getReviewCounts,
   type TransactionFilters,
   linkTransactions,
@@ -24,6 +23,7 @@ import {
   getCategorizationStatus,
 } from '../services/statements'
 import { queueRenameJob, getRenameJobStatus } from '../services/transaction-rename'
+import { findSimilarForCorrection } from '../services/categorization-events'
 import { getProfileById } from '../services/profiles'
 import {
   findPossibleMatches,
@@ -31,6 +31,13 @@ import {
   rejectPossibleMatch,
 } from '../services/sms-matching'
 import { setCardPaymentsDismissed, setDuplicatesDismissed } from '../services/preferences'
+import {
+  findDuplicateGroups,
+  invalidateDuplicateCache,
+  listMerged,
+  mergeDuplicates,
+  unmergeDuplicate,
+} from '../services/duplicates'
 import { getLinkSuggestions } from '../services/card-payments'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
@@ -93,6 +100,8 @@ const bulkUpdateSchema = z
     summary: z.string().optional(),
     isHidden: z.boolean().optional(),
     confirmCategory: z.literal(true).optional(),
+    // 'rule' marks a rule applied to existing rows: sources become 'rule' and no events are logged
+    source: z.enum(['user', 'rule']).optional(),
   })
   .refine(
     (data) =>
@@ -103,12 +112,35 @@ const bulkUpdateSchema = z
     { message: 'Nothing to update' }
   )
 
+/** Query for the similar-transactions lookup: at least one of category / name */
+const similarQuerySchema = z
+  .object({
+    category: z
+      .string()
+      .min(1)
+      .refine((c) => isKnownCategory(c), { message: 'Unknown category' })
+      .optional(),
+    name: z.string().min(1).optional(),
+  })
+  .refine((q) => q.category !== undefined || q.name !== undefined, {
+    message: 'Provide a category or a name',
+  })
+
 /**
  * Bulk delete request schema
  */
 const dismissDuplicatesSchema = z.object({
   signatures: z.array(z.string().min(1)).min(1),
   dismissed: z.boolean(),
+})
+
+const mergeDuplicatesSchema = z.object({
+  keeperId: z.string().min(1),
+  ids: z.array(z.string().min(1)).min(1),
+})
+
+const unmergeDuplicateSchema = z.object({
+  id: z.string().min(1),
 })
 
 const possibleMatchSchema = z.object({
@@ -286,11 +318,15 @@ transactionRoutes.get('/categorization-status', (c) => {
 
 /**
  * GET /transactions/duplicates
- * Find groups of likely duplicate transactions
+ * Find groups of likely duplicate transactions, or with `merged=true` the copies already merged
  * NOTE: This must be defined BEFORE /:id to avoid matching "duplicates" as an ID
  */
 transactionRoutes.get('/duplicates', async (c) => {
   const userId = c.get('userId')
+  if (c.req.query('merged') === 'true') {
+    const merged = await listMerged(userId, c.req.query('profileId') || undefined)
+    return c.json({ merged })
+  }
   const dismissed = c.req.query('dismissed') === 'true'
   const groups = await findDuplicateGroups(userId, parseTransactionFilters(c), dismissed)
   return c.json({ groups })
@@ -311,6 +347,48 @@ transactionRoutes.post('/duplicates/dismissed', async (c) => {
     )
   }
   await setDuplicatesDismissed(userId, result.data.signatures, result.data.dismissed)
+  invalidateDuplicateCache(userId)
+  return c.json({ success: true })
+})
+
+/**
+ * POST /transactions/duplicates/merge
+ * Merge copies into the transaction to keep; the copies are hidden, not deleted
+ */
+transactionRoutes.post('/duplicates/merge', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+  const result = mergeDuplicatesSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
+      400
+    )
+  }
+  const merged = await mergeDuplicates(userId, result.data.keeperId, result.data.ids)
+  if (!merged) {
+    return c.json({ error: 'not_found', message: 'Transactions not found' }, 404)
+  }
+  return c.json({ keeperId: merged.keeperId, mergedIds: merged.mergedIds })
+})
+
+/**
+ * POST /transactions/duplicates/unmerge
+ * Bring a merged copy back as its own transaction
+ */
+transactionRoutes.post('/duplicates/unmerge', async (c) => {
+  const userId = c.get('userId')
+  const body = await c.req.json().catch(() => ({}))
+  const result = unmergeDuplicateSchema.safeParse(body)
+  if (!result.success) {
+    return c.json(
+      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
+      400
+    )
+  }
+  if (!(await unmergeDuplicate(userId, result.data.id))) {
+    return c.json({ error: 'not_found', message: 'Merged transaction not found' }, 404)
+  }
   return c.json({ success: true })
 })
 
@@ -418,6 +496,34 @@ transactionRoutes.get('/:id', async (c) => {
 })
 
 /**
+ * GET /transactions/:id/similar?category=&name=
+ * Other transactions of the same merchant, labelled by the AI or memory, that differ from the
+ * given category / name (to offer applying a correction to them)
+ */
+transactionRoutes.get('/:id/similar', async (c) => {
+  const userId = c.get('userId')
+  const transactionId = c.req.param('id')
+
+  const result = similarQuerySchema.safeParse(c.req.query())
+  if (!result.success) {
+    return c.json(
+      {
+        error: 'validation_error',
+        message: result.error.issues[0]?.message || 'Invalid request',
+      },
+      400
+    )
+  }
+
+  const transaction = await getTransactionById(transactionId, userId)
+  if (!transaction) {
+    return c.json({ error: 'not_found', message: 'Transaction not found' }, 404)
+  }
+
+  return c.json(await findSimilarForCorrection(userId, transactionId, result.data))
+})
+
+/**
  * GET /transactions/:id/link-candidates
  * Find potential transactions to link with
  */
@@ -480,8 +586,10 @@ transactionRoutes.patch('/bulk', async (c) => {
     )
   }
 
-  const { transactionIds, ...data } = result.data
-  const updatedCount = await bulkUpdateTransactions([...new Set(transactionIds)], userId, data)
+  const { transactionIds, source, ...data } = result.data
+  const updatedCount = await bulkUpdateTransactions([...new Set(transactionIds)], userId, data, {
+    source,
+  })
   return c.json({ updatedCount })
 })
 

@@ -8,6 +8,7 @@ import {
   suggestCardPaymentLink,
   financialYearStart,
   reconcileStatement,
+  transactionsToReconcile,
   resolveStatementPeriods,
   type RawStatement,
   type StatementLite,
@@ -160,6 +161,23 @@ describe('reconcileStatement', () => {
       txn('b', 'a1', '2026-01-09', 'debit', 882),
     ])
     expect(result.status).toBe('ok')
+  })
+})
+
+describe('transactionsToReconcile', () => {
+  const own = txn('own', 'a1', '2026-01-05', 'debit', 10)
+  const merged = { ...txn('copy', 'a1', '2026-01-05', 'debit', 10), duplicateOfId: 'own' }
+  const outside = txn('out', 'a1', '2026-02-05', 'debit', 10)
+  const account = [own, merged, outside]
+
+  test('a statement without skipped duplicates keeps its own rows, merged copies included', () => {
+    const statement = stmt('s', '2026-01-01', '2026-01-31')
+    expect(transactionsToReconcile(statement, account, [own, merged])).toEqual([own, merged])
+  })
+
+  test('account-wide check covers the period and ignores merged copies', () => {
+    const statement = { ...stmt('s', '2026-01-01', '2026-01-31'), skippedDuplicateCount: 2 }
+    expect(transactionsToReconcile(statement, account, [])).toEqual([own])
   })
 })
 

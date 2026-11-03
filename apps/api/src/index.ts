@@ -31,12 +31,14 @@ import statementRoutes from './routes/statements'
 import transactionRoutes from './routes/transactions'
 import budgetRoutes from './routes/budgets'
 import transactionRuleRoutes from './routes/transaction-rules'
+import categorizationRoutes from './routes/categorization'
 import smsImportRoutes from './routes/sms-import'
 import categoryRoutes from './routes/categories'
 import investmentRoutes from './routes/investments'
 import llmRoutes from './routes/llm'
 import summaryRoutes from './routes/summary'
 import dataHealthRoutes from './routes/data-health'
+import autoFixRoutes from './routes/auto-fix'
 import reportRoutes from './routes/reports'
 import constantsRoutes from './routes/constants'
 import preferencesRoutes from './routes/preferences'
@@ -50,6 +52,7 @@ import { printBanner, printStartupInfo, getVersion } from './lib/banner'
 import { logger } from './lib/logger'
 import { recoverInterruptedProcessing } from './services/statements'
 import { repairCardPaymentLinks } from './services/card-payments'
+import { backfillLearningColumns } from './services/learning-backfill'
 
 // Get the directory where the binary/script is located
 const APP_DIR = getAppDir()
@@ -88,6 +91,13 @@ try {
   }
 } catch (error) {
   logger.error('[Startup] Card payment link repair failed:', error)
+}
+
+// Fill the columns the learning features read for transactions that predate them
+try {
+  await backfillLearningColumns()
+} catch (error) {
+  logger.error('[Startup] Learning backfill failed:', error)
 }
 
 // Handle CLI arguments
@@ -166,12 +176,14 @@ app.route('/api/statements', statementRoutes)
 app.route('/api/transactions', transactionRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/transaction-rules', transactionRuleRoutes)
+app.route('/api/categorization', categorizationRoutes)
 app.route('/api/sms-import', smsImportRoutes)
 app.route('/api/categories', categoryRoutes)
 app.route('/api/investments', investmentRoutes)
 app.route('/api/llm', llmRoutes)
 app.route('/api/summary', summaryRoutes)
 app.route('/api/data-health', dataHealthRoutes)
+app.route('/api/auto-fix', autoFixRoutes)
 app.route('/api/reports', reportRoutes)
 app.route('/api/constants', constantsRoutes)
 app.route('/api/preferences', preferencesRoutes)

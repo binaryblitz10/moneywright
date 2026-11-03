@@ -8,7 +8,7 @@
  */
 
 import { generateObject } from 'ai'
-import { createLLMClientFromSettings } from './index'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from './index'
 import { insurancePolicySchema, type InsurancePolicyParsed } from './schemas'
 import { logger } from '../lib/logger'
 
@@ -158,12 +158,15 @@ Extract these fields that are common across all policy types:
   logger.debug(`[InsuranceParser] Prompt length: ${prompt.length} chars`)
 
   try {
-    const { object } = await generateObject({
-      model,
-      schema: insurancePolicySchema,
-      prompt,
-      providerOptions,
-    })
+    const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.document, (abortSignal) =>
+      generateObject({
+        model,
+        schema: insurancePolicySchema,
+        prompt,
+        providerOptions,
+        abortSignal,
+      })
+    )
 
     logger.debug(
       `[InsuranceParser] Parsed policy: type=${object.policy_type}, provider=${object.provider}`

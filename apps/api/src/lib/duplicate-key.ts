@@ -7,6 +7,8 @@
  * with different text across statements (extra prefixes, channel names, trimmed references).
  */
 
+import { daysApart, references } from './duplicate-references'
+
 export interface DuplicateKeyInput {
   accountId: string
   date: string
@@ -14,6 +16,9 @@ export interface DuplicateKeyInput {
   amount: number
   description: string
 }
+
+/** A shared reference number proves a match across this many days */
+const REFERENCE_DAYS = 3
 
 /** Share of the shorter description's words that must appear in the other for a loose match */
 const MIN_WORD_OVERLAP = 0.75
@@ -33,6 +38,11 @@ function descriptionWords(description: string): Set<string> {
  */
 export function duplicateBucketKey(input: Omit<DuplicateKeyInput, 'description'>): string {
   return [input.accountId, input.date, input.type, input.amount.toFixed(2)].join('|')
+}
+
+/** Key for what must be equal before two transactions can be duplicates, whatever their date */
+function amountKey(input: Omit<DuplicateKeyInput, 'description' | 'date'>): string {
+  return [input.accountId, input.type, input.amount.toFixed(2)].join('|')
 }
 
 /** Exact key (bucket plus normalized description), used to name a duplicate group */
@@ -56,25 +66,43 @@ export function descriptionsMatch(a: string, b: string): boolean {
   return shared / small.size >= MIN_WORD_OVERLAP
 }
 
+/** Whether an existing row and an incoming one are the same transaction, for skipping at import */
+function isSameTransaction(existing: DuplicateKeyInput, incoming: DuplicateKeyInput): boolean {
+  const refsExisting = references(existing.description)
+  const refsIncoming = references(incoming.description)
+  if (refsExisting.some((ref) => refsIncoming.includes(ref))) {
+    return daysApart(existing.date, incoming.date) <= REFERENCE_DAYS
+  }
+  // Different reference numbers mean different transactions, however alike the text is
+  if (refsExisting.length > 0 && refsIncoming.length > 0) return false
+  return (
+    existing.date === incoming.date && descriptionsMatch(existing.description, incoming.description)
+  )
+}
+
 /**
  * Pick the rows that still need inserting when some of them already exist.
- * Each existing transaction (grouped by bucket key, as descriptions) cancels out at most one
- * incoming row with a loosely matching description, in file order, so identical same-day
- * rows inside one file are kept unless they are already present.
+ * Each existing transaction cancels out at most one incoming row of the same account, type and
+ * amount that is the same transaction: a shared reference number within 3 days, or the same day
+ * with a loosely matching description. Rows are taken in file order, so identical same-day rows
+ * inside one file are kept unless they are already present.
  */
 export function selectRowsToInsert<T>(
   rows: T[],
-  existing: ReadonlyMap<string, readonly string[]>,
-  bucketOf: (row: T) => string,
-  descriptionOf: (row: T) => string
+  existing: readonly DuplicateKeyInput[],
+  keyInputOf: (row: T) => DuplicateKeyInput
 ): { toInsert: T[]; skipped: number } {
-  const remaining = new Map<string, string[]>()
-  for (const [bucket, descriptions] of existing) remaining.set(bucket, [...descriptions])
+  const remaining = new Map<string, DuplicateKeyInput[]>()
+  for (const item of existing) {
+    const key = amountKey(item)
+    remaining.set(key, [...(remaining.get(key) ?? []), item])
+  }
   const toInsert: T[] = []
   let skipped = 0
   for (const row of rows) {
-    const candidates = remaining.get(bucketOf(row))
-    const index = candidates?.findIndex((d) => descriptionsMatch(d, descriptionOf(row))) ?? -1
+    const input = keyInputOf(row)
+    const candidates = remaining.get(amountKey(input))
+    const index = candidates?.findIndex((item) => isSameTransaction(item, input)) ?? -1
     if (candidates && index >= 0) {
       candidates.splice(index, 1)
       skipped++

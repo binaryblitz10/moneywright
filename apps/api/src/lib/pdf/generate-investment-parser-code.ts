@@ -6,7 +6,7 @@
 
 import { ToolLoopAgent, tool, stepCountIs, hasToolCall } from 'ai'
 import { z } from 'zod'
-import { createLLMClientFromSettings } from '../../llm'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from '../../llm'
 import { logger } from '../logger'
 import { runParser } from './execute-parser'
 import type { InvestmentSourceType } from '../../llm/schemas'
@@ -684,9 +684,9 @@ The code receives 'text' variable and must return array of holding objects.
 Use the submitCode tool to test your code. If it fails or validation fails, fix and resubmit. When working AND validated, call done.`
 
   try {
-    const result = await agent.generate({
-      prompt: userPrompt,
-    })
+    const result = await withLlmTimeout(LLM_TIMEOUT_MS.parserAgent, (abortSignal) =>
+      agent.generate({ prompt: userPrompt, abortSignal })
+    )
 
     logger.debug(
       `[InvestmentParser] Agent completed in ${attempts} attempt(s), validation: ${validationPassed ? 'passed' : 'failed/skipped'}`

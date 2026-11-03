@@ -139,7 +139,8 @@ export async function loadCardInfos(userId: string): Promise<CardInfo[]> {
           tables.statements.accountId,
           cards.map((c) => c.id)
         ),
-        eq(tables.statements.status, 'completed'),
+        // A categorizing statement is already parsed: its period and balances are final
+        inArray(tables.statements.status, ['completed', 'categorizing']),
         ne(tables.statements.documentType, MANUAL_DOCUMENT_TYPE)
       )
     )

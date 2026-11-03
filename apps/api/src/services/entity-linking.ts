@@ -15,7 +15,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod/v4'
 import { db, tables, dbType } from '../db'
 import { logger } from '../lib/logger'
-import { createLLMClientFromSettings } from '../llm'
+import { createLLMClientFromSettings, LLM_TIMEOUT_MS, withLlmTimeout } from '../llm'
 import { autoLinkCardPayments, BANK_ACCOUNT_TYPES, CREDIT_CARD_TYPE } from './card-payments'
 
 /**
@@ -241,21 +241,24 @@ Rules:
 Return matches as JSON array.`
 
   try {
-    const { object } = await generateObject({
-      model,
-      prompt,
-      providerOptions,
-      schema: z.object({
-        matches: z.array(
-          z.object({
-            transactionId: z.string(),
-            entityId: z.nullable(z.string()),
-            confidence: z.number().min(0).max(1),
-            reason: z.string(),
-          })
-        ),
-      }),
-    })
+    const { object } = await withLlmTimeout(LLM_TIMEOUT_MS.categorizeBatch, (abortSignal) =>
+      generateObject({
+        model,
+        prompt,
+        providerOptions,
+        schema: z.object({
+          matches: z.array(
+            z.object({
+              transactionId: z.string(),
+              entityId: z.nullable(z.string()),
+              confidence: z.number().min(0).max(1),
+              reason: z.string(),
+            })
+          ),
+        }),
+        abortSignal,
+      })
+    )
 
     // Apply matches with confidence > 0.6
     const now = dbType === 'postgres' ? new Date() : new Date().toISOString()

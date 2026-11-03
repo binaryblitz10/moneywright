@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "APP_ENV=development bun --env-file=.env.local run --hot src/index.ts",
     "build": "bun run scripts/build.ts",
+    "test": "bun test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.ts\"",

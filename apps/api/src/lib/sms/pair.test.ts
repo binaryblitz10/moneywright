@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { pairTransactions, type PairRow } from './pair'
+import { pairManualTransactions, pairTransactions, type PairRow } from './pair'
 
 function row(id: string, description: string, overrides: Partial<PairRow> = {}): PairRow {
   return {
@@ -80,5 +80,65 @@ describe('pairTransactions', () => {
       (smsId, targetId) => smsId === 's1' && targetId === 't1'
     )
     expect(result.possible).toEqual([])
+  })
+})
+
+describe('pairManualTransactions', () => {
+  const manual = (id: string, overrides: Partial<PairRow> = {}) =>
+    row(id, 'Groceries at DMART', { id, ...overrides })
+
+  test('the only candidate within two days matches despite different text', () => {
+    const result = pairManualTransactions(
+      [manual('m1')],
+      [row('t1', 'UPI-AVENUE SUPERMARTS-123', { date: '2026-10-19' })]
+    )
+    expect(result.matched.map((m) => [m.sms.id, m.target.id])).toEqual([['m1', 't1']])
+    expect(result.possible).toEqual([])
+  })
+
+  test('a candidate three days away does not pair', () => {
+    const result = pairManualTransactions(
+      [manual('m1')],
+      [row('t1', 'UPI-AVENUE', { date: '2026-10-20' })]
+    )
+    expect(result.matched).toEqual([])
+    expect(result.possible).toEqual([])
+  })
+
+  test('two candidates in the window are only possible matches', () => {
+    const result = pairManualTransactions(
+      [manual('m1')],
+      [row('t1', 'UPI-A', { date: '2026-10-16' }), row('t2', 'UPI-B', { date: '2026-10-18' })]
+    )
+    expect(result.matched).toEqual([])
+    expect(result.possible[0]!.candidates.map((c) => c.id)).toEqual(['t1', 't2'])
+  })
+
+  test('a competing provisional row makes a lone candidate only a possible match', () => {
+    const result = pairManualTransactions(
+      [manual('m1')],
+      [row('t1', 'UPI-A')],
+      [row('s1', 'ICICI BANK L')]
+    )
+    expect(result.matched).toEqual([])
+    expect(result.possible).toHaveLength(1)
+  })
+
+  test('text overlap on the same day still matches', () => {
+    const result = pairManualTransactions(
+      [row('m1', 'Swiggy')],
+      [row('t1', 'RAZORPAY*Swiggy Bangalore'), row('t2', 'OTHER', { date: '2026-10-18' })]
+    )
+    expect(result.matched.map((m) => m.target.id)).toEqual(['t1'])
+  })
+
+  test('a dismissed pair is not offered again', () => {
+    const result = pairManualTransactions(
+      [manual('m1')],
+      [row('t1', 'UPI-A'), row('t2', 'UPI-B')],
+      [],
+      (_m, t) => t === 't1'
+    )
+    expect(result.possible[0]!.candidates.map((c) => c.id)).toEqual(['t2'])
   })
 })

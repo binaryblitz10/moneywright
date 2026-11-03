@@ -18,7 +18,25 @@ import {
  * Statement service - simplified
  */
 
-export type StatementStatus = 'pending' | 'parsing' | 'completed' | 'failed'
+export type StatementStatus = 'pending' | 'parsing' | 'categorizing' | 'completed' | 'failed'
+
+/** Whether the parsed rows agreed with the statement's printed totals or running balance */
+export interface StatementValidation {
+  status: 'verified' | 'mismatch' | 'unchecked'
+  method: 'printed_totals' | 'running_balance' | 'none'
+  issues: string[]
+}
+
+export interface ImportReport {
+  inserted: number
+  skippedDuplicates: number
+  mergedWithBankMessages: number
+  possibleMatches: number
+  /** Who categorized the rows; filled in once categorization has run */
+  categorizedBy: { rule: number; memory: number; ai: number }
+  /** Rows that are uncategorized, 'other' or low confidence */
+  needsReview: number
+}
 
 export interface BankStatementSummary {
   type: 'bank_statement'
@@ -30,6 +48,15 @@ export interface BankStatementSummary {
   debitCount?: number
   /** Transactions skipped because an earlier overlapping statement already imported them */
   skippedDuplicateCount?: number
+  validation?: StatementValidation
+  /** Rows the parser returned that were rejected as unreadable */
+  droppedRowCount?: number
+  /** Set when categorizing the parsed rows failed, so the user can retry */
+  categorizationError?: string
+  /** What the import did, shown on the statement card (see ImportReport) */
+  importReport?: ImportReport
+  /** The fixes applied automatically after this statement was imported (see services/auto-fix) */
+  autoFix?: { batchId: string; count: number }
 }
 
 export interface CreditCardStatementSummary {
@@ -46,6 +73,15 @@ export interface CreditCardStatementSummary {
   debitCount?: number
   /** Transactions skipped because an earlier overlapping statement already imported them */
   skippedDuplicateCount?: number
+  validation?: StatementValidation
+  /** Rows the parser returned that were rejected as unreadable */
+  droppedRowCount?: number
+  /** Set when categorizing the parsed rows failed, so the user can retry */
+  categorizationError?: string
+  /** What the import did, shown on the statement card (see ImportReport) */
+  importReport?: ImportReport
+  /** The fixes applied automatically after this statement was imported (see services/auto-fix) */
+  autoFix?: { batchId: string; count: number }
 }
 
 export type StatementSummary = BankStatementSummary | CreditCardStatementSummary
@@ -238,6 +274,8 @@ export async function createStatement(data: {
   originalFilename: string
   fileType: string
   fileSizeBytes: number
+  /** SHA-256 of the uploaded bytes, used to spot the same file being imported twice */
+  fileHash?: string
   documentType?: 'bank_statement' | 'investment_statement'
 }): Promise<Statement> {
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
@@ -251,6 +289,7 @@ export async function createStatement(data: {
       originalFilename: data.originalFilename,
       fileType: data.fileType,
       fileSizeBytes: data.fileSizeBytes,
+      fileHash: data.fileHash ?? null,
       documentType: data.documentType || 'bank_statement',
       status: 'pending',
       transactionCount: 0,
@@ -261,6 +300,33 @@ export async function createStatement(data: {
 
   if (!statement) throw new Error('Failed to create statement record')
   return statement
+}
+
+/**
+ * Find an earlier import of the same file (same bytes) by this user. Failed imports do not
+ * count, so a file that failed to parse can be uploaded again.
+ */
+export async function findImportedStatementByHash(
+  userId: string,
+  fileHash: string
+): Promise<Pick<Statement, 'id' | 'originalFilename' | 'createdAt'> | null> {
+  const [existing] = await db
+    .select({
+      id: tables.statements.id,
+      originalFilename: tables.statements.originalFilename,
+      createdAt: tables.statements.createdAt,
+    })
+    .from(tables.statements)
+    .where(
+      and(
+        eq(tables.statements.userId, userId),
+        eq(tables.statements.fileHash, fileHash),
+        ne(tables.statements.status, 'failed')
+      )
+    )
+    .orderBy(desc(tables.statements.createdAt))
+    .limit(1)
+  return existing ?? null
 }
 
 export async function updateStatementStatus(
@@ -280,6 +346,10 @@ export async function updateStatementStatus(
     .where(eq(tables.statements.id, statementId))
 }
 
+/**
+ * Save the parse results and move the statement to 'categorizing': its rows exist but are not
+ * categorized yet. categorizeAndLinkAccount marks it 'completed' when that step ends.
+ */
 export async function updateStatementResults(
   statementId: string,
   data: {
@@ -333,7 +403,7 @@ export async function updateStatementResults(
       transactionCount: data.transactionCount,
       parseStartedAt: parseStartedAt as Date,
       parseCompletedAt: parseCompletedAt as Date,
-      status: 'completed',
+      status: 'categorizing',
       updatedAt: now as Date,
     })
     .where(eq(tables.statements.id, statementId))
@@ -523,11 +593,18 @@ async function processQueue(): Promise<void> {
 }
 
 /**
- * Mark a statement as failed and remove any partially inserted transactions
+ * Mark a statement as failed, remove any partially inserted transactions and delete the
+ * 'Pending - <file>' placeholder account it created, if nothing else uses it
  */
 async function failStatementAndCleanup(statementId: string, errorMessage: string): Promise<void> {
+  const [stmt] = await db
+    .select({ accountId: tables.statements.accountId })
+    .from(tables.statements)
+    .where(eq(tables.statements.id, statementId))
+    .limit(1)
   await updateStatementStatus(statementId, 'failed', errorMessage)
   await db.delete(tables.transactions).where(eq(tables.transactions.statementId, statementId))
+  if (stmt?.accountId) await deleteOrphanPlaceholderAccounts(stmt.accountId)
 }
 
 /**
@@ -546,6 +623,8 @@ async function categorizeAndLinkAccount(params: {
   const { linkEntitiesForAccount } = await import('./entity-linking')
   const { accountId, statementIds, profileId, userId, countryCode } = params
   const label = accountId ?? 'no-account'
+
+  let categorizationError: string | undefined
 
   try {
     const result = await categorizeStatements(
@@ -571,7 +650,186 @@ async function categorizeAndLinkAccount(params: {
     }
   } catch (error) {
     logger.error(`[Statement] Categorization failed for account ${label}:`, error)
+    categorizationError = error instanceof Error ? error.message : 'Categorization failed'
   }
+
+  await completeCategorizingStatements(statementIds, categorizationError)
+
+  if (!categorizationError) await recordCategorizationReport(statementIds)
+
+  if (userId && !categorizationError) {
+    await autoFixImportedStatements({
+      userId,
+      profileId,
+      countryCode,
+      model: params.categorizationModel,
+      statementIds,
+    })
+  }
+
+  // Refresh the notes about the user once the statements are done, so they never delay completion
+  if (userId && profileId && !categorizationError) {
+    const { maybeRefreshLearnedNotes } = await import('./learned-notes')
+    await maybeRefreshLearnedNotes(userId, profileId, params.categorizationModel)
+  }
+}
+
+/**
+ * Fill in who categorized each statement's rows and how many still need a look, in the import
+ * report. Merges into the stored summary so other fields (validation, autoFix) are kept. Never throws.
+ */
+async function recordCategorizationReport(statementIds: string[]): Promise<void> {
+  if (statementIds.length === 0) return
+  try {
+    const { LOW_CONFIDENCE_BELOW } = await import('./transactions')
+    const txns = await db
+      .select({
+        statementId: tables.transactions.statementId,
+        summary: tables.transactions.summary,
+        category: tables.transactions.category,
+        confidence: tables.transactions.categoryConfidence,
+        source: tables.transactions.categorySource,
+        isHidden: tables.transactions.isHidden,
+      })
+      .from(tables.transactions)
+      .where(inArray(tables.transactions.statementId, statementIds))
+
+    const counts = new Map<string, ImportReport['categorizedBy'] & { needsReview: number }>()
+    for (const txn of txns) {
+      if (!txn.statementId) continue
+      const entry = counts.get(txn.statementId) ?? { rule: 0, memory: 0, ai: 0, needsReview: 0 }
+      if (txn.source === 'rule' || txn.source === 'memory' || txn.source === 'ai') {
+        entry[txn.source]++
+      }
+      const unsure =
+        txn.summary === null ||
+        txn.category === 'other' ||
+        (txn.confidence !== null && Number(txn.confidence) < LOW_CONFIDENCE_BELOW)
+      if (!txn.isHidden && txn.source !== 'user' && unsure) entry.needsReview++
+      counts.set(txn.statementId, entry)
+    }
+
+    const rows = await db
+      .select({ id: tables.statements.id, summary: tables.statements.summary })
+      .from(tables.statements)
+      .where(inArray(tables.statements.id, statementIds))
+    for (const row of rows) {
+      const current =
+        typeof row.summary === 'string'
+          ? (JSON.parse(row.summary) as StatementSummary)
+          : (row.summary as StatementSummary | null)
+      if (!current?.importReport) continue
+      const { needsReview, ...categorizedBy } = counts.get(row.id) ?? {
+        rule: 0,
+        memory: 0,
+        ai: 0,
+        needsReview: 0,
+      }
+      const summary = {
+        ...current,
+        importReport: { ...current.importReport, categorizedBy, needsReview },
+      }
+      await db
+        .update(tables.statements)
+        .set({
+          summary: (dbType === 'postgres'
+            ? summary
+            : JSON.stringify(summary)) as typeof tables.statements.$inferSelect.summary,
+        })
+        .where(eq(tables.statements.id, row.id))
+    }
+  } catch (error) {
+    logger.error('[Statement] Could not record the categorization report:', error)
+  }
+}
+
+/**
+ * Apply the safe fixes after an import and note on each statement how many were made, so the
+ * import report can offer to show or undo them. Never throws.
+ */
+async function autoFixImportedStatements(input: {
+  userId: string
+  profileId?: string
+  countryCode: CountryCode
+  model?: string
+  statementIds: string[]
+}): Promise<void> {
+  const { userId, profileId, countryCode, model, statementIds } = input
+  const { applySafeFixesAfterImport } = await import('./auto-fix/after-import')
+  const result = await applySafeFixesAfterImport(
+    { userId, profileId, countryCode, model },
+    statementIds
+  )
+  if (!result?.batchId) return
+
+  try {
+    const autoFix = { batchId: result.batchId, count: result.count }
+    const rows = await db
+      .select({ id: tables.statements.id, summary: tables.statements.summary })
+      .from(tables.statements)
+      .where(inArray(tables.statements.id, statementIds))
+    for (const row of rows) {
+      const current =
+        typeof row.summary === 'string'
+          ? (JSON.parse(row.summary) as StatementSummary)
+          : (row.summary as StatementSummary | null)
+      const summary = { ...(current ?? { type: 'bank_statement' as const }), autoFix }
+      await db
+        .update(tables.statements)
+        .set({
+          summary: (dbType === 'postgres'
+            ? summary
+            : JSON.stringify(summary)) as typeof tables.statements.$inferSelect.summary,
+        })
+        .where(eq(tables.statements.id, row.id))
+    }
+  } catch (error) {
+    logger.error('[Statement] Could not note the automatic fixes on the statements:', error)
+  }
+}
+
+/**
+ * Move statements waiting in 'categorizing' to 'completed', whether categorization worked or not.
+ * On failure the message is kept in the summary; the rows stay uncategorized and startup
+ * recovery retries them.
+ */
+async function completeCategorizingStatements(
+  statementIds: string[],
+  categorizationError?: string
+): Promise<void> {
+  if (statementIds.length === 0) return
+  const now = dbType === 'postgres' ? new Date() : new Date().toISOString()
+  const waiting = and(
+    inArray(tables.statements.id, statementIds),
+    eq(tables.statements.status, 'categorizing')
+  )
+
+  if (categorizationError) {
+    const rows = await db
+      .select({ id: tables.statements.id, summary: tables.statements.summary })
+      .from(tables.statements)
+      .where(waiting)
+    for (const row of rows) {
+      const current =
+        typeof row.summary === 'string'
+          ? (JSON.parse(row.summary) as StatementSummary)
+          : (row.summary as StatementSummary | null)
+      const summary = { ...(current ?? { type: 'bank_statement' as const }), categorizationError }
+      await db
+        .update(tables.statements)
+        .set({
+          summary: (dbType === 'postgres'
+            ? summary
+            : JSON.stringify(summary)) as typeof tables.statements.$inferSelect.summary,
+        })
+        .where(eq(tables.statements.id, row.id))
+    }
+  }
+
+  await db
+    .update(tables.statements)
+    .set({ status: 'completed', updatedAt: now as Date })
+    .where(waiting)
 }
 
 /**
@@ -715,13 +973,18 @@ async function failInterruptedStatements(): Promise<number> {
  * Delete 'Pending - <file>' placeholder accounts that nothing needs any more.
  * Failed statements still pointing at a placeholder are detached first (accountId is
  * nullable), since deleting the account would cascade-delete the failed statement the
- * user needs to see and remove.
+ * user needs to see and remove. Pass an account id to only consider that account.
  */
-async function deleteOrphanPlaceholderAccounts(): Promise<number> {
+async function deleteOrphanPlaceholderAccounts(onlyAccountId?: string): Promise<number> {
   const candidates = await db
     .select({ id: tables.accounts.id, name: tables.accounts.accountName })
     .from(tables.accounts)
-    .where(like(tables.accounts.accountName, `${PLACEHOLDER_ACCOUNT_PREFIX}%`))
+    .where(
+      and(
+        like(tables.accounts.accountName, `${PLACEHOLDER_ACCOUNT_PREFIX}%`),
+        onlyAccountId ? eq(tables.accounts.id, onlyAccountId) : undefined
+      )
+    )
   if (candidates.length === 0) return 0
   const ids = candidates.map((a) => a.id)
 
@@ -751,8 +1014,8 @@ async function deleteOrphanPlaceholderAccounts(): Promise<number> {
 }
 
 /**
- * Find completed bank/credit card statements that still have uncategorized
- * transactions (summary IS NULL), grouped by account.
+ * Find completed (or still 'categorizing') bank/credit card statements that still have
+ * uncategorized transactions (summary IS NULL), grouped by account.
  */
 async function findUncategorizedAccountGroups(): Promise<UncategorizedAccountGroup[]> {
   const rows = await db
@@ -765,7 +1028,12 @@ async function findUncategorizedAccountGroups(): Promise<UncategorizedAccountGro
     })
     .from(tables.statements)
     .innerJoin(tables.transactions, eq(tables.transactions.statementId, tables.statements.id))
-    .where(and(eq(tables.statements.status, 'completed'), isNull(tables.transactions.summary)))
+    .where(
+      and(
+        inArray(tables.statements.status, ['completed', 'categorizing']),
+        isNull(tables.transactions.summary)
+      )
+    )
 
   return groupByAccount(rows.filter((r) => isCategorizableDocumentType(r.documentType)))
 }
@@ -841,13 +1109,23 @@ async function recoverUncategorizedTransactions(
  *
  * - 'pending'/'parsing' statements are marked failed and their partial transactions deleted
  * - orphaned 'Pending - <file>' placeholder accounts are deleted
- * - completed statements with uncategorized transactions are re-queued for
+ * - completed or 'categorizing' statements with uncategorized transactions are re-queued for
  *   categorization in the background (not awaited), skipped if no LLM is configured
+ * - 'categorizing' statements are never treated as interrupted parsing: their rows are saved,
+ *   so they end up 'completed' (after the retry, or right away when there is nothing to retry)
  */
 export async function recoverInterruptedProcessing(): Promise<void> {
   const failedCount = await failInterruptedStatements()
   const removedAccounts = await deleteOrphanPlaceholderAccounts()
   const groups = await findUncategorizedAccountGroups()
+
+  // 'categorizing' statements with nothing left to categorize are simply done
+  const retryIds = new Set(groups.flatMap((g) => g.statementIds))
+  const waiting = await db
+    .select({ id: tables.statements.id })
+    .from(tables.statements)
+    .where(eq(tables.statements.status, 'categorizing'))
+  await completeCategorizingStatements(waiting.map((w) => w.id).filter((id) => !retryIds.has(id)))
 
   if (failedCount > 0 || removedAccounts > 0 || groups.length > 0) {
     logger.info(
@@ -861,6 +1139,7 @@ export async function recoverInterruptedProcessing(): Promise<void> {
     logger.warn(
       '[Recovery] No LLM provider configured, skipping categorization of leftover transactions'
     )
+    await completeCategorizingStatements([...retryIds])
     return
   }
 
