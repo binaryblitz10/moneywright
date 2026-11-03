@@ -1,3 +1,5 @@
 export { DuplicatesPanel } from './duplicates-panel'
 export { CategorizationPanel } from './categorization-panel'
 export { PossibleMatchesPanel } from './possible-matches-panel'
+export { AutoFixedPanel } from './auto-fixed-panel'
+export { FixIssuesDialog } from './fix-issues-dialog'

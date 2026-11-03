@@ -258,8 +258,10 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
 
       if (successCount > 0) {
         if (failCount > 0) {
+          const skipped = result.errors!.map((e) => `${e.filename}: ${e.error}`).join('; ')
           toast.success(
-            `${successCount} statement${successCount !== 1 ? 's' : ''} uploaded, ${failCount} failed`
+            `${successCount} statement${successCount !== 1 ? 's' : ''} uploaded, ${failCount} skipped`,
+            { description: skipped }
           )
         } else {
           toast.success(`${successCount} statement${successCount !== 1 ? 's' : ''} uploaded!`)
@@ -273,7 +275,9 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
         response?: {
           data?: {
             passwordRequired?: boolean
+            error?: string
             message?: string
+            statement?: { originalFilename: string; createdAt: string }
             errors?: Array<{ filename: string; error: string }>
           }
         }
@@ -284,6 +288,23 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
           error.response.data.message ||
             'This file is password protected. Please enter the password.'
         )
+      } else if (error?.response?.data?.error === 'already_imported') {
+        const { statement } = error.response.data
+        const importedOn = statement
+          ? new Date(statement.createdAt).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })
+          : null
+        setError(
+          importedOn
+            ? `This file was already imported on ${importedOn} as ${statement!.originalFilename}.`
+            : 'This file was already imported.'
+        )
+      } else if (error?.response?.data?.errors?.length) {
+        // Every file in a multi-file upload was rejected: say why for each
+        setError(error.response.data.errors.map((e) => `${e.filename}: ${e.error}`).join('; '))
       } else {
         setError(error?.response?.data?.message || 'Failed to upload statements')
       }

@@ -82,7 +82,7 @@ export function StatementGroup({
         : `${monthYear(first)} – ${monthYear(last)}`
       : null
   const processingCount = statements.filter(
-    (s) => s.status === 'pending' || s.status === 'parsing'
+    (s) => s.status === 'pending' || s.status === 'parsing' || s.status === 'categorizing'
   ).length
   const failedCount = statements.filter((s) => s.status === 'failed').length
   const transactionTotal = statements.reduce((sum, s) => sum + s.transactionCount, 0)

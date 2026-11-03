@@ -663,6 +663,21 @@ export async function deleteFinancialAccount(accountId: string): Promise<void> {
 /**
  * Statement type
  */
+export interface StatementValidation {
+  status: 'verified' | 'mismatch' | 'unchecked'
+  method: 'printed_totals' | 'running_balance' | 'none'
+  issues: string[]
+}
+
+export interface ImportReport {
+  inserted: number
+  skippedDuplicates: number
+  mergedWithBankMessages: number
+  possibleMatches: number
+  categorizedBy: { rule: number; memory: number; ai: number }
+  needsReview: number
+}
+
 export interface Statement {
   id: string
   accountId: string | null
@@ -677,9 +692,20 @@ export interface Statement {
   periodEnd: string | null
   openingBalance: number | null
   closingBalance: number | null
-  status: 'pending' | 'parsing' | 'completed' | 'failed'
+  status: 'pending' | 'parsing' | 'categorizing' | 'completed' | 'failed'
   errorMessage: string | null
-  summary: Record<string, unknown> | null
+  summary:
+    | (Record<string, unknown> & {
+        validation?: StatementValidation
+        /** Rows the parser returned that were rejected as unreadable */
+        droppedRowCount?: number
+        categorizationError?: string
+        /** What the import did; absent on statements imported before the report existed */
+        importReport?: ImportReport
+        /** Safe fixes applied automatically after the import */
+        autoFix?: { batchId: string | null; count: number }
+      })
+    | null
   transactionCount: number
   /** Transactions deleted after parsing */
   deletedTransactionCount: number
@@ -854,6 +880,10 @@ export interface Transaction {
   isManuallyCategorized: boolean
   isHidden: boolean
   notes: string | null
+  merchantFingerprint: string | null
+  /** Who set the category / name: user, rule, memory or ai */
+  categorySource: string | null
+  nameSource: string | null
   /** Created from a bank message alert and not yet matched to a statement line */
   smsSource: boolean
   /** An SMS alert and a statement line were matched to this transaction */
@@ -1013,6 +1043,28 @@ export async function updateTransaction(
 }
 
 /**
+ * Other transactions from the same merchant whose AI/memory category or name differs from the given value
+ */
+export async function getSimilarTransactions(
+  transactionId: string,
+  params: { category?: string; name?: string }
+): Promise<{
+  count: number
+  ids: string[]
+  samples: {
+    id: string
+    date: string
+    amount: number
+    originalDescription: string
+    summary: string | null
+    category: string
+  }[]
+}> {
+  const response = await api.get(`/transactions/${transactionId}/similar`, { params })
+  return response.data
+}
+
+/**
  * Add a transaction by hand (cash expense, row missed by the parser)
  */
 export async function createTransaction(data: {
@@ -1038,6 +1090,8 @@ export async function bulkUpdateTransactions(data: {
   isHidden?: boolean
   /** Mark the current category as correct without changing it */
   confirmCategory?: true
+  /** 'rule' marks rows as rule-categorized and records no learning events (default 'user') */
+  source?: 'user' | 'rule'
 }): Promise<{ updatedCount: number }> {
   const response = await api.patch('/transactions/bulk', data)
   return response.data
@@ -1132,6 +1186,24 @@ export interface DuplicateGroup {
   key: string
   signature: string
   transactions: Transaction[]
+  /** 'sure' groups are safe to merge in one click; 'likely' ones deserve a look */
+  tier: 'sure' | 'likely'
+  /** Why these look like the same transaction */
+  reasons: string[]
+  /** The copy the server suggests keeping */
+  suggestedKeeperId: string
+}
+
+/** A copy that was merged into another transaction, with a summary of what it was merged into */
+export interface MergedDuplicate {
+  transaction: Transaction
+  keeper: {
+    id: string
+    summary: string
+    originalDescription: string | null
+    date: string
+    amount: number
+  } | null
 }
 
 /**
@@ -1146,6 +1218,34 @@ export async function getDuplicateGroups(
   const queryString = params.toString()
   const response = await api.get(`/transactions/duplicates${queryString ? `?${queryString}` : ''}`)
   return response.data.groups
+}
+
+/**
+ * Copies that were merged into another transaction (can be unmerged)
+ */
+export async function getMergedDuplicates(profileId?: string): Promise<MergedDuplicate[]> {
+  const params = new URLSearchParams({ merged: 'true' })
+  if (profileId) params.set('profileId', profileId)
+  const response = await api.get(`/transactions/duplicates?${params.toString()}`)
+  return response.data.merged
+}
+
+/**
+ * Merge copies into the transaction to keep; the copies are hidden and can be unmerged
+ */
+export async function mergeDuplicates(
+  keeperId: string,
+  ids: string[]
+): Promise<{ keeperId: string; mergedIds: string[] }> {
+  const response = await api.post('/transactions/duplicates/merge', { keeperId, ids })
+  return response.data
+}
+
+/**
+ * Bring a merged copy back as its own transaction
+ */
+export async function unmergeDuplicate(id: string): Promise<void> {
+  await api.post('/transactions/duplicates/unmerge', { id })
 }
 
 /**
@@ -1178,9 +1278,11 @@ export async function getReviewCounts(profileId?: string): Promise<ReviewCounts>
 }
 
 /**
- * An SMS transaction that agrees with statement lines on date and amount but not on the merchant
+ * An SMS or hand-entered transaction that agrees with statement lines on date and amount but not
+ * clearly on the merchant
  */
 export interface PossibleMatch {
+  kind: 'sms' | 'manual'
   sms: Transaction
   candidates: Transaction[]
 }
@@ -2189,6 +2291,8 @@ export const PREFERENCE_KEYS = {
   DASHBOARD_FULL_WIDTH_WIDGETS: 'dashboard.full_width_widgets',
   // Data health checks the user chose to ignore (JSON array of issue keys)
   DATA_HEALTH_IGNORED_CHECKS: 'data_health.ignored_checks',
+  // Apply safe fixes automatically after each import (default on when unset)
+  AUTO_FIX_AFTER_IMPORT: 'auto_fix.after_import',
   // Profile selection
   SELECTED_PROFILE: 'selected_profile',
   // Chat preferences
@@ -3659,4 +3763,146 @@ export async function updateBudget(
 
 export async function deleteBudget(id: string): Promise<void> {
   await api.delete(`/budgets/${id}`)
+}
+
+// ============================================================================
+// Categorization learning (AI learning settings)
+// ============================================================================
+
+export interface LearningStats {
+  merchantsLearned: number
+  lastImport: {
+    statementId: string
+    filename: string
+    categorizedBy: { rule: number; memory: number; ai: number; user: number }
+  } | null
+  accuracy: { last30: number | null; last90: number | null }
+  corrections30: number
+  totalCorrections: number
+}
+
+export interface LearnedMerchant {
+  fingerprint: string
+  name: string
+  category: string
+  rowCount: number
+}
+
+export async function getLearnedNotes(profileId: string): Promise<string | null> {
+  const response = await api.get('/categorization/notes', { params: { profileId } })
+  return response.data.notes
+}
+
+export async function saveLearnedNotes(profileId: string, notes: string): Promise<string | null> {
+  const response = await api.put('/categorization/notes', { profileId, notes })
+  return response.data.notes
+}
+
+/** Asks the AI to rewrite the notes; can take up to about a minute */
+export async function refreshLearnedNotes(profileId: string): Promise<string | null> {
+  const response = await api.post(
+    '/categorization/notes/refresh',
+    { profileId },
+    { timeout: 120_000 }
+  )
+  return response.data.notes
+}
+
+export async function resetLearnedNotes(profileId: string): Promise<void> {
+  await api.post('/categorization/notes/reset', { profileId })
+}
+
+export async function getLearningStats(profileId: string): Promise<LearningStats> {
+  const response = await api.get('/categorization/stats', { params: { profileId } })
+  return response.data
+}
+
+export async function searchLearnedMerchants(q: string): Promise<LearnedMerchant[]> {
+  const response = await api.get('/categorization/merchants', { params: { q } })
+  return response.data.merchants
+}
+
+export async function forgetLearnedMerchant(fingerprint: string): Promise<number> {
+  const response = await api.post('/categorization/merchants/forget', { fingerprint })
+  return response.data.updated
+}
+
+// ============================================
+// Auto-fix
+// ============================================
+
+export interface AutoFixItem {
+  id: string
+  description: string
+}
+
+export interface AutoFixerPreview {
+  fixer: string
+  label: string
+  safe: boolean
+  usesAi: boolean
+  count: number
+  items: AutoFixItem[]
+}
+
+export interface AutoFixChange {
+  id: string
+  fixer: string
+  entityType: string
+  entityId: string
+  description: string
+  undoneAt: string | null
+}
+
+export interface AutoFixBatch {
+  id: string
+  profileId: string
+  trigger: 'import' | 'manual'
+  statementIds: string[]
+  summary: unknown
+  createdAt: string
+  undoneAt: string | null
+  changes: AutoFixChange[]
+}
+
+export interface ApplyAutoFixInput {
+  profileId?: string
+  fixerIds?: string[]
+  fixIds?: string[]
+}
+
+export interface ApplyAutoFixResult {
+  batchId: string | null
+  count: number
+  byFixer: Record<string, number>
+}
+
+export interface UndoAutoFixResult {
+  undone: number
+  skipped: number
+}
+
+export async function getAutoFixPreview(profileId?: string): Promise<AutoFixerPreview[]> {
+  const response = await api.get('/auto-fix/preview', { params: { profileId } })
+  return response.data.fixers
+}
+
+export async function applyAutoFixes(input: ApplyAutoFixInput): Promise<ApplyAutoFixResult> {
+  const response = await api.post('/auto-fix/apply', input)
+  return response.data
+}
+
+export async function getAutoFixBatches(profileId?: string): Promise<AutoFixBatch[]> {
+  const response = await api.get('/auto-fix/batches', { params: { profileId } })
+  return response.data.batches
+}
+
+export async function undoAutoFixBatch(batchId: string): Promise<UndoAutoFixResult> {
+  const response = await api.post(`/auto-fix/batches/${batchId}/undo`)
+  return response.data
+}
+
+export async function undoAutoFixChange(changeId: string): Promise<UndoAutoFixResult> {
+  const response = await api.post(`/auto-fix/changes/${changeId}/undo`)
+  return response.data
 }

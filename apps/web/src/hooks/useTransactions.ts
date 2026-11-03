@@ -14,9 +14,13 @@ import {
   updateTransaction,
   createTransaction,
   bulkUpdateTransactions,
+  getSimilarTransactions,
   bulkDeleteTransactions,
   getDuplicateGroups,
   setDuplicatesDismissed,
+  getMergedDuplicates,
+  mergeDuplicates,
+  unmergeDuplicate,
   getReviewCounts,
   getPossibleMatches,
   resolvePossibleMatch,
@@ -45,6 +49,8 @@ export const transactionKeys = {
   categories: () => [...transactionKeys.all, 'categories'] as const,
   duplicates: (filters?: TransactionFilters & { dismissed?: boolean }) =>
     [...transactionKeys.all, 'duplicates', filters] as const,
+  mergedDuplicates: (profileId?: string) =>
+    [...transactionKeys.all, 'mergedDuplicates', profileId] as const,
   possibleMatches: (profileId?: string) =>
     [...transactionKeys.all, 'possibleMatches', profileId] as const,
   reviewCounts: (profileId?: string) =>
@@ -241,6 +247,51 @@ export function useBulkUpdateTransactions() {
 }
 
 /**
+ * After a single-transaction edit, offer to apply the same category/name to the merchant's other
+ * transactions that AI or memory set differently. Always asks; never changes anything silently.
+ */
+export function useOfferSimilarChange() {
+  const bulkUpdate = useBulkUpdateTransactions()
+
+  return async ({
+    transactionId,
+    category,
+    name,
+    merchantName,
+    getCategoryLabel,
+  }: {
+    transactionId: string
+    category?: string
+    name?: string
+    merchantName: string
+    getCategoryLabel: (code: string) => string
+  }): Promise<void> => {
+    if (!category && !name) return
+    try {
+      const { count, ids, samples } = await getSimilarTransactions(transactionId, {
+        category,
+        name,
+      })
+      if (count === 0) return
+      const sample = samples[0]
+      const state =
+        category && sample
+          ? `still ${getCategoryLabel(sample.category)}`
+          : `still named ${sample?.summary ?? 'differently'}`
+      toast(`${count} other ${merchantName} transaction${count === 1 ? ' is' : 's are'} ${state}`, {
+        duration: 15000,
+        action: {
+          label: 'Change them too',
+          onClick: () => bulkUpdate.mutate({ transactionIds: ids, category, summary: name }),
+        },
+      })
+    } catch {
+      // The offer is a nicety: a failed lookup must not get in the way of the edit
+    }
+  }
+}
+
+/**
  * Settle one review item: set its category, or confirm the one it has.
  * No toast per item, so working through a queue stays quiet; the next item showing is the feedback.
  */
@@ -295,6 +346,49 @@ export function useDismissDuplicates() {
     },
     onError: () => {
       toast.error('Failed to update duplicates')
+    },
+  })
+}
+
+/**
+ * Copies that were merged into another transaction
+ */
+export function useMergedDuplicates(profileId?: string, enabled = true) {
+  return useQuery({
+    queryKey: transactionKeys.mergedDuplicates(profileId),
+    queryFn: () => getMergedDuplicates(profileId),
+    enabled,
+  })
+}
+
+/**
+ * Merge copies into the transaction to keep. Toasts are left to the caller so a batch can
+ * report once.
+ */
+export function useMergeDuplicates() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ keeperId, ids }: { keeperId: string; ids: string[] }) =>
+      mergeDuplicates(keeperId, ids),
+    onSuccess: () => invalidateTransactionTotals(queryClient),
+  })
+}
+
+/**
+ * Bring a merged copy back as its own transaction
+ */
+export function useUnmergeDuplicate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => unmergeDuplicate(id),
+    onSuccess: () => {
+      invalidateTransactionTotals(queryClient)
+      toast.success('Transaction unmerged')
+    },
+    onError: () => {
+      toast.error('Failed to unmerge transaction')
     },
   })
 }

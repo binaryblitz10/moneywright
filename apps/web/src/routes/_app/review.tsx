@@ -13,9 +13,21 @@ import {
   useReviewCounts,
 } from '@/hooks'
 import { TransactionFiltersBar, EditTransactionDialog } from '@/components/transactions'
-import { CategorizationPanel, DuplicatesPanel, PossibleMatchesPanel } from '@/components/review'
+import {
+  AutoFixedPanel,
+  CategorizationPanel,
+  DuplicatesPanel,
+  FixIssuesDialog,
+  PossibleMatchesPanel,
+} from '@/components/review'
+import { Button } from '@/components/ui/button'
 
-type ReviewTab = 'duplicates' | 'categorization' | 'low_confidence' | 'possible_matches'
+type ReviewTab =
+  | 'duplicates'
+  | 'categorization'
+  | 'low_confidence'
+  | 'possible_matches'
+  | 'auto-fixed'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
@@ -27,7 +39,8 @@ export const Route = createFileRoute('/_app/review')({
     tab:
       search.tab === 'categorization' ||
       search.tab === 'low_confidence' ||
-      search.tab === 'possible_matches'
+      search.tab === 'possible_matches' ||
+      search.tab === 'auto-fixed'
         ? search.tab
         : undefined,
   }),
@@ -41,6 +54,7 @@ function ReviewPage() {
   const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
 
+  const [fixOpen, setFixOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [filters, setFilters] = useState<TransactionFilters>({})
   const [search, setSearch] = useState('')
@@ -91,6 +105,7 @@ function ReviewPage() {
       <PageHeader
         title="Review"
         description="Resolve duplicate, uncategorized and low-confidence transactions"
+        actions={<Button onClick={() => setFixOpen(true)}>Fix issues</Button>}
       />
 
       <Tabs
@@ -101,7 +116,8 @@ function ReviewPage() {
               tab:
                 value === 'categorization' ||
                 value === 'low_confidence' ||
-                value === 'possible_matches'
+                value === 'possible_matches' ||
+                value === 'auto-fixed'
                   ? value
                   : undefined,
             },
@@ -133,10 +149,11 @@ function ReviewPage() {
               <span className="text-xs text-muted-foreground">{counts?.possibleMatches}</span>
             </TabsTrigger>
           )}
+          <TabsTrigger value="auto-fixed">Auto-fixed</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {activeTab !== 'possible_matches' && (
+      {activeTab !== 'possible_matches' && activeTab !== 'auto-fixed' && (
         <TransactionFiltersBar
           filters={filters}
           search={search}
@@ -156,6 +173,8 @@ function ReviewPage() {
 
       {activeTab === 'duplicates' ? (
         <DuplicatesPanel {...panelProps} />
+      ) : activeTab === 'auto-fixed' ? (
+        <AutoFixedPanel profileId={activeProfileId} />
       ) : activeTab === 'possible_matches' ? (
         <PossibleMatchesPanel {...panelProps} />
       ) : (
@@ -165,6 +184,8 @@ function ReviewPage() {
           {...panelProps}
         />
       )}
+
+      <FixIssuesDialog open={fixOpen} onOpenChange={setFixOpen} profileId={activeProfileId} />
 
       <EditTransactionDialog
         transaction={editingTransaction}

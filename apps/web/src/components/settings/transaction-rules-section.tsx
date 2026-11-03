@@ -463,6 +463,7 @@ function ApplyRuleDialog({ rule, categories, onClose }: ApplyRuleDialogProps) {
         transactionIds,
         summary: rule.name ?? undefined,
         category: rule.category ?? undefined,
+        source: 'rule',
       })
     },
     onSuccess: ({ updatedCount }) => {

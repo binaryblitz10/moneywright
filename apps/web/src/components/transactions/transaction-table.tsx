@@ -20,7 +20,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react'
 import { CategoryPicker } from './category-picker'
-import { useConstants, useUpdateTransaction } from '@/hooks'
+import { useConstants, useUpdateTransaction, useOfferSimilarChange } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { getAccountShortLabel } from '@/lib/statement-display'
 import type { Transaction, Account, Category, Profile } from '@/lib/api'
@@ -160,9 +160,25 @@ export function TransactionTable({
   isCategoryEditable,
 }: TransactionTableProps) {
   const updateTransaction = useUpdateTransaction()
+  const offerSimilarChange = useOfferSimilarChange()
   const { institutions } = useConstants()
   const accountMap = new Map(accounts?.map((a) => [a.id, a]) || [])
   const categoryMap = new Map(categories?.map((c) => [c.code, c]) || [])
+
+  // After the change lands, offer it to the merchant's other transactions
+  const changeCategory = (txn: Transaction, category: string) =>
+    updateTransaction.mutate(
+      { transactionId: txn.id, data: { category } },
+      {
+        onSuccess: () =>
+          void offerSimilarChange({
+            transactionId: txn.id,
+            category,
+            merchantName: txn.summary || txn.originalDescription,
+            getCategoryLabel,
+          }),
+      }
+    )
 
   const getCategoryColor = (code: string) => {
     const category = categoryMap.get(code)
@@ -427,9 +443,7 @@ export function TransactionTable({
                       label={getCategoryLabel(txn.category)}
                       colorClass={getCategoryColor(txn.category)}
                       editable={isCategoryEditable?.(txn) ?? true}
-                      onChange={(category) =>
-                        updateTransaction.mutate({ transactionId: txn.id, data: { category } })
-                      }
+                      onChange={(category) => changeCategory(txn, category)}
                     />
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap py-3 pr-6">
@@ -542,9 +556,7 @@ export function TransactionTable({
                       label={getCategoryLabel(txn.category)}
                       colorClass={getCategoryColor(txn.category)}
                       editable={isCategoryEditable?.(txn) ?? true}
-                      onChange={(category) =>
-                        updateTransaction.mutate({ transactionId: txn.id, data: { category } })
-                      }
+                      onChange={(category) => changeCategory(txn, category)}
                     />
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">

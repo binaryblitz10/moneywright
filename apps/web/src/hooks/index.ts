@@ -53,6 +53,9 @@ export {
   useBulkDeleteTransactions,
   useDismissDuplicates,
   useDuplicateGroups,
+  useMergedDuplicates,
+  useMergeDuplicates,
+  useUnmergeDuplicate,
   useReviewCounts,
   useResolveReviewItem,
   usePossibleMatches,
@@ -60,7 +63,19 @@ export {
   useLinkTransactions,
   useUnlinkTransaction,
   useCategorizationStatus,
+  useOfferSimilarChange,
 } from './useTransactions'
+
+// Auto-fix hooks
+export {
+  autoFixKeys,
+  useAutoFixPreview,
+  useAutoFixBatches,
+  useApplyFixes,
+  useUndoBatch,
+  useUndoChange,
+  describeUndo,
+} from './useAutoFix'
 
 // Transaction rule hooks
 export {
@@ -213,3 +228,15 @@ export {
   useTrendsReport,
   useInvestmentsReport,
 } from './useReports'
+
+// Categorization learning hooks
+export {
+  categorizationLearningKeys,
+  useLearnedNotes,
+  useSaveLearnedNotes,
+  useRefreshLearnedNotes,
+  useResetLearnedNotes,
+  useLearningStats,
+  useLearnedMerchants,
+  useForgetMerchant,
+} from './useCategorizationLearning'

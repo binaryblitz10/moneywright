@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useResolveReviewItem } from '@/hooks'
+import { useOfferSimilarChange, useResolveReviewItem } from '@/hooks'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { getAccountShortLabel } from '@/lib/statement-display'
 import { cn } from '@/lib/utils'
@@ -54,6 +54,7 @@ export function ReviewDeck({
   const [settled, setSettled] = useState<Set<string>>(new Set())
   const [skipped, setSkipped] = useState<string[]>([])
   const resolve = useResolveReviewItem()
+  const offerSimilarChange = useOfferSimilarChange()
 
   const open = transactions.filter((t) => !settled.has(t.id))
   const deck = [
@@ -89,7 +90,19 @@ export function ReviewDeck({
   const settle = (code?: string) =>
     resolve.mutate(
       { transactionId: current.id, category: code },
-      { onSuccess: () => setSettled((prev) => new Set(prev).add(current.id)) }
+      {
+        onSuccess: () => {
+          setSettled((prev) => new Set(prev).add(current.id))
+          if (code) {
+            void offerSimilarChange({
+              transactionId: current.id,
+              category: code,
+              merchantName: name,
+              getCategoryLabel: (c) => categories.find((cat) => cat.code === c)?.label ?? c,
+            })
+          }
+        },
+      }
     )
 
   const picker = (trigger: React.ReactNode) => (

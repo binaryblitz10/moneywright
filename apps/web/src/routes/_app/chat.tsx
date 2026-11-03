@@ -36,6 +36,7 @@ import {
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
+  ask: z.string().optional(),
 })
 
 export const Route = createFileRoute('/_app/chat')({
@@ -45,12 +46,13 @@ export const Route = createFileRoute('/_app/chat')({
 
 function ChatPage() {
   const navigate = useNavigate()
-  const { conversationId: urlConversationId } = Route.useSearch()
+  const { conversationId: urlConversationId, ask } = Route.useSearch()
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isSendingRef = useRef(false)
+  const askSentRef = useRef(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
 
@@ -200,109 +202,123 @@ function ChatPage() {
     [setPreference]
   )
 
-  // Handle send message
-  const handleSendMessage = useCallback(async () => {
-    // Allow if we have a profile OR we're in family view
-    if (!input.trim() || chatStream.isLoading || (!activeProfileId && !showFamilyView)) return
+  // Send a message as the user
+  const sendText = useCallback(
+    async (text: string) => {
+      // Allow if we have a profile OR we're in family view
+      if (!text.trim() || chatStream.isLoading || (!activeProfileId && !showFamilyView)) return
 
-    const messageContent = input.trim()
-    setInput('')
-    isSendingRef.current = true
+      const messageContent = text.trim()
+      setInput('')
+      isSendingRef.current = true
 
-    let conversationIdToUse = activeConversationId
-    if (!conversationIdToUse) {
+      let conversationIdToUse = activeConversationId
+      if (!conversationIdToUse) {
+        try {
+          // Pass undefined for family view, profileId for single profile
+          const profileIdForConversation = showFamilyView ? undefined : activeProfileId
+          const newConv = await createConversation.mutateAsync(profileIdForConversation)
+          conversationIdToUse = newConv.id
+          setActiveConversationId(newConv.id)
+          window.history.replaceState(null, '', `/chat?conversationId=${newConv.id}`)
+        } catch (error) {
+          console.error('Failed to create conversation:', error)
+          isSendingRef.current = false
+          return
+        }
+      }
+
+      const userMessage: UIMessage = {
+        id: `temp-user-${Date.now()}`,
+        role: 'user',
+        content: messageContent,
+      }
+
+      const assistantMessage: UIMessage = {
+        id: `temp-assistant-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        steps: [],
+        toolCalls: [],
+        toolResults: [],
+      }
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage])
+      setIsReasoningStreaming(true)
+      setUserHasScrolledUp(false) // Reset scroll state when sending new message
+
+      const thinkingEnabled = thinkingLevel !== 'off' && currentModel?.supportsThinking
+      const thinkingOptions: {
+        thinkingEnabled?: boolean
+        thinkingBudget?: number
+        reasoningEffort?: 'low' | 'medium' | 'high'
+        thinkingLevel?: 'low' | 'medium' | 'high'
+      } = {}
+
+      if (thinkingEnabled) {
+        thinkingOptions.thinkingEnabled = true
+
+        const budgetMap: Record<ThinkingLevel, number> = {
+          off: 0,
+          low: 5000,
+          medium: 10000,
+          high: 20000,
+        }
+
+        if (selectedProvider === 'vercel') {
+          thinkingOptions.thinkingBudget = budgetMap[thinkingLevel]
+          thinkingOptions.reasoningEffort = thinkingLevel as 'low' | 'medium' | 'high'
+          thinkingOptions.thinkingLevel = thinkingLevel as 'low' | 'medium' | 'high'
+        } else if (selectedProvider === 'anthropic') {
+          thinkingOptions.thinkingBudget = budgetMap[thinkingLevel]
+        } else if (selectedProvider === 'openai') {
+          thinkingOptions.reasoningEffort = thinkingLevel as 'low' | 'medium' | 'high'
+        } else if (selectedProvider === 'google') {
+          thinkingOptions.thinkingLevel = thinkingLevel as 'low' | 'medium' | 'high'
+        }
+      }
+
       try {
-        // Pass undefined for family view, profileId for single profile
-        const profileIdForConversation = showFamilyView ? undefined : activeProfileId
-        const newConv = await createConversation.mutateAsync(profileIdForConversation)
-        conversationIdToUse = newConv.id
-        setActiveConversationId(newConv.id)
-        window.history.replaceState(null, '', `/chat?conversationId=${newConv.id}`)
-      } catch (error) {
-        console.error('Failed to create conversation:', error)
+        await chatStream.sendMessage(messageContent, {
+          provider: selectedProvider,
+          model: selectedModel,
+          conversationId: conversationIdToUse,
+          ...thinkingOptions,
+        })
+      } finally {
         isSendingRef.current = false
-        return
+        setIsReasoningStreaming(false)
+        queryClient.invalidateQueries({ queryKey: ['conversation', conversationIdToUse] })
+        queryClient.invalidateQueries({
+          queryKey: ['conversations', showFamilyView ? 'family' : activeProfileId],
+        })
       }
-    }
+    },
+    [
+      chatStream,
+      activeConversationId,
+      activeProfileId,
+      showFamilyView,
+      selectedProvider,
+      selectedModel,
+      thinkingLevel,
+      currentModel,
+      queryClient,
+      createConversation,
+    ]
+  )
 
-    const userMessage: UIMessage = {
-      id: `temp-user-${Date.now()}`,
-      role: 'user',
-      content: messageContent,
-    }
+  const handleSendMessage = useCallback(() => sendText(input), [sendText, input])
 
-    const assistantMessage: UIMessage = {
-      id: `temp-assistant-${Date.now()}`,
-      role: 'assistant',
-      content: '',
-      steps: [],
-      toolCalls: [],
-      toolResults: [],
-    }
-
-    setMessages((prev) => [...prev, userMessage, assistantMessage])
-    setIsReasoningStreaming(true)
-    setUserHasScrolledUp(false) // Reset scroll state when sending new message
-
-    const thinkingEnabled = thinkingLevel !== 'off' && currentModel?.supportsThinking
-    const thinkingOptions: {
-      thinkingEnabled?: boolean
-      thinkingBudget?: number
-      reasoningEffort?: 'low' | 'medium' | 'high'
-      thinkingLevel?: 'low' | 'medium' | 'high'
-    } = {}
-
-    if (thinkingEnabled) {
-      thinkingOptions.thinkingEnabled = true
-
-      const budgetMap: Record<ThinkingLevel, number> = {
-        off: 0,
-        low: 5000,
-        medium: 10000,
-        high: 20000,
-      }
-
-      if (selectedProvider === 'vercel') {
-        thinkingOptions.thinkingBudget = budgetMap[thinkingLevel]
-        thinkingOptions.reasoningEffort = thinkingLevel as 'low' | 'medium' | 'high'
-        thinkingOptions.thinkingLevel = thinkingLevel as 'low' | 'medium' | 'high'
-      } else if (selectedProvider === 'anthropic') {
-        thinkingOptions.thinkingBudget = budgetMap[thinkingLevel]
-      } else if (selectedProvider === 'openai') {
-        thinkingOptions.reasoningEffort = thinkingLevel as 'low' | 'medium' | 'high'
-      } else if (selectedProvider === 'google') {
-        thinkingOptions.thinkingLevel = thinkingLevel as 'low' | 'medium' | 'high'
-      }
-    }
-
-    try {
-      await chatStream.sendMessage(messageContent, {
-        provider: selectedProvider,
-        model: selectedModel,
-        conversationId: conversationIdToUse,
-        ...thinkingOptions,
-      })
-    } finally {
-      isSendingRef.current = false
-      setIsReasoningStreaming(false)
-      queryClient.invalidateQueries({ queryKey: ['conversation', conversationIdToUse] })
-      queryClient.invalidateQueries({
-        queryKey: ['conversations', showFamilyView ? 'family' : activeProfileId],
-      })
-    }
-  }, [
-    input,
-    chatStream,
-    activeConversationId,
-    activeProfileId,
-    showFamilyView,
-    selectedProvider,
-    selectedModel,
-    thinkingLevel,
-    currentModel,
-    queryClient,
-    createConversation,
-  ])
+  // Send the question passed in the URL (e.g. "Explain and fix" on a data issue) once, then clear it
+  const chatReady =
+    !!setupStatus?.llm?.isConfigured && !!preferences && (!!activeProfileId || showFamilyView)
+  useEffect(() => {
+    if (!ask || urlConversationId || !chatReady || askSentRef.current) return
+    askSentRef.current = true
+    navigate({ to: '/chat', search: {}, replace: true })
+    void sendText(ask)
+  }, [ask, urlConversationId, chatReady, navigate, sendText])
 
   // Handle new chat
   const handleNewChat = useCallback(() => {

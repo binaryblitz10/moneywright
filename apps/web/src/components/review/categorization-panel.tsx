@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FLOATING_BAR_CLASS } from '@/components/transactions/floating-bar'
-import { Check, CheckCheck, Pencil, X } from 'lucide-react'
+import { Check, CheckCheck, Layers, Pencil, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,11 +18,25 @@ import { Pagination } from '@/components/transactions/pagination'
 import { TransactionTable } from '@/components/transactions/transaction-table'
 import { TransactionEditForm } from '@/components/transactions/transaction-edit-form'
 import type { SortBy, SortOrder } from '@/components/transactions/transaction-table'
+import { MerchantGroup } from './merchant-group'
+import { groupByMerchant } from './merchant-groups'
 import type { ReviewPanelProps } from './types'
 
 type StatusFilter = 'all' | 'pending' | 'other'
 
 const LIMIT = 25
+// Grouped view loads a bigger slice of rows and pages through the groups instead
+const GROUPED_ROW_LIMIT = 200
+const GROUPS_PER_PAGE = 10
+const GROUPED_KEY = 'review-group-by-merchant'
+
+function readGrouped(): boolean {
+  try {
+    return localStorage.getItem(GROUPED_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
 
 interface CategorizationPanelProps extends ReviewPanelProps {
   /** 'low_confidence' lists transactions the model categorized with low confidence */
@@ -42,17 +56,37 @@ export function CategorizationPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
+  const [grouped, setGrouped] = useState(readGrouped)
+
   const confirmMutation = useBulkUpdateTransactions()
 
   const { data: counts } = useReviewCounts(filters.profileId)
   const { data, isLoading, isPlaceholderData, isError, error, refetch } = useTransactions(
     { ...filters, reviewStatus: isLowConfidence ? 'low_confidence' : status },
-    { page, limit: LIMIT, sortBy, sortOrder }
+    { page: grouped ? 1 : page, limit: grouped ? GROUPED_ROW_LIMIT : LIMIT, sortBy, sortOrder }
   )
 
-  const transactions = data?.transactions ?? []
+  const transactions = useMemo(() => data?.transactions ?? [], [data?.transactions])
   const total = data?.total ?? 0
-  const totalPages = Math.ceil(total / LIMIT)
+  const groups = useMemo(
+    () => (grouped ? groupByMerchant(transactions) : []),
+    [grouped, transactions]
+  )
+  const pageCount = grouped ? Math.ceil(groups.length / GROUPS_PER_PAGE) : Math.ceil(total / LIMIT)
+  const totalPages = pageCount
+  const visibleGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE)
+
+  const toggleGrouped = () => {
+    const next = !grouped
+    setGrouped(next)
+    setPage(1)
+    setSelectedIds(new Set())
+    try {
+      localStorage.setItem(GROUPED_KEY, String(next))
+    } catch {
+      // Remembering the choice is a nicety
+    }
+  }
 
   const changeStatus = (next: StatusFilter) => {
     setStatus(next)
@@ -68,9 +102,9 @@ export function CategorizationPanel({
 
   return (
     <div className={cn('space-y-4', selectedIds.size > 0 && 'pb-24')}>
-      {!isLowConfidence && (
-        <div className="flex flex-wrap items-center gap-2">
-          {statuses.map((s) => (
+      <div className="flex flex-wrap items-center gap-2">
+        {!isLowConfidence &&
+          statuses.map((s) => (
             <Button
               key={s.value}
               size="sm"
@@ -84,8 +118,16 @@ export function CategorizationPanel({
               )}
             </Button>
           ))}
-        </div>
-      )}
+        <Button
+          size="sm"
+          variant={grouped ? 'secondary' : 'outline'}
+          className="h-8 sm:ml-auto"
+          onClick={toggleGrouped}
+        >
+          <Layers className="mr-2 h-4 w-4" />
+          Group by merchant
+        </Button>
+      </div>
 
       {selectedIds.size > 0 && (
         <div className={FLOATING_BAR_CLASS}>
@@ -129,19 +171,44 @@ export function CategorizationPanel({
       ) : transactions.length > 0 ? (
         <>
           <div className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
-            <TransactionTable
-              transactions={transactions}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onSortChange={(newSortBy, newSortOrder) => {
-                setSortBy(newSortBy)
-                setSortOrder(newSortOrder)
-                setPage(1)
-              }}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              {...tableProps}
-            />
+            {grouped ? (
+              <div className="space-y-3">
+                {visibleGroups.map((group) => (
+                  <MerchantGroup
+                    key={group.key}
+                    group={group}
+                    isBusy={confirmMutation.isPending}
+                    onConfirmAll={(ids) =>
+                      confirmMutation.mutate({ transactionIds: ids, confirmCategory: true })
+                    }
+                    onChangeAll={(ids, category) =>
+                      confirmMutation.mutate({ transactionIds: ids, category })
+                    }
+                    {...tableProps}
+                  />
+                ))}
+                {total > transactions.length && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Showing the first {transactions.length} of {total} transactions. Settle these to
+                    see the rest.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <TransactionTable
+                transactions={transactions}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortChange={(newSortBy, newSortOrder) => {
+                  setSortBy(newSortBy)
+                  setSortOrder(newSortOrder)
+                  setPage(1)
+                }}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                {...tableProps}
+              />
+            )}
           </div>
           {totalPages > 1 && (
             <Pagination

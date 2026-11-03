@@ -130,6 +130,11 @@ export function collectIssues(report: DataHealthReport): Issue[] {
   return issues
 }
 
+/** Question to hand Ask Penny so it explains an issue and helps fix it */
+export function buildIssueQuestion(issue: Issue): string {
+  return `Explain this data issue and help me fix it: ${issue.label} — ${issue.detail}. Use the data health tool to find the exact transactions or statements involved.`
+}
+
 export function parseIgnored(value: string | undefined): string[] {
   if (!value) return []
   try {

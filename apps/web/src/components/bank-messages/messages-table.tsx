@@ -69,6 +69,9 @@ function toPlaceholderTransaction(message: SyncedSms, date: string | null): Tran
     notes: null,
     smsSource: false,
     smsVerified: false,
+    merchantFingerprint: null,
+    categorySource: null,
+    nameSource: null,
     createdAt: message.receivedAt,
     updatedAt: message.receivedAt,
   }

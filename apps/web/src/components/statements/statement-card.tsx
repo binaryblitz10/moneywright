@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ImportReport } from './import-report'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -34,6 +35,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { Statement, Account, InvestmentSource, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
+import { VerificationBadge } from './verification-badge'
 
 interface StatementCardProps {
   statement: Statement
@@ -83,6 +85,11 @@ export function StatementCard({
     typeof statement.summary?.skippedDuplicateCount === 'number'
       ? statement.summary.skippedDuplicateCount
       : 0
+  const importReport = statement.summary?.importReport
+  const autoFixCount = statement.summary?.autoFix?.count ?? 0
+  const validation = statement.summary?.validation
+  const droppedRowCount =
+    typeof statement.summary?.droppedRowCount === 'number' ? statement.summary.droppedRowCount : 0
   const count = isInvestment ? (statement.holdingsCount ?? 0) : statement.transactionCount
 
   const displayName = isInvestment
@@ -93,6 +100,7 @@ export function StatementCard({
 
   const isPending = statement.status === 'pending'
   const isParsing = statement.status === 'parsing'
+  const isCategorizing = statement.status === 'categorizing'
   const isFailed = statement.status === 'failed'
   const isCompleted = statement.status === 'completed'
 
@@ -108,6 +116,13 @@ export function StatementCard({
       return {
         icon: <Loader2 className="h-3 w-3 animate-spin" />,
         label: 'Processing...',
+        className: 'text-primary',
+      }
+    }
+    if (isCategorizing) {
+      return {
+        icon: <Loader2 className="h-3 w-3 animate-spin" />,
+        label: 'Categorizing...',
         className: 'text-primary',
       }
     }
@@ -276,13 +291,30 @@ export function StatementCard({
             <p className="text-xs text-negative/80 mt-2 line-clamp-2">{statement.errorMessage}</p>
           )}
 
+          {/* Whether the parsed rows agreed with the statement, and rows that could not be read */}
+          {isCompleted && !isInvestment && (validation || droppedRowCount > 0) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {validation && <VerificationBadge validation={validation} />}
+              {droppedRowCount > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {droppedRowCount} {droppedRowCount === 1 ? 'row' : 'rows'} skipped as unreadable
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Rows an earlier statement had already imported */}
-          {isCompleted && !isInvestment && skippedDuplicateCount > 0 && (
+          {isCompleted && !isInvestment && !importReport && skippedDuplicateCount > 0 && (
             <p className="text-xs text-muted-foreground mt-2">
               {skippedDuplicateCount}{' '}
               {skippedDuplicateCount === 1 ? 'transaction was' : 'transactions were'} already
               imported from an earlier statement
             </p>
+          )}
+
+          {/* What the import did, from the report written while parsing and categorizing */}
+          {isCompleted && !isInvestment && importReport && (
+            <ImportReport report={importReport} autoFixCount={autoFixCount} />
           )}
 
           {/* Footer: File Info + Status */}

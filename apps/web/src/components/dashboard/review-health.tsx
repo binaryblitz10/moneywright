@@ -1,5 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, Copy, FileWarning, MessageSquareWarning, ShieldCheck } from 'lucide-react'
+import {
+  ChevronRight,
+  Copy,
+  FileWarning,
+  MessageSquareWarning,
+  ShieldCheck,
+  Wand2,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -10,6 +17,8 @@ interface ReviewHealthProps {
   possibleMatches: number
   /** Statement gaps, balances that don't add up, card payments to check and the like */
   dataIssues: number
+  /** Changes the app made on its own in the last week and that are still in place */
+  autoFixed: number
 }
 
 const ROW_CLASS =
@@ -35,17 +44,37 @@ function Row({
 }
 
 /** Data problems that aren't a single transaction to settle, each linking to where it's fixed */
-export function ReviewHealth({ duplicateGroups, possibleMatches, dataIssues }: ReviewHealthProps) {
+export function ReviewHealth({
+  duplicateGroups,
+  possibleMatches,
+  dataIssues,
+  autoFixed,
+}: ReviewHealthProps) {
+  const autoFixedRow = autoFixed > 0 && (
+    <li>
+      <Link to="/review" search={{ tab: 'auto-fixed' }} className={ROW_CLASS}>
+        <Wand2 className="h-4 w-4 shrink-0 text-positive" />
+        <span className="min-w-0 flex-1 truncate">
+          {autoFixed} {autoFixed === 1 ? 'issue' : 'issues'} fixed automatically
+        </span>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      </Link>
+    </li>
+  )
+
   if (duplicateGroups + possibleMatches + dataIssues === 0) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-positive/15 bg-positive/5 px-3 py-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-positive/15">
-          <ShieldCheck className="h-4 w-4 text-positive" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">Data health is good</p>
-          <p className="text-xs text-muted-foreground">No duplicates, gaps or balance issues</p>
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 rounded-xl border border-positive/15 bg-positive/5 px-3 py-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-positive/15">
+            <ShieldCheck className="h-4 w-4 text-positive" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-tight">Data health is good</p>
+            <p className="text-xs text-muted-foreground">No duplicates, gaps or balance issues</p>
+          </div>
         </div>
+        {autoFixedRow && <ul>{autoFixedRow}</ul>}
       </div>
     )
   }
@@ -79,6 +108,7 @@ export function ReviewHealth({ duplicateGroups, possibleMatches, dataIssues }: R
           </Link>
         </li>
       )}
+      {autoFixedRow}
     </ul>
   )
 }

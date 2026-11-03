@@ -1,6 +1,6 @@
 /**
- * SMS transactions that match a statement line on account, date and amount but not on the merchant
- * text. The user says whether each pair is the same purchase.
+ * Bank message and hand-entered transactions that match a statement line on account and amount but
+ * not clearly on the text. The user says whether each pair is the same purchase.
  */
 
 import { Check, Loader2, X } from 'lucide-react'
@@ -31,28 +31,30 @@ export function PossibleMatchesPanel({ filters, formatAmount, ...tableProps }: R
       <EmptyState
         icon={Check}
         title="No possible matches"
-        description="SMS transactions that line up with a statement line but name a different merchant will appear here."
+        description="Bank messages and entries you added that line up with a statement line but name a different merchant will appear here."
       />
     )
   }
 
-  // One group per SMS and statement line pair: the SMS row, then the statement row
-  const pairs = matches.flatMap(({ sms, candidates }) =>
-    candidates.map((candidate) => ({ sms, candidate }))
+  // One group per pair: the bank message or hand-entered row, then the statement row
+  const pairs = matches.flatMap(({ kind, sms, candidates }) =>
+    candidates.map((candidate) => ({ kind, sms, candidate }))
   )
   const transactions = pairs.flatMap(({ sms, candidate }) => [sms, candidate])
 
   const resolve = (smsTransactionId: string, transactionId: string, same: boolean) =>
     resolveMutation.mutate({ smsTransactionId, transactionId, same })
 
-  // One heading row per pair, shown above the SMS row
+  // One heading row per pair, shown above the provisional row
   const groupHeader = (_txn: unknown, index: number) => {
     if (index % 2 !== 0) return null
-    const { sms, candidate } = pairs[index / 2]!
+    const { kind, sms, candidate } = pairs[index / 2]!
     return (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Same purchase?</span>
+          {' · '}
+          {kind === 'manual' ? 'Added by you' : 'Bank message'}
           {' · '}
           {formatAmount(sms.amount, sms.currency)}
         </span>
@@ -84,8 +86,9 @@ export function PossibleMatchesPanel({ filters, formatAmount, ...tableProps }: R
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        These SMS transactions have the same date and amount as a statement line, but the merchant
-        names do not overlap. Confirm the ones that are the same purchase.
+        These bank messages and entries you added have the same amount as a statement line on or
+        near the same date, but the merchant names do not clearly match. Confirm the ones that are
+        the same purchase.
       </p>
 
       <TransactionTable

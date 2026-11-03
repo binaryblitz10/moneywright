@@ -21,6 +21,7 @@ import {
   PinSection,
   CategorizationHintsSection,
   TransactionRulesSection,
+  AiLearningSection,
   DataHealthSection,
   DashboardWidgetsSection,
   ThemeSection,
@@ -141,6 +142,7 @@ function SettingsPage() {
             <>
               <TransactionRulesSection />
               <CategorizationHintsSection />
+              <AiLearningSection />
             </>
           )}
 

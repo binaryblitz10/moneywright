@@ -134,9 +134,13 @@ function StatementsPage() {
   } = useStatements(activeProfileId, {
     enabled: queryEnabled,
     refetchInterval: (query) => {
-      // Poll for updates when any statement is pending or parsing
+      // Poll for updates when any statement is pending, parsing or categorizing
       const data = (query as { state: { data?: { status: string }[] } }).state.data
-      if (data?.some((s) => s.status === 'pending' || s.status === 'parsing')) {
+      if (
+        data?.some(
+          (s) => s.status === 'pending' || s.status === 'parsing' || s.status === 'categorizing'
+        )
+      ) {
         return 3000
       }
       return false
@@ -310,7 +314,7 @@ function StatementsPage() {
     const previous = statusesRef.current
     for (const s of statements) {
       const before = previous.get(s.id)
-      if (before !== 'pending' && before !== 'parsing') continue
+      if (before !== 'pending' && before !== 'parsing' && before !== 'categorizing') continue
       const name = s.originalFilename || 'Statement'
       if (s.status === 'completed') {
         toast.success(`${name} processed: ${s.transactionCount.toLocaleString()} transactions`)

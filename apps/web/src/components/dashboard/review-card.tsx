@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { EditTransactionDialog } from '@/components/transactions'
@@ -8,6 +8,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
 import {
   useAccounts,
+  useAutoFixBatches,
   useDataHealth,
   usePreferences,
   useReviewCounts,
@@ -39,12 +40,14 @@ export function ReviewCard({
   className,
 }: ReviewCardProps) {
   const [chosenQueue, setChosenQueue] = useState<ReviewQueue | null>(null)
+  const [mountedAt] = useState(() => Date.now())
   const [editing, setEditing] = useState<Transaction | null>(null)
 
   const { data: counts } = useReviewCounts(profileId)
   const { data: accounts } = useAccounts(profileId, { enabled })
   const { data: health } = useDataHealth(profileId, { enabled })
   const { data: preferences } = usePreferences()
+  const { data: batches } = useAutoFixBatches(profileId, enabled)
 
   const categorizeCount = counts ? counts.pending + counts.other : 0
   const checkCount = counts?.lowConfidence ?? 0
@@ -62,6 +65,12 @@ export function ReviewCard({
   const dataIssues = health
     ? countOpenDataIssues(health, preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS])
     : 0
+  const autoFixed = useMemo(() => {
+    const weekAgo = mountedAt - 7 * 24 * 60 * 60 * 1000
+    return (batches ?? [])
+      .filter((b) => !b.undoneAt && new Date(b.createdAt).getTime() >= weekAgo)
+      .reduce((sum, b) => sum + b.changes.filter((c) => !c.undoneAt).length, 0)
+  }, [batches, mountedAt])
   const toReview = categorizeCount + checkCount
 
   return (
@@ -132,6 +141,7 @@ export function ReviewCard({
           duplicateGroups={counts?.duplicateGroups ?? 0}
           possibleMatches={counts?.possibleMatches ?? 0}
           dataIssues={dataIssues}
+          autoFixed={autoFixed}
         />
       </div>
 

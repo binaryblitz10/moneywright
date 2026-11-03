@@ -4,17 +4,27 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, CheckCircle2, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useDataHealth, usePreferences, useSetPreference } from '@/hooks'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import type { DataHealthBridge } from '@/lib/api'
 import { formatCurrency } from '@/components/dashboard/utils'
-import { collectIssues, formatLongDate, parseIgnored, type IssueTarget } from './data-health-issues'
+import {
+  buildIssueQuestion,
+  collectIssues,
+  formatLongDate,
+  parseIgnored,
+  type Issue,
+  type IssueTarget,
+} from './data-health-issues'
 import { CardPaymentChecks, DismissedCardPayment } from './card-payment-checks'
+import { FixIssuesDialog } from '@/components/review'
 import { MetaLabel } from '@/components/ui/meta-label'
 
 /** An unexplained cash difference above this (in rupees) is worth a look */
@@ -48,6 +58,23 @@ function IgnoreButton({ ignored, onClick }: IgnoreButtonProps) {
       onClick={onClick}
     >
       <Icon className="h-3.5 w-3.5" />
+    </Button>
+  )
+}
+
+function AskPennyButton({ issue }: { issue: Issue }) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
+      title="Explain and fix with Ask Penny"
+      aria-label="Explain and fix with Ask Penny"
+    >
+      <Link to="/chat" search={{ ask: buildIssueQuestion(issue) }}>
+        <Sparkles className="h-3.5 w-3.5" />
+      </Link>
     </Button>
   )
 }
@@ -148,8 +175,10 @@ export function DataHealthSection({
   const { data: report, isLoading } = useDataHealth(profileId, { startDate, enabled })
   const { data: preferences } = usePreferences()
   const setPreferenceMutation = useSetPreference()
+  const autoFixEnabled = preferences?.[PREFERENCE_KEYS.AUTO_FIX_AFTER_IMPORT] !== 'false'
   const [expanded, setExpanded] = useState(false)
   const [showIgnored, setShowIgnored] = useState(false)
+  const [fixOpen, setFixOpen] = useState(false)
 
   const ignoredKeys = useMemo(
     () => parseIgnored(preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS]),
@@ -182,7 +211,15 @@ export function DataHealthSection({
   const visible = expanded ? issues : issues.slice(0, COLLAPSED_ROWS)
 
   return (
-    <SectionCard title="Data Health" contentClassName="space-y-5">
+    <SectionCard
+      title="Data Health"
+      contentClassName="space-y-5"
+      action={
+        <Button variant="outline" size="sm" onClick={() => setFixOpen(true)}>
+          Fix issues
+        </Button>
+      }
+    >
       {isLoading || !report ? (
         <Skeleton className="h-24 w-full" />
       ) : (
@@ -220,6 +257,7 @@ export function DataHealthSection({
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                     </IssueLink>
                   </div>
+                  <AskPennyButton issue={issue} />
                   <IgnoreButton ignored={false} onClick={() => toggleIgnored(issue.key)} />
                 </div>
               ))}
@@ -285,6 +323,24 @@ export function DataHealthSection({
           )}
         </>
       )}
+
+      <div className="flex items-center justify-between gap-4 border-t border-border-subtle pt-4">
+        <Label htmlFor="auto-fix-switch" className="cursor-pointer text-sm">
+          Fix safe issues automatically after each import
+        </Label>
+        <Switch
+          id="auto-fix-switch"
+          checked={autoFixEnabled}
+          onCheckedChange={(checked) =>
+            setPreferenceMutation.mutate({
+              key: PREFERENCE_KEYS.AUTO_FIX_AFTER_IMPORT,
+              value: String(checked),
+            })
+          }
+        />
+      </div>
+
+      <FixIssuesDialog open={fixOpen} onOpenChange={setFixOpen} profileId={profileId} />
     </SectionCard>
   )
 }

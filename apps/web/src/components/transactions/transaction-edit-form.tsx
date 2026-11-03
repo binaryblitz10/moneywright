@@ -46,7 +46,7 @@ import {
 } from '@/lib/api'
 import { suggestTerm } from '@/lib/suggest-term'
 import { useLoans, useInsurancePolicies, useBulkDeleteTransactions, useRulePreview } from '@/hooks'
-import { invalidateTransactionTotals } from '@/hooks/useTransactions'
+import { invalidateTransactionTotals, useOfferSimilarChange } from '@/hooks/useTransactions'
 import { transactionRuleKeys } from '@/hooks/useTransactionRules'
 
 // Categories whose payments are linked to a loan or an insurance policy from the form.
@@ -98,6 +98,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
     type: single?.type ?? 'debit',
   })
   const queryClient = useQueryClient()
+  const offerSimilarChange = useOfferSimilarChange()
 
   // Name and category values to apply: only the ones that were changed
   const trimmedSummary = summary.trim()
@@ -238,6 +239,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
             transactionIds: otherIds,
             summary: summaryChange,
             category: categoryChange,
+            source: 'rule',
           })
           toast.success(
             `Updated ${otherIds.length} matching transaction${otherIds.length === 1 ? '' : 's'}`
@@ -297,6 +299,15 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       toast.success(
         single ? 'Transaction updated' : `Updated ${count} transaction${count === 1 ? '' : 's'}`
       )
+      if (single) {
+        void offerSimilarChange({
+          transactionId: single.id,
+          category: categoryChange,
+          name: summaryChange,
+          merchantName: summaryChange ?? single.summary ?? single.originalDescription,
+          getCategoryLabel: (code) => categories.find((c) => c.code === code)?.label ?? code,
+        })
+      }
       onSuccess()
     },
     onError: () => {
