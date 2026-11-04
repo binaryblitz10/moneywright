@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dialog'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { getTransactionIds, type Transaction, type TransactionFilters } from '@/lib/api'
-import { getKindOf } from '@/lib/category-kinds'
 import { cn } from '@/lib/utils'
 import {
   useAuth,
@@ -171,26 +170,7 @@ function TransactionsPage() {
   const totalPages = Math.ceil(total / limit)
   const categories = categoriesData?.categories || []
 
-  // Default stats for loading/empty state
-  const displayStats = stats || {
-    totalCredits: 0,
-    totalDebits: 0,
-    creditCount: 0,
-    debitCount: 0,
-    netAmount: 0,
-    currency: 'INR',
-  }
-
   const currency = stats?.currency || 'INR'
-
-  // Net card wording: "spent" / "earned" only when the selected categories share one kind
-  const selectedKinds = (filters.category ?? []).map((code) => getKindOf(categories, code))
-  const netLabel: 'net' | 'spent' | 'earned' =
-    selectedKinds.length > 0 && selectedKinds.every((kind) => kind === 'expense')
-      ? 'spent'
-      : selectedKinds.length > 0 && selectedKinds.every((kind) => kind === 'income')
-        ? 'earned'
-        : 'net'
 
   // Format amount with proper currency
   const formatAmount = (amount: number, curr: string) => {
@@ -259,41 +239,6 @@ function TransactionsPage() {
 
   const hasActiveFilters = Object.keys(filters).length > 0 || search
 
-  // Determine stats label based on filters
-  const getStatsLabel = () => {
-    const parts: string[] = []
-    if (filters.startDate || filters.endDate) {
-      if (filters.startDate && filters.endDate) {
-        parts.push(`${filters.startDate} to ${filters.endDate}`)
-      } else if (filters.startDate) {
-        parts.push(`From ${filters.startDate}`)
-      } else {
-        parts.push(`Until ${filters.endDate}`)
-      }
-    }
-    if (filters.category?.length) {
-      if (filters.category.length === 1) {
-        parts.push(getCategoryLabel(filters.category[0]!))
-      } else {
-        parts.push(`${filters.category.length} categories`)
-      }
-    }
-    if (filters.accountId?.length) {
-      if (filters.accountId.length === 1) {
-        const account = accounts?.find((a) => a.id === filters.accountId![0])
-        parts.push(account?.accountName || 'Selected account')
-      } else {
-        parts.push(`${filters.accountId.length} accounts`)
-      }
-    }
-    if (filters.statementId?.length) {
-      parts.push(
-        `${filters.statementId.length} statement${filters.statementId.length > 1 ? 's' : ''}`
-      )
-    }
-    return parts.length > 0 ? parts.join(' · ') : 'All time'
-  }
-
   return (
     <div className={cn('space-y-6', selectedIds.size > 0 && 'pb-24')}>
       {/* Page Header */}
@@ -310,18 +255,14 @@ function TransactionsPage() {
         }
       />
 
-      {/* Stats Cards */}
+      {/* Money in / out summary */}
       <TransactionStats
-        totalCredits={displayStats.totalCredits}
-        totalDebits={displayStats.totalDebits}
-        creditCount={displayStats.creditCount}
-        debitCount={displayStats.debitCount}
-        netAmount={displayStats.netAmount}
+        totalCredits={stats?.totalCredits ?? 0}
+        totalDebits={stats?.totalDebits ?? 0}
+        totalCount={(stats?.creditCount ?? 0) + (stats?.debitCount ?? 0)}
         currency={currency}
-        statsLabel={getStatsLabel()}
         isLoading={statsLoading}
         formatAmount={formatAmount}
-        netLabel={netLabel}
       />
 
       {/* Filters */}

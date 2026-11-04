@@ -1,99 +1,39 @@
-import { TrendingUp, TrendingDown, Wallet, BarChart3 } from 'lucide-react'
-import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface TransactionStatsProps {
   totalCredits: number
   totalDebits: number
-  creditCount: number
-  debitCount: number
-  netAmount: number
+  totalCount: number
   currency: string
-  statsLabel: string
   isLoading?: boolean
-  formatAmount?: (amount: number, currency: string) => string
-  /** How the net card is worded: plain net, net spent (expense categories) or net income */
-  netLabel?: 'net' | 'spent' | 'earned'
+  formatAmount: (amount: number, currency: string) => string
 }
 
+/** Quiet one-line summary of money in, money out and total transactions for the current filters */
 export function TransactionStats({
   totalCredits,
   totalDebits,
-  creditCount,
-  debitCount,
-  netAmount,
+  totalCount,
   currency,
-  statsLabel,
   isLoading,
-  netLabel = 'net',
+  formatAmount,
 }: TransactionStatsProps) {
-  const totalCount = creditCount + debitCount
-
-  const netCard =
-    netLabel === 'spent'
-      ? {
-          label: 'Net spent',
-          value: -netAmount,
-          subtitle: 'Expenses after refunds',
-          trend: 'down' as const,
-        }
-      : netLabel === 'earned'
-        ? {
-            label: 'Net income',
-            value: netAmount,
-            subtitle: 'Income after reversals',
-            trend: netAmount >= 0 ? ('up' as const) : ('down' as const),
-          }
-        : {
-            label: 'Net Amount',
-            value: netAmount,
-            subtitle: 'Net cash movement',
-            trend: undefined,
-          }
+  const item = (label: string, text: string) => (
+    <span>
+      {label}{' '}
+      {isLoading ? (
+        <Skeleton className="inline-block h-3 w-16 align-middle" />
+      ) : (
+        <span className="text-foreground">{text}</span>
+      )}
+    </span>
+  )
 
   return (
-    <StatCardGrid>
-      {/* Money in */}
-      <StatCard
-        label="Money in"
-        value={totalCredits}
-        currency={currency}
-        subtitle={`${creditCount.toLocaleString()} transactions`}
-        icon={TrendingUp}
-        loading={isLoading}
-        trend="up"
-      />
-
-      {/* Money out */}
-      <StatCard
-        label="Money out"
-        value={totalDebits}
-        currency={currency}
-        subtitle={`${debitCount.toLocaleString()} transactions`}
-        icon={TrendingDown}
-        loading={isLoading}
-        trend="down"
-      />
-
-      {/* Net Amount */}
-      <StatCard
-        label={netCard.label}
-        value={netCard.value}
-        currency={currency}
-        subtitle={netCard.subtitle}
-        icon={Wallet}
-        loading={isLoading}
-        trend={netCard.trend}
-      />
-
-      {/* Total Transactions */}
-      <StatCard
-        label="Total"
-        value={totalCount}
-        subtitle={statsLabel}
-        icon={BarChart3}
-        loading={isLoading}
-        isCount
-      />
-    </StatCardGrid>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
+      {item('Money in', formatAmount(totalCredits, currency))}
+      {item('Money out', formatAmount(totalDebits, currency))}
+      {item('Total', totalCount.toLocaleString())}
+    </p>
   )
 }
