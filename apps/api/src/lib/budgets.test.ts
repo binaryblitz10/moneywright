@@ -132,6 +132,28 @@ describe('budget months', () => {
     expect(months[1]!.entries[0]!.carriedOver).toBe(100)
   })
 
+  test('judges a month by the overall budget when there is one', () => {
+    const total = {
+      category: '__total__',
+      monthlyAmount: 5000,
+      rollover: false,
+      createdMonth: '2026-01',
+    }
+    const months = computeBudgetMonths([dining], ['2026-01'], spentIn, '2026-06', {
+      budget: total,
+      spentIn: () => 5500,
+    })
+    expect(months[0]!.totalAvailable).toBe(5000)
+    expect(months[0]!.totalSpent).toBe(5500)
+    expect(months[0]!.status).toBe('over')
+    // Only an overall budget still gives a month
+    const only = computeBudgetMonths([], ['2026-01'], spentIn, '2026-06', {
+      budget: total,
+      spentIn: () => 100,
+    })
+    expect(only).toHaveLength(1)
+  })
+
   test('judges a month by the total of its budgets', () => {
     const months = computeBudgetMonths(
       [dining, food],

@@ -119,12 +119,12 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
             )
           })}
         </ul>
-      ) : (
+      ) : summary.categories.length > 0 ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Check className="h-4 w-4 text-positive" />
           Every category stayed within budget
         </p>
-      )}
+      ) : null}
     </div>
   )
 }

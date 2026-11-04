@@ -25,6 +25,12 @@ export interface BudgetProgress {
   status: 'ok' | 'warning' | 'over'
 }
 
+/**
+ * Stored in a budget's category column for the overall monthly budget, which covers
+ * all spending rather than one category
+ */
+export const TOTAL_BUDGET_CATEGORY = '__total__'
+
 /** Show a warning once this share of the limit is used */
 export const WARNING_PERCENT = 80
 
@@ -88,7 +94,10 @@ export interface BudgetMonth {
   /** The month we're in now: it counts by what is spent so far */
   inProgress: boolean
   entries: BudgetMonthEntry[]
-  /** Sums across the month's budgets, with the status of the totals */
+  /**
+   * The totals below: with an overall budget they are that budget's figures for all spending,
+   * otherwise sums across the category budgets. Status follows them.
+   */
   totalAvailable: number
   totalSpent: number
   percentUsed: number
@@ -127,7 +136,9 @@ export function computeBudgetMonths(
   budgets: RangeBudget[],
   months: Month[],
   spentIn: (month: Month, category: string) => number,
-  currentMonth: Month
+  currentMonth: Month,
+  /** The overall budget (all spending) and how much is spent in total in a month */
+  total: { budget: RangeBudget; spentIn: (month: Month) => number } | null = null
 ): BudgetMonth[] {
   const results: BudgetMonth[] = []
   for (const month of months) {
@@ -142,10 +153,19 @@ export function computeBudgetMonths(
         budget.createdMonth <= previous ? spentIn(previous, budget.category) : null
       ),
     }))
-    if (entries.length === 0) continue
+    if (entries.length === 0 && !total) continue
 
-    const totalAvailable = entries.reduce((sum, e) => sum + e.available, 0)
-    const totalSpent = entries.reduce((sum, e) => sum + e.spent, 0)
+    let totalAvailable = entries.reduce((sum, e) => sum + e.available, 0)
+    let totalSpent = entries.reduce((sum, e) => sum + e.spent, 0)
+    if (total) {
+      const progress = computeBudgetProgress(
+        total.budget,
+        total.spentIn(month),
+        total.budget.createdMonth <= previous ? total.spentIn(previous) : null
+      )
+      totalAvailable = progress.available
+      totalSpent = progress.spent
+    }
     const { percentUsed, status } = computeBudgetProgress(
       { monthlyAmount: totalAvailable, rollover: false },
       totalSpent,

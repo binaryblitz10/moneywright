@@ -9,6 +9,7 @@ import {
   monthsBetween,
   previousMonth,
   summarizeBudgetMonths,
+  TOTAL_BUDGET_CATEGORY,
   type BudgetCategoryHistory,
   type BudgetMonth,
   type BudgetProgress,
@@ -52,10 +53,15 @@ export interface BudgetSummary {
   month: Month
   currency: string
   budgets: BudgetWithProgress[]
-  /** Sums across all budgets of the month */
+  /**
+   * The overall budget for the month, if one is set. It counts all spending, including
+   * categories that have a budget of their own.
+   */
+  totalBudget: BudgetWithProgress | null
+  /** The overall budget's figures when there is one, otherwise sums across the category budgets */
   totalAvailable: number
   totalSpent: number
-  /** Spending in the budgeted categories on each day of the month, the 1st first */
+  /** Spending on each day (budgeted categories only, unless there is an overall budget) of the month, the 1st first */
   daily: number[]
   /** The same for the month before, to compare against */
   previousDaily: number[]
@@ -86,7 +92,8 @@ function toBudget(row: BudgetRow): Budget {
     id: row.id,
     profileId: row.profileId,
     category: row.category,
-    categoryLabel: categoryLabel(row.category),
+    categoryLabel:
+      row.category === TOTAL_BUDGET_CATEGORY ? 'Total Spending' : categoryLabel(row.category),
     monthlyAmount: Number(row.monthlyAmount),
     rollover: row.rollover,
     createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
@@ -107,13 +114,39 @@ async function validateInput(userId: string, input: Partial<BudgetInput>): Promi
   if (input.monthlyAmount !== undefined && !(input.monthlyAmount > 0)) {
     throw new BudgetValidationError('The monthly amount must be more than zero')
   }
-  if (input.category !== undefined) {
+  if (input.category !== undefined && input.category !== TOTAL_BUDGET_CATEGORY) {
     const user = await findUserById(userId)
     const countryCode = (user?.country || 'US') as CountryCode
     const category = getCategoriesForCountry(countryCode).find((c) => c.code === input.category)
     if (!category || category.kind !== 'expense') {
       throw new BudgetValidationError('Budgets can only be set for spending categories')
     }
+  }
+}
+
+/**
+ * The overall budget has to cover the category budgets: it can't be set below their sum,
+ * and a category budget can't push their sum past it. `change` is the budget being saved.
+ */
+async function assertTotalCoversCategories(
+  userId: string,
+  profileId: string,
+  change: { id?: string; category: string; monthlyAmount: number }
+): Promise<void> {
+  const others = (await listBudgets(userId, profileId)).filter((b) => b.id !== change.id)
+  const categoryAmounts = others.filter((b) => b.category !== TOTAL_BUDGET_CATEGORY)
+  let total = others.find((b) => b.category === TOTAL_BUDGET_CATEGORY)?.monthlyAmount ?? null
+  let categorySum = categoryAmounts.reduce((sum, b) => sum + b.monthlyAmount, 0)
+
+  if (change.category === TOTAL_BUDGET_CATEGORY) total = change.monthlyAmount
+  else categorySum += change.monthlyAmount
+
+  if (total !== null && categorySum > total) {
+    throw new BudgetValidationError(
+      change.category === TOTAL_BUDGET_CATEGORY
+        ? `The total budget can't be less than the ${categorySum} set across categories`
+        : `Category budgets add up to ${categorySum}, more than the total budget of ${total}`
+    )
   }
 }
 
@@ -134,7 +167,9 @@ export async function getBudgetSummary(
   profileId: string,
   month: Month
 ): Promise<BudgetSummary> {
-  const budgets = await listBudgets(userId, profileId)
+  const allBudgets = await listBudgets(userId, profileId)
+  const budgets = allBudgets.filter((b) => b.category !== TOTAL_BUDGET_CATEGORY)
+  const totalBudget = allBudgets.find((b) => b.category === TOTAL_BUDGET_CATEGORY)
   const previous = previousMonth(month)
   const budgeted = new Set(budgets.map((b) => b.category))
 
@@ -148,7 +183,8 @@ export async function getBudgetSummary(
   const lastTotals = byCategory(last.transactions)
   const dailyFor = (transactions: TotalsTransaction[], m: Month) =>
     dailyTotals(
-      transactions.filter((t) => budgeted.has(t.category)),
+      // With an overall budget, every day's spending counts, not just the budgeted categories
+      totalBudget ? transactions : transactions.filter((t) => budgeted.has(t.category)),
       'expense',
       monthRange(m)
     )
@@ -156,25 +192,39 @@ export async function getBudgetSummary(
   const spentIn = (result: TotalsResult, category: string): number =>
     result.groups.find((g) => g.key === category)?.total ?? 0
 
-  const withProgress = budgets.map((budget) => {
+  const progressFor = (
+    budget: Budget,
+    spent: number,
+    previousSpent: number
+  ): BudgetWithProgress => {
     // Last month only counts when the budget already existed then
     const existedLastMonth = budget.createdAt.substring(0, 7) <= previous
     return {
       ...budget,
-      ...computeBudgetProgress(
-        budget,
-        spentIn(currentTotals, budget.category),
-        existedLastMonth ? spentIn(lastTotals, budget.category) : null
-      ),
+      ...computeBudgetProgress(budget, spent, existedLastMonth ? previousSpent : null),
     }
-  })
+  }
+  const withProgress = budgets.map((budget) =>
+    progressFor(
+      budget,
+      spentIn(currentTotals, budget.category),
+      spentIn(lastTotals, budget.category)
+    )
+  )
+
+  const totalBudgetProgress = totalBudget
+    ? progressFor(totalBudget, currentTotals.total, lastTotals.total)
+    : null
 
   return {
     month,
     currency: current.currency,
     budgets: withProgress,
-    totalAvailable: withProgress.reduce((sum, b) => sum + b.available, 0),
-    totalSpent: withProgress.reduce((sum, b) => sum + b.spent, 0),
+    totalBudget: totalBudgetProgress,
+    // With an overall budget the totals are its figures for all spending
+    totalAvailable:
+      totalBudgetProgress?.available ?? withProgress.reduce((sum, b) => sum + b.available, 0),
+    totalSpent: totalBudgetProgress?.spent ?? withProgress.reduce((sum, b) => sum + b.spent, 0),
     daily: dailyFor(current.transactions, month),
     previousDaily: dailyFor(last.transactions, previous),
   }
@@ -190,7 +240,9 @@ export async function getBudgetRangeSummary(
   startMonth: Month,
   endMonth: Month
 ): Promise<BudgetRangeSummary> {
-  const budgets = await listBudgets(userId, profileId)
+  const allBudgets = await listBudgets(userId, profileId)
+  const budgets = allBudgets.filter((b) => b.category !== TOTAL_BUDGET_CATEGORY)
+  const totalBudget = allBudgets.find((b) => b.category === TOTAL_BUDGET_CATEGORY)
 
   // One load for the whole range plus the month before it, which rollovers need
   const { transactions, currency } = await loadTotalsTransactions(userId, {
@@ -205,20 +257,28 @@ export async function getBudgetRangeSummary(
     byMonth.set(month, [...(byMonth.get(month) ?? []), txn])
   }
   const spentCache = new Map<Month, TotalsResult>()
-  const spentIn = (month: Month, category: string): number => {
+  const totalsOf = (month: Month): TotalsResult => {
     let totals = spentCache.get(month)
     if (!totals) {
       totals = computeTotals(byMonth.get(month) ?? [], { kind: 'expense', groupBy: 'category' })
       spentCache.set(month, totals)
     }
-    return totals.groups.find((g) => g.key === category)?.total ?? 0
+    return totals
   }
+  const spentIn = (month: Month, category: string): number =>
+    totalsOf(month).groups.find((g) => g.key === category)?.total ?? 0
 
   const months = computeBudgetMonths(
     budgets.map((b) => ({ ...b, createdMonth: b.createdAt.substring(0, 7) })),
     monthsBetween(startMonth, endMonth),
     spentIn,
-    new Date().toISOString().substring(0, 7)
+    new Date().toISOString().substring(0, 7),
+    totalBudget
+      ? {
+          budget: { ...totalBudget, createdMonth: totalBudget.createdAt.substring(0, 7) },
+          spentIn: (month) => totalsOf(month).total,
+        }
+      : null
   )
   const { monthCount, monthsWithinBudget, categories } = summarizeBudgetMonths(months)
 
@@ -226,7 +286,7 @@ export async function getBudgetRangeSummary(
     startMonth,
     endMonth,
     currency,
-    budgetCount: budgets.length,
+    budgetCount: allBudgets.length,
     months,
     monthCount,
     monthsWithinBudget,
@@ -248,6 +308,7 @@ export async function createBudget(
   input: BudgetInput
 ): Promise<Budget> {
   await validateInput(userId, input)
+  await assertTotalCoversCategories(userId, profileId, input)
   try {
     const [row] = await db
       .insert(tables.budgets)
@@ -275,6 +336,18 @@ export async function updateBudget(
   input: Partial<Pick<BudgetInput, 'monthlyAmount' | 'rollover'>>
 ): Promise<Budget | null> {
   await validateInput(userId, input)
+  if (input.monthlyAmount !== undefined) {
+    const [existing] = await db
+      .select()
+      .from(tables.budgets)
+      .where(and(eq(tables.budgets.id, budgetId), eq(tables.budgets.userId, userId)))
+    if (!existing) return null
+    await assertTotalCoversCategories(userId, existing.profileId, {
+      id: budgetId,
+      category: existing.category,
+      monthlyAmount: input.monthlyAmount,
+    })
+  }
   const [row] = await db
     .update(tables.budgets)
     .set({

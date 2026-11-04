@@ -3703,11 +3703,16 @@ export interface Budget extends BudgetProgress {
   rollover: boolean
 }
 
+/** Category value of the overall monthly budget, which covers all spending */
+export const TOTAL_BUDGET_CATEGORY = '__total__'
+
 export interface BudgetSummary {
   /** YYYY-MM */
   month: string
   currency: string
   budgets: Budget[]
+  /** The overall budget for all spending, if one is set */
+  totalBudget: Budget | null
   totalAvailable: number
   totalSpent: number
   /** Spending in the budgeted categories on each day of the month, the 1st first */

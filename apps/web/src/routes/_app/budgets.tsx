@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus } from 'lucide-react'
+import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -28,7 +28,7 @@ import {
   useProfileSelection,
   useUpdateBudget,
 } from '@/hooks'
-import type { Budget } from '@/lib/api'
+import { TOTAL_BUDGET_CATEGORY, type Budget } from '@/lib/api'
 
 interface BudgetsSearchParams {
   /** Month to open, as YYYY-MM; defaults to the current month */
@@ -56,6 +56,7 @@ function BudgetsPage() {
   const { month: initialMonth } = Route.useSearch()
   const [month, setMonth] = useState(initialMonth ?? currentMonth())
   const [addOpen, setAddOpen] = useState(false)
+  const [addTotalOpen, setAddTotalOpen] = useState(false)
   const [editing, setEditing] = useState<Budget | null>(null)
   const [deleting, setDeleting] = useState<Budget | null>(null)
 
@@ -66,7 +67,9 @@ function BudgetsPage() {
   const deleteMutation = useDeleteBudget()
 
   // Closest to (or past) the limit first
+  const totalBudget = data?.totalBudget ?? null
   const budgets = [...(data?.budgets ?? [])].sort((a, b) => b.percentUsed - a.percentUsed)
+  const categorySum = budgets.reduce((sum, b) => sum + b.monthlyAmount, 0)
   const currency = data?.currency ?? 'INR'
   const isCurrentMonth = month === currentMonth()
   const pace = getMonthPace(month)
@@ -84,7 +87,7 @@ function BudgetsPage() {
       <div className="space-y-8">
         <PageHeader
           title="Budgets"
-          description="Set a monthly limit for each spending category"
+          description="Set a monthly limit for each spending category, or for all spending"
           actions={
             <div className="flex items-center gap-3">
               {!showFamilyView && (
@@ -128,6 +131,16 @@ function BudgetsPage() {
                   </div>
                 </>
               )}
+              {!totalBudget && (
+                <Button
+                  variant="outline"
+                  onClick={() => setAddTotalOpen(true)}
+                  disabled={showFamilyView || !data}
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Set total budget
+                </Button>
+              )}
               <Button
                 onClick={() => setAddOpen(true)}
                 disabled={showFamilyView || availableCategories.length === 0}
@@ -158,7 +171,7 @@ function BudgetsPage() {
               </div>
             ) : isError ? (
               <QueryError error={error} onRetry={() => refetch()} />
-            ) : data && budgets.length === 0 ? (
+            ) : data && budgets.length === 0 && !totalBudget ? (
               <EmptyState
                 icon={PiggyBank}
                 title="No budgets yet"
@@ -170,6 +183,17 @@ function BudgetsPage() {
                 <div className="space-y-6">
                   <BudgetGlance summary={data} pace={pace} month={month} />
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {totalBudget && (
+                      <BudgetCard
+                        budget={totalBudget}
+                        color="emerald"
+                        currency={currency}
+                        month={month}
+                        pace={pace}
+                        onEdit={() => setEditing(totalBudget)}
+                        onDelete={() => setDeleting(totalBudget)}
+                      />
+                    )}
                     {budgets.map((budget) => (
                       <BudgetCard
                         key={budget.id}
@@ -210,9 +234,27 @@ function BudgetsPage() {
         />
       )}
 
+      {addTotalOpen && (
+        <BudgetDialog
+          open
+          total
+          minTotal={categorySum}
+          currency={currency}
+          onOpenChange={setAddTotalOpen}
+          categories={[]}
+          isSaving={createMutation.isPending}
+          onSave={(values) =>
+            createMutation.mutate(values, { onSuccess: () => setAddTotalOpen(false) })
+          }
+        />
+      )}
+
       {editing && (
         <BudgetDialog
           open
+          total={editing.category === TOTAL_BUDGET_CATEGORY}
+          minTotal={categorySum}
+          currency={currency}
           onOpenChange={(open) => !open && setEditing(null)}
           budget={editing}
           categories={[]}

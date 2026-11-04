@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { MoreHorizontal, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import {
@@ -12,7 +12,7 @@ import { getCategoryColorClasses } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
 import { BudgetProgressBar } from './budget-progress-bar'
 import { formatBudgetAmount, monthRangeOf, type MonthPace } from './format'
-import type { Budget } from '@/lib/api'
+import { TOTAL_BUDGET_CATEGORY, type Budget } from '@/lib/api'
 
 const STATUS_PILL: Record<Budget['status'], { label: string; className: string }> = {
   ok: { label: 'On track', className: 'bg-positive/15 text-positive' },
@@ -43,6 +43,7 @@ export function BudgetCard({
   const colors = getCategoryColorClasses(color)
   const pill = STATUS_PILL[budget.status]
   const over = budget.status === 'over'
+  const isTotal = budget.category === TOTAL_BUDGET_CATEGORY
   const perDay =
     pace.isCurrent && !over && pace.daysLeft > 0 ? budget.remaining / pace.daysLeft : null
 
@@ -56,12 +57,18 @@ export function BudgetCard({
             colors.text
           )}
         >
-          <CategoryIcon code={budget.category} className="h-5 w-5" />
+          {isTotal ? (
+            <Wallet className="h-5 w-5" />
+          ) : (
+            <CategoryIcon code={budget.category} className="h-5 w-5" />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <Link
             to="/transactions"
-            search={{ category: budget.category, ...monthRangeOf(month) }}
+            search={
+              isTotal ? monthRangeOf(month) : { category: budget.category, ...monthRangeOf(month) }
+            }
             className="block truncate font-medium after:absolute after:inset-0 after:z-[1] after:content-['']"
           >
             {budget.categoryLabel}
