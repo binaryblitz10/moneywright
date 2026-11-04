@@ -304,7 +304,13 @@ export function BankAccountCard({
           <p className="text-xl font-semibold text-positive tabular-nums">
             {account.latestBalance !== null ? formatCurrency(account.latestBalance) : '—'}
           </p>
-          {balanceDate && <p className="text-xs text-muted-foreground">as of {balanceDate}</p>}
+          {balanceDate && (
+            <p className="text-xs text-muted-foreground text-right leading-tight">
+              Last Statement
+              <br />
+              {balanceDate}
+            </p>
+          )}
         </div>
       </div>
     </div>

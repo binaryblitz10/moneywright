@@ -179,7 +179,9 @@ export function BankAccountDetailModal({
                   <div>
                     <p className="text-sm font-medium">Current Balance</p>
                     <p className="text-xs text-muted-foreground">
-                      as of {formatDate(account.latestStatementDate)}
+                      Last Statement
+                      <br />
+                      {formatDate(account.latestStatementDate)}
                     </p>
                   </div>
                 </div>

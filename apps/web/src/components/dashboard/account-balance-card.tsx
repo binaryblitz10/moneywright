@@ -64,6 +64,8 @@ export function AccountBalanceCard({ account, countryCode }: AccountBalanceCardP
             </p>
             {account.latestStatementDate && (
               <p className="text-[11px] text-muted-foreground mt-0.5">
+                Last Statement
+                <br />
                 {formatDate(account.latestStatementDate)}
               </p>
             )}
