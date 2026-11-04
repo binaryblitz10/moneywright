@@ -33,7 +33,7 @@ export interface AccountSelectorProps {
   allOptionLabel?: string
   /** Placeholder when nothing selected */
   placeholder?: string
-  /** Enable search when many accounts */
+  /** Show the search field */
   searchable?: boolean
   /** Group accounts by type */
   groupByType?: boolean
@@ -206,8 +206,7 @@ export function AccountSelector({
   // Check if has active selection
   const hasSelection = mode === 'single' ? !!value : values.length > 0
 
-  // Show search if searchable and more than 5 accounts
-  const showSearch = searchable && accounts.length > 5
+  const showSearch = searchable
 
   return (
     <div className={className}>
