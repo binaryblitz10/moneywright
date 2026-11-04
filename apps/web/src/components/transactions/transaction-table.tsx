@@ -651,7 +651,7 @@ function CategoryCell({
       onChange={onChange}
       trigger={pill}
       contentAlign="end"
-      contentClassName="w-[26rem] max-w-[calc(100vw-2rem)]"
+      fitContent
     />
   )
 }

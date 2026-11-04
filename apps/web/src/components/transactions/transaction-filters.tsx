@@ -525,7 +525,7 @@ function CategoryFilterDropdown({
         triggerLabel={triggerLabel}
         triggerIcon={onlyHidden && <EyeOff className="h-4 w-4 text-muted-foreground" />}
         triggerClassName={cn((selected.length || onlyHidden) && 'border-primary/30 bg-primary/5')}
-        contentClassName="w-96"
+        fitContent
         disabled={onlyHidden}
         leadingRows={
           <>

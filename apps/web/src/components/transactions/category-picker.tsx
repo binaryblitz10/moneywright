@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import {
   PICKER_CONTENT_CLASS,
+  PICKER_CONTENT_COLORS_CLASS,
   PICKER_LIST_CLASS,
   PICKER_SEARCH_CLASS,
   PICKER_TRIGGER_CLASS,
@@ -59,6 +60,8 @@ interface CategoryPickerBaseProps {
   placeholder?: string
   /** Extra classes for the dropdown, e.g. a fixed width when the trigger is narrow */
   contentClassName?: string
+  /** Sizes the dropdown to the kind chip row instead of the trigger, for pickers that aren't form fields */
+  fitContent?: boolean
   /** Which edge of the trigger the dropdown lines up with (default: start) */
   contentAlign?: 'start' | 'end'
   /** Extra classes for the trigger button */
@@ -100,6 +103,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
     categories,
     placeholder = 'Select a category',
     contentClassName,
+    fitContent = false,
     contentAlign = 'start',
     hideKindFilter = false,
   } = props
@@ -253,7 +257,15 @@ export function CategoryPicker(props: CategoryPickerProps) {
         )}
       </PopoverTrigger>
       <PopoverContent
-        className={cn(PICKER_CONTENT_CLASS, contentClassName)}
+        className={
+          fitContent && !hideKindFilter
+            ? cn(
+                'w-fit max-w-[calc(100vw-2rem)] overflow-hidden p-0',
+                PICKER_CONTENT_COLORS_CLASS,
+                contentClassName
+              )
+            : cn(PICKER_CONTENT_CLASS, contentClassName)
+        }
         align={contentAlign}
         onOpenAutoFocus={focusSearchAtEnd}
       >
@@ -274,7 +286,12 @@ export function CategoryPicker(props: CategoryPickerProps) {
         {!hideKindFilter && (
           <>
             {/* Kind chips: single-select shows one kind, multi-select selects or clears a kind */}
-            <div className="flex flex-wrap gap-1.5 border-b border-border-subtle px-3 py-2.5">
+            <div
+              className={cn(
+                'flex gap-1.5 border-b border-border-subtle px-3 py-2.5',
+                !fitContent && 'flex-wrap'
+              )}
+            >
               {CATEGORY_KIND_ORDER.map((kind) => {
                 const kindCodes = categoriesOfKind(categories, kind).map((cat) => cat.code)
                 const isActive = props.multiple
@@ -306,7 +323,8 @@ export function CategoryPicker(props: CategoryPickerProps) {
             </div>
           </>
         )}
-        <div ref={listRef} className={PICKER_LIST_CLASS}>
+        {/* With fitContent, w-0 + min-w-full keeps the list from widening the dropdown */}
+        <div ref={listRef} className={cn(PICKER_LIST_CLASS, fitContent && 'w-0 min-w-full')}>
           {props.multiple && !search && props.leadingRows && (
             <>
               {props.leadingRows}

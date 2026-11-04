@@ -111,7 +111,7 @@ export function ReviewDeck({
       value=""
       onChange={(code) => code && settle(code)}
       trigger={trigger}
-      contentClassName="w-[26rem] max-w-[calc(100vw-2rem)]"
+      fitContent
     />
   )
 

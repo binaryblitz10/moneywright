@@ -73,7 +73,7 @@ export function MerchantGroup({
             value=""
             onChange={(code) => code && onChangeAll(ids, code)}
             contentAlign="end"
-            contentClassName="w-[26rem] max-w-[calc(100vw-2rem)]"
+            fitContent
             trigger={
               <Button size="sm" variant="outline" disabled={isBusy}>
                 <Pencil className="mr-2 h-4 w-4" />

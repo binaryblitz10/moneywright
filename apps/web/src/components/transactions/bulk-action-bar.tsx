@@ -86,7 +86,7 @@ export function BulkActionBar({
             value=""
             placeholder="Categorize"
             triggerClassName="h-8 px-3"
-            contentClassName="w-96"
+            fitContent
             onChange={(category) => {
               if (!category) return
               updateMutation.mutate({ transactionIds, category }, { onSuccess: onClear })
