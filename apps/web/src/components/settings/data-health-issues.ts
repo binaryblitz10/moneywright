@@ -130,6 +130,32 @@ export function collectIssues(report: DataHealthReport): Issue[] {
   return issues
 }
 
+/**
+ * Balance problems of freshly imported statements: one that doesn't add up, one that can't be
+ * checked, or one whose opening doesn't follow the previous statement's closing
+ */
+export function collectImportWarnings(report: DataHealthReport, statementIds: string[]): string[] {
+  const fresh = new Set(statementIds)
+  const warnings: string[] = []
+  for (const account of report.accounts) {
+    for (const rec of account.reconciliation) {
+      if (!fresh.has(rec.statementId)) continue
+      warnings.push(
+        rec.status === 'unverifiable'
+          ? `${rec.filename} can't be checked: its opening or closing balance is missing`
+          : `${rec.filename} doesn't add up: off by ${formatCurrency(Math.abs(rec.difference ?? 0))}`
+      )
+    }
+    for (const brk of account.balanceBreaks) {
+      if (!fresh.has(brk.nextStatementId) && !fresh.has(brk.previousStatementId)) continue
+      warnings.push(
+        `${account.accountName}: balance doesn't carry over on ${formatLongDate(brk.afterDate)} (off by ${formatCurrency(Math.abs(brk.difference))})`
+      )
+    }
+  }
+  return warnings
+}
+
 /** Question to hand Ask Penny so it explains an issue and helps fix it */
 export function buildIssueQuestion(issue: Issue): string {
   return `Explain this data issue and help me fix it: ${issue.label} — ${issue.detail}. Use the data health tool to find the exact transactions or statements involved.`

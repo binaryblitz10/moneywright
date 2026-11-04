@@ -4,8 +4,38 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { autoFixKeys, describeUndo, useCategorizationStatus, useProfileSelection } from '@/hooks'
 import { invalidateTransactionTotals } from '@/hooks/useTransactions'
-import { getAutoFixBatches, undoAutoFixBatch } from '@/lib/api'
+import { collectImportWarnings } from '@/components/settings/data-health-issues'
+import { getAutoFixBatches, getDataHealth, getStatements, undoAutoFixBatch } from '@/lib/api'
 import type { CategorizationStatus } from '@/lib/api'
+
+/** After an import, check the new statements' balances and warn when one doesn't match */
+async function warnAboutBalances(
+  profileId: string | undefined,
+  since: number,
+  openDataHealth: () => void
+): Promise<void> {
+  try {
+    const statements = await getStatements(profileId)
+    const fresh = statements
+      .filter((s) => s.status === 'completed' && new Date(s.createdAt).getTime() >= since)
+      .map((s) => s.id)
+    if (fresh.length === 0) return
+    const warnings = collectImportWarnings(await getDataHealth({ profileId }), fresh)
+    if (warnings.length === 0) return
+    toast.warning(
+      warnings.length === 1
+        ? 'A statement balance does not match'
+        : `${warnings.length} statement balances do not match`,
+      {
+        description: warnings.join('. '),
+        duration: 12_000,
+        action: { label: 'Data health', onClick: openDataHealth },
+      }
+    )
+  } catch {
+    // The check is a courtesy: never block the import message
+  }
+}
 
 /**
  * ProcessingStatus - Shows parsing/categorization status as a small capsule
@@ -38,6 +68,7 @@ export function ProcessingStatus() {
         return
       }
       const since = startedAt.current - 60_000
+      void warnAboutBalances(activeProfileId, since, () => navigate({ to: '/settings' }))
       void getAutoFixBatches(activeProfileId)
         .then((batches) =>
           batches.filter(
