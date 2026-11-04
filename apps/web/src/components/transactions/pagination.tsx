@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
@@ -18,7 +19,10 @@ interface PaginationProps {
   onPageChange: (page: number) => void
 }
 
-type PaginationControlsProps = Pick<PaginationProps, 'page' | 'totalPages' | 'onPageChange'>
+type PaginationControlsProps = Pick<PaginationProps, 'page' | 'totalPages' | 'onPageChange'> & {
+  /** Element scrolled into view when the page changes */
+  scrollTargetRef?: RefObject<HTMLElement | null>
+}
 
 /** "Showing 1 to 25 of 388 transactions" */
 export function PaginationSummary({
@@ -41,15 +45,25 @@ export function PaginationSummary({
   )
 }
 
-/** Previous / page indicator / Next, centred */
-export function Pagination({ page, totalPages, onPageChange }: PaginationControlsProps) {
+/** Previous / page indicator / Next, centred; with `scrollTargetRef` a page change scrolls it into view */
+export function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+  scrollTargetRef,
+}: PaginationControlsProps) {
+  const goTo = (target: number) => {
+    onPageChange(target)
+    scrollTargetRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <div className="flex items-center justify-center">
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onPageChange(page - 1)}
+          onClick={() => goTo(page - 1)}
           disabled={page === 1}
           className="h-8"
         >
@@ -65,7 +79,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationControl
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onPageChange(page + 1)}
+          onClick={() => goTo(page + 1)}
           disabled={page >= totalPages}
           className="h-8"
         >

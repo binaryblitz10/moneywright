@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/ui/page-header'
@@ -119,6 +119,7 @@ function TransactionsPage() {
   const [filters, setFilters] = useState<TransactionFilters>(() => filtersFromSearch(searchParams))
   const [search, setSearch] = useState(searchParams.q ?? '')
   const [page, setPage] = useState(1)
+  const tableRef = useRef<HTMLDivElement>(null)
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [limit, setLimit] = useState(25)
@@ -376,7 +377,13 @@ function TransactionsPage() {
         <TableSkeleton rows={10} columns={4} />
       ) : transactions.length > 0 ? (
         // Dim the previous results while the new ones load
-        <div className={cn('transition-opacity duration-200', transactionsStale && 'opacity-60')}>
+        <div
+          ref={tableRef}
+          className={cn(
+            'scroll-mt-4 transition-opacity duration-200',
+            transactionsStale && 'opacity-60'
+          )}
+        >
           <TransactionTable
             transactions={transactions}
             accounts={accounts || []}
@@ -418,7 +425,12 @@ function TransactionsPage() {
 
       {/* Pagination - bottom of the page, centred */}
       {!transactionsError && !transactionsLoading && transactions.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          scrollTargetRef={tableRef}
+        />
       )}
     </div>
   )
