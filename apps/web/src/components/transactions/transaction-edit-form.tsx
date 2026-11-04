@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, EyeOff, Link2, Plus, Trash2, Unlink } from 'lucide-react'
+import { Loader2, EyeOff, Link2, Plus, Repeat, Trash2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -88,6 +88,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const [summary, setSummary] = useState(single?.summary ?? '')
   const [notes, setNotes] = useState(single?.notes ?? '')
   const [isHidden, setIsHidden] = useState<boolean | null>(single ? single.isHidden : null)
+  const [isSubscription, setIsSubscription] = useState(single?.isSubscription ?? false)
   const [linkedEntityId, setLinkedEntityId] = useState<string | null>(
     single?.linkedEntityId ?? null
   )
@@ -164,6 +165,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       hasMoneyChange ||
       notesChange !== undefined ||
       isHidden !== single.isHidden ||
+      isSubscription !== single.isSubscription ||
       (!cardPanelOwnsLink && linkedEntityId !== (single.linkedEntityId ?? null))
     : hasNameOrCategoryChange || isHidden !== null
 
@@ -272,6 +274,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           category,
           summary: summary || undefined,
           isHidden: isHidden ?? undefined,
+          isSubscription: isSubscription !== single.isSubscription ? isSubscription : undefined,
           notes: notesChange,
           date: dateChange,
           amount: amountChange,
@@ -460,19 +463,33 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           </Collapsible>
         )}
 
-        <ToggleCard
-          id="hide-transaction"
-          className="mt-4"
-          icon={EyeOff}
-          title={single ? 'Hide Transaction' : 'Hide Transactions'}
-          description={
-            isHidden === null
-              ? 'Leave untouched to keep each transaction as it is.'
-              : 'Hidden transactions are excluded from all reports, charts, and calculations.'
-          }
-          checked={isHidden ?? false}
-          onCheckedChange={setIsHidden}
-        />
+        <div className="mt-4 space-y-2">
+          {single && (
+            <ToggleCard
+              compact
+              id="recurring-subscription"
+              icon={Repeat}
+              title="Recurring subscription"
+              description="Tracked on the Subscriptions page."
+              checked={isSubscription}
+              onCheckedChange={setIsSubscription}
+            />
+          )}
+
+          <ToggleCard
+            compact
+            id="hide-transaction"
+            icon={EyeOff}
+            title={single ? 'Hide Transaction' : 'Hide Transactions'}
+            description={
+              isHidden === null
+                ? 'Leave untouched to keep each transaction as it is.'
+                : 'Excluded from all reports, charts and totals.'
+            }
+            checked={isHidden ?? false}
+            onCheckedChange={setIsHidden}
+          />
+        </div>
       </div>
 
       <div

@@ -1031,6 +1031,7 @@ export async function updateTransaction(
     summary?: string
     notes?: string | null
     isHidden?: boolean
+    isSubscription?: boolean
     date?: string
     amount?: number
     type?: 'credit' | 'debit'
@@ -1088,6 +1089,7 @@ export async function bulkUpdateTransactions(data: {
   category?: string
   summary?: string
   isHidden?: boolean
+  isSubscription?: boolean
   /** Mark the current category as correct without changing it */
   confirmCategory?: true
   /** 'rule' marks rows as rule-categorized and records no learning events (default 'user') */
@@ -1098,7 +1100,7 @@ export async function bulkUpdateTransactions(data: {
 }
 
 /**
- * A rule that sets the name and/or category of transactions whose description contains all terms
+ * A rule that sets the name, category and/or account of transactions whose description contains all terms
  */
 export interface TransactionRule {
   id: string
@@ -1109,6 +1111,10 @@ export interface TransactionRule {
   maxAmount: number | null
   name: string | null
   category: string | null
+  /** Account a bank message goes to when it doesn't say which one it belongs to */
+  accountId: string | null
+  /** Matching transactions are tracked as recurring subscriptions */
+  isSubscription: boolean
   matchCount: number
   createdAt: string
   updatedAt: string
@@ -1127,6 +1133,8 @@ export interface TransactionRuleConditions {
 export interface TransactionRuleInput extends TransactionRuleConditions {
   name?: string | null
   category?: string | null
+  accountId?: string | null
+  isSubscription?: boolean
 }
 
 export interface TransactionRulePreview {
@@ -3638,6 +3646,22 @@ export interface SyncedSms {
 export async function getSyncedSms(): Promise<SyncedSms[]> {
   const response = await api.get('/sms-import/messages')
   return response.data.messages
+}
+
+export interface TransactionSmsMessage {
+  sender: string
+  receivedAt: string
+  body: string
+}
+
+/** The bank message a transaction came from; null when its text isn't stored */
+export async function getTransactionSmsMessage(
+  transactionId: string
+): Promise<TransactionSmsMessage | null> {
+  const response = await api.get(
+    `/sms-import/transactions/${encodeURIComponent(transactionId)}/message`
+  )
+  return response.data.message
 }
 
 /** Open System Settings at Full Disk Access (the app's web view cannot open that link itself) */

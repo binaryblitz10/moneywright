@@ -8,6 +8,7 @@ import {
   focusDialogOnOpen,
 } from '@/components/ui/dialog'
 import type { Category, Transaction } from '@/lib/api'
+import { SmsSourceInfo } from './sms-source-info'
 import { TransactionEditForm } from './transaction-edit-form'
 
 interface EditTransactionDialogProps {
@@ -36,7 +37,12 @@ export function EditTransactionDialog({
       >
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Edit Transaction</DialogTitle>
-          <DialogDescription>{transaction?.originalDescription}</DialogDescription>
+          <div className="flex items-center gap-1.5">
+            <DialogDescription>{transaction?.originalDescription}</DialogDescription>
+            {transaction && (transaction.smsSource || transaction.smsVerified) && (
+              <SmsSourceInfo transactionId={transaction.id} />
+            )}
+          </div>
         </DialogHeader>
         {transaction && (
           <TransactionEditForm

@@ -9,6 +9,7 @@ import {
   clearSmsImport,
   getPendingSms,
   getSyncedSms,
+  getTransactionSmsMessage,
   openSmsPermissionSettings,
   importPendingSms,
   dismissPendingSms,
@@ -24,6 +25,8 @@ export const smsImportKeys = {
   status: () => [...smsImportKeys.all, 'status'] as const,
   pending: () => [...smsImportKeys.all, 'pending'] as const,
   messages: () => [...smsImportKeys.all, 'messages'] as const,
+  transactionMessage: (transactionId: string) =>
+    [...smsImportKeys.all, 'transaction-message', transactionId] as const,
 }
 
 /**
@@ -43,6 +46,17 @@ export function usePendingSms(enabled: boolean) {
   return useQuery({
     queryKey: smsImportKeys.pending(),
     queryFn: getPendingSms,
+    enabled,
+  })
+}
+
+/**
+ * The bank message a transaction came from, fetched once enabled
+ */
+export function useTransactionSmsMessage(transactionId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: smsImportKeys.transactionMessage(transactionId),
+    queryFn: () => getTransactionSmsMessage(transactionId),
     enabled,
   })
 }

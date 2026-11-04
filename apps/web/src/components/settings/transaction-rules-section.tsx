@@ -7,12 +7,13 @@
 import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useMutation } from '@tanstack/react-query'
-import { Loader2, Pencil, Plus, Search, Trash2, Wand2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Repeat, Search, Trash2, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ToggleCard } from '@/components/ui/toggle-card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,15 +40,22 @@ import {
 } from '@/components/ui/select'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { TermChipsInput } from '@/components/transactions/term-chips-input'
-import { AmountRangeInput } from '@/components/transactions/amount-range-input'
+import { AccountSelector } from '@/components/ui/account-selector'
+import {
+  AmountModeSelect,
+  AmountRangeError,
+  AmountValueInputs,
+} from '@/components/transactions/amount-range-input'
 import { amountRangeFromLimits, describeAmountLimits, toAmountLimits } from '@/lib/amount-range'
 import {
   bulkUpdateTransactions,
   previewTransactionRule,
+  type Account,
   type Category,
   type TransactionRule,
 } from '@/lib/api'
 import {
+  useAccounts,
   useCategories,
   useTransactionRules,
   useRulePreview,
@@ -60,6 +68,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { transactionRuleKeys } from '@/hooks/useTransactionRules'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import { getCategoryColorClasses } from '@/lib/category-colors'
+import { getAccountShortLabel } from '@/lib/statement-display'
 
 type Direction = 'both' | 'credit' | 'debit'
 
@@ -78,6 +87,11 @@ const ROW_DIRECTION_LABELS: Record<Direction, string> = {
 
 const labelClass = 'text-xs font-medium text-muted-foreground uppercase tracking-wider'
 
+function getAccountLabel(accounts: Account[] | undefined, id: string | null): string | null {
+  const account = id ? accounts?.find((acc) => acc.id === id) : null
+  return account ? getAccountShortLabel(account) : null
+}
+
 function getCategoryLabel(categories: Category[], code: string | null): string | null {
   if (!code) return null
   return categories.find((cat) => cat.code === code)?.label ?? code
@@ -87,6 +101,7 @@ export function TransactionRulesSection() {
   const { data: rules, isLoading } = useTransactionRules()
   const { data: categoriesData } = useCategories()
   const categories = categoriesData?.categories ?? []
+  const { data: accounts } = useAccounts()
   const [editing, setEditing] = useState<TransactionRule | 'new' | null>(null)
   const [applying, setApplying] = useState<TransactionRule | null>(null)
   const [deleting, setDeleting] = useState<TransactionRule | null>(null)
@@ -97,11 +112,15 @@ export function TransactionRulesSection() {
     const query = search.trim().toLowerCase()
     if (!rules || !query) return rules ?? []
     return rules.filter((rule) =>
-      [rule.name, getCategoryLabel(categories, rule.category), ...rule.matchTerms].some((value) =>
-        value?.toLowerCase().includes(query)
-      )
+      [
+        rule.name,
+        getCategoryLabel(categories, rule.category),
+        getAccountLabel(accounts, rule.accountId),
+        rule.isSubscription ? 'Subscription' : null,
+        ...rule.matchTerms,
+      ].some((value) => value?.toLowerCase().includes(query))
     )
-  }, [rules, categories, search])
+  }, [rules, categories, accounts, search])
 
   return (
     <SectionCard
@@ -147,6 +166,7 @@ export function TransactionRulesSection() {
                   key={rule.id}
                   rule={rule}
                   categories={categories}
+                  accounts={accounts}
                   onEdit={() => setEditing(rule)}
                   onApply={() => setApplying(rule)}
                   onDelete={() => setDeleting(rule)}
@@ -162,6 +182,7 @@ export function TransactionRulesSection() {
           key={editing === 'new' ? 'new' : editing.id}
           rule={editing === 'new' ? null : editing}
           categories={categories}
+          accounts={accounts ?? []}
           onClose={() => setEditing(null)}
         />
       )}
@@ -203,14 +224,16 @@ export function TransactionRulesSection() {
 interface RuleRowProps {
   rule: TransactionRule
   categories: Category[]
+  accounts: Account[] | undefined
   onEdit: () => void
   onApply: () => void
   onDelete: () => void
 }
 
-function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) {
+function RuleRow({ rule, categories, accounts, onEdit, onApply, onDelete }: RuleRowProps) {
   const direction: Direction = rule.transactionType ?? 'both'
   const categoryLabel = getCategoryLabel(categories, rule.category)
+  const accountLabel = getAccountLabel(accounts, rule.accountId)
   const amountLabel = describeAmountLimits(rule.minAmount, rule.maxAmount)
 
   return (
@@ -236,6 +259,21 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
             )}
             {categoryLabel ?? 'Keep category'}
           </span>
+          {accountLabel && (
+            <>
+              <span className="text-muted-foreground">·</span>
+              <span>{accountLabel}</span>
+            </>
+          )}
+          {rule.isSubscription && (
+            <>
+              <span className="text-muted-foreground">·</span>
+              <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                <Repeat className="h-3 w-3" />
+                Subscription
+              </span>
+            </>
+          )}
           <span className="text-muted-foreground">·</span>
           <span className="text-muted-foreground">{ROW_DIRECTION_LABELS[direction]}</span>
           {amountLabel && (
@@ -272,7 +310,7 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
           className="h-8 w-8"
           aria-label="Apply to existing transactions"
           title="Apply to existing transactions"
-          disabled={rule.matchCount === 0}
+          disabled={rule.matchCount === 0 || (!rule.name && !rule.category && !rule.isSubscription)}
           onClick={onApply}
         >
           <Wand2 className="h-4 w-4" />
@@ -294,10 +332,11 @@ function RuleRow({ rule, categories, onEdit, onApply, onDelete }: RuleRowProps) 
 interface RuleDialogProps {
   rule: TransactionRule | null
   categories: Category[]
+  accounts: Account[]
   onClose: () => void
 }
 
-function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
+function RuleDialog({ rule, categories, accounts, onClose }: RuleDialogProps) {
   const [terms, setTerms] = useState<string[]>(rule?.matchTerms ?? [])
   const [direction, setDirection] = useState<Direction>(rule?.transactionType ?? 'both')
   const [amountRange, setAmountRange] = useState(() =>
@@ -305,6 +344,8 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
   )
   const [name, setName] = useState(rule?.name ?? '')
   const [category, setCategory] = useState(rule?.category ?? '')
+  const [accountId, setAccountId] = useState<string | null>(rule?.accountId ?? null)
+  const [isSubscription, setIsSubscription] = useState(rule?.isSubscription ?? false)
   const createMutation = useCreateTransactionRule()
   const updateMutation = useUpdateTransactionRule()
 
@@ -319,7 +360,11 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
 
   const trimmedName = name.trim()
   const isPending = createMutation.isPending || updateMutation.isPending
-  const canSave = terms.length > 0 && !!amountLimits && (!!trimmedName || !!category) && !isPending
+  const canSave =
+    terms.length > 0 &&
+    !!amountLimits &&
+    (!!trimmedName || !!category || accountId !== null || isSubscription) &&
+    !isPending
 
   const handleSubmit = () => {
     if (!amountLimits) return
@@ -329,6 +374,8 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
       ...amountLimits,
       name: trimmedName || null,
       category: category || null,
+      accountId: accountId,
+      isSubscription,
     }
     const options = { onSuccess: onClose }
     if (rule) {
@@ -340,15 +387,15 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>{rule ? 'Edit Rule' : 'Add Rule'}</DialogTitle>
           <DialogDescription>
-            Set the name and/or category of transactions that match any term
+            Set the name, category and/or account of transactions that match any term
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="rule-dialog-terms" className={labelClass}>
               Description contains
@@ -356,30 +403,46 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
             <TermChipsInput id="rule-dialog-terms" value={terms} onChange={setTerms} />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="rule-direction" className={labelClass}>
-              Direction
-            </Label>
-            <Select value={direction} onValueChange={(value) => setDirection(value as Direction)}>
-              <SelectTrigger id="rule-direction">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(DIRECTION_LABELS) as Direction[]).map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {DIRECTION_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="rule-direction" className={labelClass}>
+                Direction
+              </Label>
+              <Select value={direction} onValueChange={(value) => setDirection(value as Direction)}>
+                <SelectTrigger id="rule-direction">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(DIRECTION_LABELS) as Direction[]).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {DIRECTION_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rule-amount" className={labelClass}>
+                Amount
+              </Label>
+              <AmountModeSelect
+                id="rule-amount"
+                value={amountRange}
+                onChange={setAmountRange}
+                className="w-full"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="rule-amount" className={labelClass}>
-              Amount
-            </Label>
-            <AmountRangeInput id="rule-amount" value={amountRange} onChange={setAmountRange} />
-          </div>
+          {amountRange.mode !== 'any' && (
+            <div className="-mt-2 space-y-1.5">
+              <div className="flex gap-2">
+                <AmountValueInputs value={amountRange} onChange={setAmountRange} />
+              </div>
+              <AmountRangeError value={amountRange} />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="rule-name" className={labelClass}>
@@ -390,6 +453,25 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Leave empty to keep the name as is"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rule-account" className={labelClass}>
+              Account (optional)
+            </Label>
+            <AccountSelector
+              accounts={accounts.filter((acc) => acc.isActive || acc.id === rule?.accountId)}
+              value={accountId}
+              onValueChange={setAccountId}
+              showAllOption={false}
+              clearLabel="No account"
+              placeholder="Select account"
+              contentClassName="w-(--radix-popover-trigger-width)"
+              triggerClassName={cn(
+                'w-full h-10 rounded-lg bg-background border-input hover:bg-background hover:border-border-hover',
+                accountId === null && 'text-muted-foreground'
+              )}
             />
           </div>
 
@@ -408,9 +490,25 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
             />
           </div>
 
-          {terms.length > 0 && !trimmedName && !category && (
-            <p className="text-xs text-muted-foreground">Set a name or a category to save.</p>
-          )}
+          <ToggleCard
+            compact
+            id="rule-subscription"
+            icon={Repeat}
+            title="Recurring subscription"
+            description="Tracked on the Subscriptions page."
+            checked={isSubscription}
+            onCheckedChange={setIsSubscription}
+          />
+
+          {terms.length > 0 &&
+            !trimmedName &&
+            !category &&
+            accountId === null &&
+            !isSubscription && (
+              <p className="text-xs text-muted-foreground">
+                Set a name, category, account or subscription to save.
+              </p>
+            )}
 
           {terms.length > 0 && amountLimits && (
             <p className="text-sm text-muted-foreground">
@@ -419,7 +517,7 @@ function RuleDialog({ rule, categories, onClose }: RuleDialogProps) {
           )}
         </div>
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex gap-3 px-6 py-4">
           <Button variant="outline" className="flex-1" onClick={onClose}>
             Cancel
           </Button>
@@ -463,6 +561,7 @@ function ApplyRuleDialog({ rule, categories, onClose }: ApplyRuleDialogProps) {
         transactionIds,
         summary: rule.name ?? undefined,
         category: rule.category ?? undefined,
+        isSubscription: rule.isSubscription || undefined,
         source: 'rule',
       })
     },
@@ -478,6 +577,7 @@ function ApplyRuleDialog({ rule, categories, onClose }: ApplyRuleDialogProps) {
   const changes = [
     rule.name && `name to "${rule.name}"`,
     rule.category && `category to ${getCategoryLabel(categories, rule.category)}`,
+    rule.isSubscription && 'subscription flag to on',
   ]
     .filter(Boolean)
     .join(' and ')
