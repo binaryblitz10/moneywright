@@ -49,6 +49,8 @@ interface BankAccountCardProps {
   profiles?: Profile[]
   /** Whether to show profile badge (family view mode) */
   showProfileBadge?: boolean
+  /** Callback when card is clicked to show detail modal */
+  onSelect?: () => void
 }
 
 export function BankAccountCard({
@@ -62,6 +64,7 @@ export function BankAccountCard({
   onRecategorize,
   profiles,
   showProfileBadge,
+  onSelect,
 }: BankAccountCardProps) {
   const [logoError, setLogoError] = useState(false)
   const logoPath = account.institution
@@ -196,10 +199,11 @@ export function BankAccountCard({
   return (
     <div
       className={cn(
-        'relative rounded-xl p-5 border transition-colors',
+        'relative rounded-xl p-5 border transition-colors cursor-pointer',
         'bg-card border-border-subtle hover:border-border-hover',
         !account.isActive && 'opacity-50'
       )}
+      onClick={onSelect}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
@@ -236,59 +240,61 @@ export function BankAccountCard({
           </div>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            {onRecategorize && (
-              <DropdownMenuItem onClick={onRecategorize}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Recategorize
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
               </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+              {onRecategorize && (
+                <DropdownMenuItem onClick={onRecategorize}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Recategorize
                 </DropdownMenuItem>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Account?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will delete all statements and transactions associated with this account.
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={onDelete}
+              )}
+              <DropdownMenuSeparator />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={(e) => e.preventDefault()}
                   >
+                    <Trash2 className="mr-2 h-4 w-4" />
                     Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete all statements and transactions associated with this account.
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={onDelete}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Balance */}

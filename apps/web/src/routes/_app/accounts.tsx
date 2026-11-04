@@ -20,6 +20,7 @@ import {
 } from '@/hooks'
 import {
   BankAccountCard,
+  BankAccountDetailModal,
   CreditCardDisplay,
   CreditCardDetailModal,
   AccountForm,
@@ -72,6 +73,7 @@ function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [recategorizeAccount, setRecategorizeAccount] = useState<Account | null>(null)
   const [selectedCreditCard, setSelectedCreditCard] = useState<Account | null>(null)
+  const [selectedBankAccount, setSelectedBankAccount] = useState<Account | null>(null)
   const countryCode = user?.country?.toLowerCase() || 'in'
   const currencySymbol = user?.country === 'US' ? '$' : user?.country === 'GB' ? '£' : '₹'
 
@@ -238,6 +240,7 @@ function AccountsPage() {
                     onEdit={() => setEditingAccount(account)}
                     onDelete={() => deleteMutation.mutate(account.id)}
                     onRecategorize={() => setRecategorizeAccount(account)}
+                    onSelect={() => setSelectedBankAccount(account)}
                     profiles={profiles}
                     showProfileBadge={showFamilyView}
                   />
@@ -286,6 +289,20 @@ function AccountsPage() {
         currencySymbol={currencySymbol}
         accounts={accounts}
         institutions={institutions}
+      />
+
+      {/* Bank Account Detail Modal */}
+      <BankAccountDetailModal
+        account={selectedBankAccount}
+        onOpenChange={(open) => !open && setSelectedBankAccount(null)}
+        accountTypes={accountTypes || []}
+        countryCode={countryCode}
+        institutionName={
+          selectedBankAccount?.institution
+            ? institutions[selectedBankAccount.institution]
+            : undefined
+        }
+        currencySymbol={currencySymbol}
       />
     </div>
   )

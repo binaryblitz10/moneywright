@@ -2991,6 +2991,14 @@ export async function getCreditCardPaymentHistory(
   return response.data.payments
 }
 
+/**
+ * Get a bank account's average balance over the last 12 months
+ */
+export async function getAverageBalance(accountId: string): Promise<number | null> {
+  const response = await api.get(`/accounts/${accountId}/average-balance`)
+  return response.data.averageBalance
+}
+
 // ============================================
 // Chat API
 // ============================================

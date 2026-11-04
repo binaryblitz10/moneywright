@@ -8,6 +8,7 @@ import {
   updateAccount,
   deleteFinancialAccount,
   getCreditCardPaymentHistory,
+  getAverageBalance,
 } from '@/lib/api'
 
 // Query Keys
@@ -18,6 +19,8 @@ export const accountKeys = {
   types: () => [...accountKeys.all, 'types'] as const,
   paymentHistory: (accountId: string) =>
     [...accountKeys.all, 'payment-history', accountId] as const,
+  averageBalance: (accountId: string) =>
+    [...accountKeys.all, 'average-balance', accountId] as const,
 }
 
 // ============================================
@@ -128,6 +131,14 @@ export function useDeleteAccount(profileId?: string) {
 /**
  * Get credit card payment history
  */
+export function useAverageBalance(accountId: string) {
+  return useQuery({
+    queryKey: accountKeys.averageBalance(accountId),
+    queryFn: () => getAverageBalance(accountId),
+    enabled: !!accountId,
+  })
+}
+
 export function useCreditCardPaymentHistory(accountId: string) {
   return useQuery({
     queryKey: accountKeys.paymentHistory(accountId),

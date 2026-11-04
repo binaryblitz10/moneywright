@@ -34,6 +34,7 @@ export {
   useUpdateAccount,
   useDeleteAccount,
   useCreditCardPaymentHistory,
+  useAverageBalance,
 } from './useAccounts'
 
 // Transaction hooks

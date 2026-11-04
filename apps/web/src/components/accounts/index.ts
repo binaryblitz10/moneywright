@@ -1,4 +1,5 @@
 export { BankAccountCard } from './bank-account-card'
+export { BankAccountDetailModal } from './bank-account-detail-modal'
 export { CreditCardDisplay, CreditCardDetailModal } from './credit-card-display'
 export { InvestmentSourceCard } from './investment-source-card'
 export { AccountForm } from './account-form'
