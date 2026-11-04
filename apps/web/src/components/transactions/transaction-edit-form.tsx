@@ -88,7 +88,9 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
   const [summary, setSummary] = useState(single?.summary ?? '')
   const [notes, setNotes] = useState(single?.notes ?? '')
   const [isHidden, setIsHidden] = useState<boolean | null>(single ? single.isHidden : null)
-  const [isSubscription, setIsSubscription] = useState(single?.isSubscription ?? false)
+  const [isSubscription, setIsSubscription] = useState<boolean | null>(
+    single ? single.isSubscription : null
+  )
   const [linkedEntityId, setLinkedEntityId] = useState<string | null>(
     single?.linkedEntityId ?? null
   )
@@ -167,7 +169,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
       isHidden !== single.isHidden ||
       isSubscription !== single.isSubscription ||
       (!cardPanelOwnsLink && linkedEntityId !== (single.linkedEntityId ?? null))
-    : hasNameOrCategoryChange || isHidden !== null
+    : hasNameOrCategoryChange || isHidden !== null || isSubscription !== null
 
   // Fetch entities based on category - use family view (no profileId filter)
   // to allow linking to any entity the user owns
@@ -274,7 +276,8 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           category,
           summary: summary || undefined,
           isHidden: isHidden ?? undefined,
-          isSubscription: isSubscription !== single.isSubscription ? isSubscription : undefined,
+          isSubscription:
+            isSubscription !== single.isSubscription ? (isSubscription ?? undefined) : undefined,
           notes: notesChange,
           date: dateChange,
           amount: amountChange,
@@ -291,6 +294,7 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
           category: categoryChange,
           summary: summaryChange,
           ...(isHidden !== null && { isHidden }),
+          ...(isSubscription !== null && { isSubscription }),
         })
       }
 
@@ -464,17 +468,19 @@ export function TransactionEditForm(props: TransactionEditFormProps) {
         )}
 
         <div className="mt-4 space-y-2">
-          {single && (
-            <ToggleCard
-              compact
-              id="recurring-subscription"
-              icon={Repeat}
-              title="Recurring subscription"
-              description="Tracked on the Subscriptions page."
-              checked={isSubscription}
-              onCheckedChange={setIsSubscription}
-            />
-          )}
+          <ToggleCard
+            compact
+            id="recurring-subscription"
+            icon={Repeat}
+            title={single ? 'Recurring subscription' : 'Recurring subscriptions'}
+            description={
+              isSubscription === null
+                ? 'Leave untouched to keep each transaction as it is.'
+                : 'Tracked on the Subscriptions page.'
+            }
+            checked={isSubscription ?? false}
+            onCheckedChange={setIsSubscription}
+          />
 
           <ToggleCard
             compact

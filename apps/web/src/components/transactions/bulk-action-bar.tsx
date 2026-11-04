@@ -57,11 +57,11 @@ export function BulkActionBar({
 
   return (
     <div className={FLOATING_BAR_CLASS}>
-      <div className="flex flex-wrap items-center gap-x-3 text-sm">
+      <div className="flex flex-col text-sm leading-tight">
         <span className="font-medium">{count.toLocaleString()} selected</span>
         {allMatchingSelected
           ? totalMatching > 1 && (
-              <span className="text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {filtered ? 'All matching transactions selected' : 'All transactions selected'}
               </span>
             )
@@ -69,7 +69,7 @@ export function BulkActionBar({
               <Button
                 variant="link"
                 size="sm"
-                className="h-auto p-0"
+                className="h-auto justify-start p-0 text-xs"
                 disabled={selectingAll}
                 onClick={onSelectAllMatching}
               >
@@ -80,7 +80,7 @@ export function BulkActionBar({
             )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-full sm:w-44">
+        <div className="w-full sm:w-40">
           <CategoryPicker
             categories={categories}
             value=""
