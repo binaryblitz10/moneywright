@@ -312,7 +312,8 @@ export function MessagesTable({
           <DialogHeader>
             <DialogTitle>Dismissed message</DialogTitle>
             <DialogDescription>
-              {restoring?.sender} · {restoring && new Date(restoring.receivedAt).toLocaleString()}
+              {restoring?.sender} ·{' '}
+              {restoring && new Date(restoring.receivedAt).toLocaleString('en-GB')}
               <br />
               Restore it to review it again and add it as a transaction.
             </DialogDescription>

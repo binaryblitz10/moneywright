@@ -110,7 +110,7 @@ export function SessionsSection({ sessions, isLoading }: SessionsSectionProps) {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Last active: {new Date(session.lastUsedAt).toLocaleDateString()}
+                    Last active: {new Date(session.lastUsedAt).toLocaleDateString('en-GB')}
                   </p>
                 </div>
               </div>

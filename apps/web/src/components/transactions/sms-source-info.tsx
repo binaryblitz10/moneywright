@@ -57,7 +57,7 @@ export function SmsSourceInfo({ transactionId }: SmsSourceInfoProps) {
       >
         <div className="rounded-lg bg-muted/40 p-3">
           <p className="mb-1 text-xs text-muted-foreground">
-            {message.sender} · {new Date(message.receivedAt).toLocaleString()}
+            {message.sender} · {new Date(message.receivedAt).toLocaleString('en-GB')}
           </p>
           <p className="text-sm break-words whitespace-pre-wrap">{message.body}</p>
         </div>

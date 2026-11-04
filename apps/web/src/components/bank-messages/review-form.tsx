@@ -70,7 +70,7 @@ export function ReviewForm({ message, accounts, onDone, onCancel }: ReviewFormPr
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 [mask-image:linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%-1rem),transparent)]">
         <div className="rounded-lg bg-muted/40 p-3">
           <p className="mb-1 text-xs text-muted-foreground">
-            {message.sender} · {new Date(message.receivedAt).toLocaleString()}
+            {message.sender} · {new Date(message.receivedAt).toLocaleString('en-GB')}
           </p>
           <p className="text-sm">{message.body}</p>
         </div>

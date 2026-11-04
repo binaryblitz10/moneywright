@@ -112,7 +112,7 @@ export function glanceHeadline(stats: GlanceStats, pace: MonthPace): string {
 /** e.g. "Oct 12" for a day of a YYYY-MM month */
 export function dayLabel(month: string, day: number): string {
   const [year, monthNum] = month.split('-').map(Number)
-  return new Date(year!, monthNum! - 1, day).toLocaleDateString('en-US', {
+  return new Date(year!, monthNum! - 1, day).toLocaleDateString('en-GB', {
     month: 'short',
     day: 'numeric',
   })
