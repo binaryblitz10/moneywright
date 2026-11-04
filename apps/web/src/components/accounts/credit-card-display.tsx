@@ -35,7 +35,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  focusDialogOnOpen,
+} from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { Account, Profile } from '@/lib/api'
@@ -372,6 +378,15 @@ export function CreditCardDetailModal({
   const totalPaid = paymentHistory?.reduce((sum, p) => sum + p.amount, 0) ?? 0
   const paymentCount = paymentHistory?.length ?? 0
 
+  // Average payment over the last 12 months
+  const twelveMonthsAgo = new Date()
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1)
+  const recentPayments = paymentHistory?.filter((p) => new Date(p.date) >= twelveMonthsAgo) ?? []
+  const avgPayment =
+    recentPayments.length > 0
+      ? recentPayments.reduce((sum, p) => sum + p.amount, 0) / recentPayments.length
+      : null
+
   // Outstanding balance
   const outstandingBalance = account.latestBalance ?? 0
 
@@ -380,6 +395,7 @@ export function CreditCardDetailModal({
       <DialogContent
         className="sm:max-w-xl p-0 gap-0 overflow-hidden max-h-[90vh]"
         showCloseButton={false}
+        onOpenAutoFocus={focusDialogOnOpen}
       >
         {/* Header with gradient background */}
         <div
@@ -524,12 +540,8 @@ export function CreditCardDetailModal({
               />
               <MetricCard
                 icon={TrendingUp}
-                label="Avg. Payment"
-                value={
-                  paymentCount > 0
-                    ? `${currencySymbol}${formatAmount(totalPaid / paymentCount)}`
-                    : '—'
-                }
+                label="Avg. Payment (12m)"
+                value={avgPayment !== null ? `${currencySymbol}${formatAmount(avgPayment)}` : '—'}
                 iconColor="text-orange-500"
                 iconBg="bg-orange-500/10"
               />
@@ -658,7 +670,7 @@ export function CreditCardDetailModal({
 }
 
 // Metric Card Component
-function MetricCard({
+export function MetricCard({
   icon: Icon,
   label,
   value,
