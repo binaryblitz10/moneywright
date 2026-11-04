@@ -33,8 +33,8 @@ function DropdownMenuContent({
         className={cn(
           // Base styles
           'z-50 min-w-32 overflow-hidden rounded-xl p-1.5',
-          'bg-surface-elevated border border-border-subtle',
-          'shadow-lg shadow-black/10 dark:shadow-black/30',
+          'bg-popover dark:bg-background border border-border-hover',
+          'shadow-2xl shadow-black/15 dark:shadow-black/60',
           // Animations
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
@@ -73,13 +73,13 @@ function DropdownMenuItem({
       data-variant={variant}
       className={cn(
         // Base styles
-        'relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium',
+        'relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-foreground/85',
         'outline-none select-none transition-colors',
         // Icon styles
         "[&_svg:not([class*='text-'])]:text-muted-foreground",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         // States
-        'focus:bg-surface-hover focus:text-foreground',
+        'focus:bg-foreground/[0.08] focus:text-foreground',
         'data-disabled:pointer-events-none data-disabled:opacity-50',
         // Variants
         'data-[variant=destructive]:text-destructive',
@@ -105,9 +105,9 @@ function DropdownMenuCheckboxItem({
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       className={cn(
-        'relative flex cursor-default items-center gap-2 rounded-lg py-2 pr-2.5 pl-8 text-sm font-medium',
+        'relative flex cursor-default items-center gap-2 rounded-lg py-2 pr-2.5 pl-8 text-sm text-foreground/85',
         'outline-none select-none transition-colors',
-        'focus:bg-surface-hover focus:text-foreground',
+        'focus:bg-foreground/[0.08] focus:text-foreground',
         'data-disabled:pointer-events-none data-disabled:opacity-50',
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
@@ -140,9 +140,9 @@ function DropdownMenuRadioItem({
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       className={cn(
-        'relative flex cursor-default items-center gap-2 rounded-lg py-2 pr-2.5 pl-8 text-sm font-medium',
+        'relative flex cursor-default items-center gap-2 rounded-lg py-2 pr-2.5 pl-8 text-sm text-foreground/85',
         'outline-none select-none transition-colors',
-        'focus:bg-surface-hover focus:text-foreground',
+        'focus:bg-foreground/[0.08] focus:text-foreground',
         'data-disabled:pointer-events-none data-disabled:opacity-50',
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
@@ -171,7 +171,7 @@ function DropdownMenuLabel({
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
-        'px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider',
+        'px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70',
         'data-inset:pl-8',
         className
       )}
@@ -220,10 +220,10 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        'flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium',
+        'flex cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-foreground/85',
         'outline-none select-none transition-colors',
-        'focus:bg-surface-hover focus:text-foreground',
-        'data-[state=open]:bg-surface-hover data-[state=open]:text-foreground',
+        'focus:bg-foreground/[0.08] focus:text-foreground',
+        'data-[state=open]:bg-foreground/[0.08] data-[state=open]:text-foreground',
         "[&_svg:not([class*='text-'])]:text-muted-foreground",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         'data-inset:pl-8',
@@ -246,8 +246,8 @@ function DropdownMenuSubContent({
       data-slot="dropdown-menu-sub-content"
       className={cn(
         'z-50 min-w-32 overflow-hidden rounded-xl p-1.5',
-        'bg-surface-elevated border border-border-subtle',
-        'shadow-lg shadow-black/10 dark:shadow-black/30',
+        'bg-popover dark:bg-background border border-border-hover',
+        'shadow-2xl shadow-black/15 dark:shadow-black/60',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
