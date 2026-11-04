@@ -191,6 +191,11 @@ function TransactionsPage() {
     setSelectionMode((on) => !on)
   }
 
+  const startSelectionWith = (transactionId: string) => {
+    setSelectedIds(new Set([transactionId]))
+    setSelectionMode(true)
+  }
+
   const clearFilters = () => {
     setSelectedIds(new Set())
     setFilters({})
@@ -387,6 +392,7 @@ function TransactionsPage() {
             showProfileBadge={showFamilyView}
             selectedIds={selectionMode ? selectedIds : undefined}
             onSelectionChange={selectionMode ? setSelectedIds : undefined}
+            onStartSelection={selectionMode ? undefined : startSelectionWith}
           />
         </div>
       ) : (

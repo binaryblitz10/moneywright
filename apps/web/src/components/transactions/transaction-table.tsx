@@ -51,6 +51,8 @@ interface TransactionTableProps {
   /** IDs of selected transactions (enables the selection column) */
   selectedIds?: Set<string>
   onSelectionChange?: (selectedIds: Set<string>) => void
+  /** Called when a row is cmd/ctrl-clicked while selection is off, to turn selection on with that row */
+  onStartSelection?: (transactionId: string) => void
   /** Renders a full-width heading row above a transaction; return null for no heading */
   renderGroupHeader?: (transaction: Transaction, index: number) => ReactNode
   /** Extra badge shown after the name and category; return null for none */
@@ -153,6 +155,7 @@ export function TransactionTable({
   showProfileBadge,
   selectedIds,
   onSelectionChange,
+  onStartSelection,
   renderGroupHeader,
   renderBadge,
   isEditable,
@@ -223,6 +226,15 @@ export function TransactionTable({
     }
     anchorIdRef.current = id
     onSelectionChange(next)
+  }
+
+  // Cmd/Ctrl-click on a row while selection is off starts selecting with that row
+  const handlePlainRowClick = (e: MouseEvent, txn: Transaction, canEdit: boolean) => {
+    if ((e.metaKey || e.ctrlKey) && onStartSelection) {
+      if (!isSelectable || isSelectable(txn)) onStartSelection(txn.id)
+    } else if (canEdit) {
+      onEditTransaction(txn)
+    }
   }
 
   const togglePage = (checked: boolean) => {
@@ -390,8 +402,8 @@ export function TransactionTable({
                   onClick={
                     rowClickSelects
                       ? (e) => handleRowClick(e, index)
-                      : canEdit
-                        ? () => onEditTransaction(txn)
+                      : canEdit || onStartSelection
+                        ? (e) => handlePlainRowClick(e, txn, canEdit)
                         : undefined
                   }
                   // Stop shift-click from highlighting text while range selecting
@@ -518,8 +530,8 @@ export function TransactionTable({
               onClick={
                 rowClickSelects
                   ? (e) => handleRowClick(e, index)
-                  : canEdit
-                    ? () => onEditTransaction(txn)
+                  : canEdit || onStartSelection
+                    ? (e) => handlePlainRowClick(e, txn, canEdit)
                     : undefined
               }
             >
