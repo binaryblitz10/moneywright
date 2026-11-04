@@ -20,6 +20,8 @@ function rule(overrides: Partial<RuleForMatching>): RuleForMatching {
     maxAmount: null,
     name: null,
     category: null,
+    accountId: null,
+    isSubscription: false,
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   }
@@ -35,6 +37,13 @@ describe('normalizeTerms', () => {
 })
 
 describe('termMatches', () => {
+  test('a term starting with a symbol matches right after a letter or digit', () => {
+    const upi = 'UPI/P2A/657825578470/sagarsinghvi9@okaxis /Reg Li/AXIS BANK'
+    expect(termMatches('@okaxis', upi)).toBe(true)
+    expect(termMatches('@okaxi', upi)).toBe(false)
+    expect(termMatches('okaxi', upi)).toBe(false)
+  })
+
   test('one-word term matches a whole word, ignoring case', () => {
     expect(termMatches('uber', UBER)).toBe(true)
     expect(termMatches('Zerodha', ZERODHA)).toBe(true)
@@ -141,6 +150,37 @@ describe('resolveRuleFields', () => {
       name: 'Uber',
       category: 'transport',
     })
+  })
+
+  test('resolves the account like the other fields', () => {
+    const rules = [
+      rule({ matchTerms: ['uber', 'lyft'], accountId: 'card', category: 'transport' }),
+      rule({ matchTerms: ['uber'], accountId: 'bank' }),
+      rule({ matchTerms: ['uber'], name: 'Uber' }),
+    ]
+    expect(resolveRuleFields(rules, txn)).toEqual({
+      name: 'Uber',
+      category: 'transport',
+      accountId: 'bank',
+    })
+  })
+
+  test('leaves the account out when no matching rule sets one', () => {
+    expect(resolveRuleFields([rule({ category: 'transport' })], txn)).toEqual({
+      category: 'transport',
+    })
+  })
+
+  test('marks a subscription when any matching rule sets the flag', () => {
+    const rules = [
+      rule({ matchTerms: ['uber', 'lyft'], isSubscription: true }),
+      rule({ matchTerms: ['uber'], name: 'Uber' }),
+    ]
+    expect(resolveRuleFields(rules, txn)).toEqual({ name: 'Uber', isSubscription: true })
+  })
+
+  test('leaves the flag out when no matching rule sets it', () => {
+    expect(resolveRuleFields([rule({ name: 'Uber' })], txn)).toEqual({ name: 'Uber' })
   })
 
   test('a rule with amount limits wins over one without when the term count is equal', () => {

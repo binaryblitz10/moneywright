@@ -13,8 +13,9 @@ import { findUserById } from './user'
 
 /**
  * Transaction rules service
- * Rules set the name and/or category of transactions whose description contains any of their terms,
- * optionally limited to one direction and an amount range
+ * Rules set the name, category, account and/or subscription flag of transactions whose description contains any of their terms,
+ * optionally limited to one direction and an amount range.
+ * The account is only used for imported messages that matched no account
  */
 
 /** Terms must add up to at least this many characters so a rule can't match everything */
@@ -32,6 +33,8 @@ export interface TransactionRule {
   maxAmount: number | null
   name: string | null
   category: string | null
+  accountId: string | null
+  isSubscription: boolean
   matchCount: number
   createdAt: string
   updatedAt: string
@@ -44,6 +47,8 @@ export interface RuleInput {
   maxAmount?: number | null
   name?: string | null
   category?: string | null
+  accountId?: string | null
+  isSubscription?: boolean
 }
 
 /** What a rule matches on, as used for previews */
@@ -90,6 +95,8 @@ function toParsedRule(row: TransactionRuleRow): ParsedRule {
     maxAmount: parseAmountLimit(row.maxAmount),
     name: row.name,
     category: row.category,
+    accountId: row.accountId,
+    isSubscription: row.isSubscription,
     updatedAt: row.updatedAt,
   }
 }
@@ -108,6 +115,8 @@ function toResponse(row: TransactionRuleRow, matchCount: number): TransactionRul
     maxAmount: rule.maxAmount,
     name: rule.name,
     category: rule.category,
+    accountId: rule.accountId,
+    isSubscription: rule.isSubscription,
     matchCount,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
@@ -132,6 +141,21 @@ async function validateCategory(userId: string, category: string): Promise<void>
   if (!getCategoriesForCountry(countryCode).some((c) => c.code === category)) {
     throw new RuleValidationError('Unknown category')
   }
+}
+
+async function validateAccount(userId: string, accountId: string): Promise<void> {
+  const [account] = await db
+    .select({ id: tables.accounts.id })
+    .from(tables.accounts)
+    .where(
+      and(
+        eq(tables.accounts.id, accountId),
+        eq(tables.accounts.userId, userId),
+        eq(tables.accounts.isActive, true)
+      )
+    )
+    .limit(1)
+  if (!account) throw new RuleValidationError('Unknown account')
 }
 
 /**
@@ -220,6 +244,8 @@ async function prepareRule(
   maxAmount: string | null
   name: string | null
   category: string | null
+  accountId: string | null
+  isSubscription: boolean
 }> {
   const terms = normalizeTerms(input.matchTerms)
   if (terms.length === 0 || !hasEnoughTerms(terms)) {
@@ -228,10 +254,14 @@ async function prepareRule(
 
   const name = blankToNull(input.name)
   const category = blankToNull(input.category)
-  if (!name && !category) {
-    throw new RuleValidationError('A rule must set a name or a category')
+  const accountId = input.accountId
+  if (!name && !category && !accountId && !input.isSubscription) {
+    throw new RuleValidationError(
+      'A rule must set a name, a category, an account or mark subscriptions'
+    )
   }
   if (category) await validateCategory(userId, category)
+  if (accountId) await validateAccount(userId, accountId)
 
   const { minAmount, maxAmount } = input
   if ((minAmount !== null && minAmount < 0) || (maxAmount !== null && maxAmount < 0)) {
@@ -248,6 +278,8 @@ async function prepareRule(
     maxAmount: toDbAmount(maxAmount),
     name,
     category,
+    accountId,
+    isSubscription: input.isSubscription,
   }
 }
 
@@ -262,6 +294,8 @@ export async function createRule(userId: string, input: RuleInput): Promise<Tran
     maxAmount: input.maxAmount ?? null,
     name: input.name ?? null,
     category: input.category ?? null,
+    accountId: input.accountId ?? null,
+    isSubscription: input.isSubscription ?? false,
   })
 
   // Set explicitly (with milliseconds) so rules created within the same second still sort correctly
@@ -274,7 +308,7 @@ export async function createRule(userId: string, input: RuleInput): Promise<Tran
 }
 
 /**
- * Update a rule. Omitted fields keep their value; null or empty clears name/category.
+ * Update a rule. Omitted fields keep their value; null or empty clears name/category, null clears the account.
  * Returns null when the rule doesn't exist for this user.
  */
 export async function updateRule(
@@ -298,6 +332,8 @@ export async function updateRule(
     maxAmount: input.maxAmount !== undefined ? input.maxAmount : current.maxAmount,
     name: input.name !== undefined ? input.name : current.name,
     category: input.category !== undefined ? input.category : current.category,
+    accountId: input.accountId !== undefined ? input.accountId : current.accountId,
+    isSubscription: input.isSubscription ?? current.isSubscription,
   })
 
   const now = dbType === 'postgres' ? new Date() : new Date().toISOString()

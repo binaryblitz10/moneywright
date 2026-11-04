@@ -856,6 +856,8 @@ export const transactionRules = sqliteTable(
     // Values applied to matching transactions
     name: text('name'),
     category: text('category'),
+    accountId: text('account_id').references(() => accounts.id, { onDelete: 'set null' }), // used when a message has no account
+    isSubscription: integer('is_subscription', { mode: 'boolean' }).notNull().default(false), // marks matching transactions as subscriptions
 
     createdAt: text('created_at')
       .notNull()

@@ -1,0 +1,2 @@
+ALTER TABLE "transaction_rules" ADD COLUMN "account_id" varchar(21);--> statement-breakpoint
+ALTER TABLE "transaction_rules" ADD CONSTRAINT "transaction_rules_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;

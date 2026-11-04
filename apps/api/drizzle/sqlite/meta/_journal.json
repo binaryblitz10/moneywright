@@ -127,6 +127,20 @@
       "when": 1793637423407,
       "tag": "0017_chief_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793803279340,
+      "tag": "0018_perfect_warstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793807070350,
+      "tag": "0019_new_bastion",
+      "breakpoints": true
     }
   ]
 }

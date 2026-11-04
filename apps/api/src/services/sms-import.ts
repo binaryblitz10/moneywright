@@ -264,10 +264,16 @@ async function accountFromSenderHistory(userId: string, sender: string): Promise
   return account ?? null
 }
 
-/** Name and category for a merchant from the user's transaction rules */
+/** What rules match against: the merchant and the message text, so a rule can key on either */
+function ruleDescription(merchant: string, body: string): string {
+  return `${merchant} ${body}`
+}
+
+/** Name and category for a message from the user's transaction rules */
 async function resolveNaming(
   userId: string,
   merchant: string,
+  body: string,
   type: 'credit' | 'debit',
   amount: number
 ): Promise<{
@@ -275,14 +281,20 @@ async function resolveNaming(
   category: string
   ruleMatched: boolean
   nameRuleMatched: boolean
+  isSubscription: boolean
 }> {
   const rules = await getRulesForUser(userId)
-  const fields = resolveRuleFields(rules, { description: merchant, type, amount })
+  const fields = resolveRuleFields(rules, {
+    description: ruleDescription(merchant, body),
+    type,
+    amount,
+  })
   return {
     summary: fields.name ?? merchant,
     category: fields.category ?? 'other',
     ruleMatched: fields.category !== undefined,
     nameRuleMatched: fields.name !== undefined,
+    isSubscription: fields.isSubscription ?? false,
   }
 }
 
@@ -295,19 +307,29 @@ interface ImportedRef {
 }
 
 /**
- * Create the transaction. With AI on it is left uncategorized (the categorizer applies the user's
- * rules and then the AI afterwards, exactly like a statement import); with AI off it is named and
- * categorized from the user's rules only.
+ * Create the transaction. Rules are matched against the merchant and the message text. With AI on
+ * it is left uncategorized unless a rule sets both name and category (the categorizer then applies
+ * the rules on the merchant and the AI afterwards, like a statement import); with AI off it is
+ * named and categorized from the user's rules only. A rule's subscription flag is kept either way.
  */
 async function importTransaction(
   userId: string,
   guid: string,
   input: SmsImportInput,
+  body: string,
   useAi: boolean
 ): Promise<ImportedRef> {
-  const naming = useAi
-    ? { summary: null, category: 'other', ruleMatched: false, nameRuleMatched: false }
-    : await resolveNaming(userId, input.merchant, input.type, input.amount)
+  const ruled = await resolveNaming(userId, input.merchant, body, input.type, input.amount)
+  const naming =
+    useAi && !(ruled.ruleMatched && ruled.nameRuleMatched)
+      ? {
+          summary: null,
+          category: 'other',
+          ruleMatched: false,
+          nameRuleMatched: false,
+          isSubscription: ruled.isSubscription,
+        }
+      : ruled
   const created = await createSmsTransaction(userId, {
     accountId: input.accountId,
     guid,
@@ -440,6 +462,7 @@ async function recordImported(
     sender: message.sender,
     receivedAt: (dbType === 'postgres' ? new Date(message.receivedAt) : message.receivedAt) as Date,
     status: 'imported',
+    body: encrypt(message.body),
     accountId,
     transactionId,
     ...reviewValues(parsed),
@@ -518,6 +541,34 @@ interface MessageResult {
   imported?: ImportedRef
 }
 
+/** The account a transaction rule names for this message, for when no account was matched */
+async function accountFromRules(
+  userId: string,
+  parsed: ParsedSms,
+  body: string
+): Promise<Account | null> {
+  if (!parsed.merchant || !parsed.type || parsed.amount === null) return null
+  const { accountId } = resolveRuleFields(await getRulesForUser(userId), {
+    description: ruleDescription(parsed.merchant, body),
+    type: parsed.type,
+    amount: parsed.amount,
+  })
+  if (!accountId) return null
+
+  const [account] = await db
+    .select()
+    .from(tables.accounts)
+    .where(
+      and(
+        eq(tables.accounts.id, accountId),
+        eq(tables.accounts.userId, userId),
+        eq(tables.accounts.isActive, true)
+      )
+    )
+    .limit(1)
+  return account ?? null
+}
+
 async function processMessage(
   userId: string,
   message: IncomingMessage,
@@ -536,10 +587,13 @@ async function processMessage(
   const parsed = await parseMessage(message.body, aiParsing, fromVendor)
   if (!parsed) return { outcome: 'ignored' }
 
-  const complete = toCompleteSms(parsed)
-  const account = parsed.last4
+  const matched = parsed.last4
     ? await matchAccount(userId, parsed.last4, `${message.sender} ${message.body}`)
     : await accountFromSenderHistory(userId, message.sender)
+  const ruled = matched ? null : await accountFromRules(userId, parsed, message.body)
+  const account = matched ?? ruled
+  // A rule names the account itself, so a message without card digits is still complete
+  const complete = toCompleteSms(parsed, !ruled)
 
   // Without digits there is no sign the account is unknown, so a bank's message waits in review
   const unplacedBankMessage = !parsed.last4 && trust === 'bank'
@@ -565,6 +619,7 @@ async function processMessage(
       type: complete.type,
       merchant: complete.merchant,
     },
+    message.body,
     useAi
   )
   await recordImported(userId, message, parsed, account.id, created.transactionId)
@@ -709,6 +764,31 @@ export async function listPendingSms(userId: string): Promise<PendingSms[]> {
   }))
 }
 
+/** The bank message behind a transaction, when its text was kept (older imports have none) */
+export async function getMessageForTransaction(
+  userId: string,
+  transactionId: string
+): Promise<{ sender: string; receivedAt: string; body: string } | null> {
+  const [row] = await db
+    .select()
+    .from(tables.smsMessages)
+    .where(
+      and(
+        eq(tables.smsMessages.userId, userId),
+        eq(tables.smsMessages.transactionId, transactionId),
+        inArray(tables.smsMessages.status, ['imported', 'verified']),
+        isNotNull(tables.smsMessages.body)
+      )
+    )
+    .limit(1)
+  if (!row?.body) return null
+  return {
+    sender: row.sender,
+    receivedAt: new Date(row.receivedAt).toISOString(),
+    body: decrypt(row.body),
+  }
+}
+
 const MAX_LISTED_MESSAGES = 500
 /** Messages that are done (imported, verified, dismissed) stay listed this long; keep in step with the page text */
 const LISTED_DAYS = 14
@@ -835,12 +915,17 @@ export async function importPendingSms(
   if (!row) return false
 
   const useAi = await aiCategorizationAvailable(userId)
-  const created = await importTransaction(userId, row.guid, input, useAi)
+  const created = await importTransaction(
+    userId,
+    row.guid,
+    input,
+    row.body ? decrypt(row.body) : '',
+    useAi
+  )
   await db
     .update(tables.smsMessages)
     .set({
       status: 'imported',
-      body: null,
       accountId: input.accountId,
       transactionId: created.transactionId,
       updatedAt: nowValue(),

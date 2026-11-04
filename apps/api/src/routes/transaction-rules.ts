@@ -25,6 +25,8 @@ const ruleSchema = z.object({
   maxAmount: amountSchema,
   name: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
+  accountId: z.string().nullable().optional(),
+  isSubscription: z.boolean().optional(),
 })
 
 const updateRuleSchema = ruleSchema.partial()

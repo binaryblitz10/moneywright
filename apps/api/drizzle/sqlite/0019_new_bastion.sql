@@ -1,0 +1,1 @@
+ALTER TABLE `transaction_rules` ADD `is_subscription` integer DEFAULT false NOT NULL;

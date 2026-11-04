@@ -6,7 +6,7 @@
  * Supports streaming mode with mini-batches for real-time updates
  */
 
-import { eq, inArray, and, isNull } from 'drizzle-orm'
+import { eq, inArray, and, isNull, sql } from 'drizzle-orm'
 import { createLLMClientFromSettings, LLM_TIMEOUT_MS, type LLMClientResult } from '../../llm'
 import {
   getCategoriesForCountry,
@@ -335,7 +335,9 @@ async function updateTransactionCategory(cat: LabeledCategorization): Promise<bo
       categoryConfidence: cat.confidence.toString(),
       summary,
       nameVersion: NAME_VERSION,
-      isSubscription: cat.isSubscription,
+      // A rule may already have flagged the row: the categorizer only turns the flag on
+      isSubscription:
+        cat.isSubscription || sql`coalesce(${tables.transactions.isSubscription}, false)`,
       updatedAt: now as Date,
     })
     .where(eq(tables.transactions.id, cat.id))
@@ -354,6 +356,7 @@ async function updateTransactionCategory(cat: LabeledCategorization): Promise<bo
 interface RuleOverride {
   name?: string
   category?: string
+  isSubscription?: true
 }
 
 /**
@@ -398,10 +401,10 @@ async function applyRules(
     const name = fields.name
     const category =
       fields.category && validCategories.includes(fields.category) ? fields.category : undefined
-    if (!name && !category) continue
+    if (!name && !category && !fields.isSubscription) continue
 
     if (!name || !category) {
-      overrides.set(txn.id, { name, category })
+      overrides.set(txn.id, { name, category, isSubscription: fields.isSubscription })
       continue
     }
 
@@ -412,7 +415,7 @@ async function applyRules(
         category,
         confidence: 1,
         summary: name,
-        isSubscription: subscriptionNames.has(name),
+        isSubscription: fields.isSubscription ?? subscriptionNames.has(name),
         categorySource: 'rule',
         nameSource: 'rule',
       })
@@ -450,7 +453,7 @@ async function applyMemory(
         category: override?.category ?? resolved.category,
         confidence: resolved.confidence,
         summary: override?.name ?? resolved.name,
-        isSubscription: resolved.isSubscription,
+        isSubscription: override?.isSubscription || resolved.isSubscription,
         categorySource: override?.category ? 'rule' : 'memory',
         nameSource: override?.name ? 'rule' : 'memory',
       })
@@ -738,6 +741,7 @@ async function runCategorizationPass(
           confidence,
           category: override?.category ?? cat.category,
           summary: override?.name ?? cat.summary,
+          isSubscription: cat.isSubscription || !!override?.isSubscription,
           categorySource: override?.category ? 'rule' : 'ai',
           nameSource: override?.name ? 'rule' : 'ai',
         })

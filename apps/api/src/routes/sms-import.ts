@@ -8,6 +8,7 @@ import {
   takeUnlockSyncResult,
   listPendingSms,
   listSyncedSms,
+  getMessageForTransaction,
   clearSyncedSms,
   openFullDiskAccessSettings,
   importPendingSms,
@@ -131,6 +132,15 @@ smsImportRoutes.get('/messages', async (c) => {
 smsImportRoutes.get('/pending', async (c) => {
   const messages = await listPendingSms(c.get('userId'))
   return c.json({ messages })
+})
+
+/**
+ * GET /sms-import/transactions/:transactionId/message - the bank message behind a transaction,
+ * or null when none was kept
+ */
+smsImportRoutes.get('/transactions/:transactionId/message', async (c) => {
+  const message = await getMessageForTransaction(c.get('userId'), c.req.param('transactionId'))
+  return c.json({ message })
 })
 
 /**

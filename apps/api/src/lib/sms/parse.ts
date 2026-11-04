@@ -18,7 +18,7 @@ export interface CompleteSms {
   amount: number
   currency: string
   type: 'credit' | 'debit'
-  last4: string
+  last4: string | null
   merchant: string
 }
 
@@ -186,9 +186,13 @@ export function parseSms(text: string): ParsedSms {
   }
 }
 
-/** The parsed fields as a complete record, or null when any of them is missing */
-export function toCompleteSms(parsed: ParsedSms): CompleteSms | null {
+/**
+ * The parsed fields as a complete record, or null when any of them is missing. The card digits are
+ * required unless the account is known by other means.
+ */
+export function toCompleteSms(parsed: ParsedSms, requireLast4 = true): CompleteSms | null {
   const { amount, currency, type, last4, merchant } = parsed
-  if (amount === null || !currency || !type || !last4 || !merchant) return null
+  if (amount === null || !currency || !type || !merchant) return null
+  if (requireLast4 && !last4) return null
   return { amount, currency, type, last4, merchant }
 }

@@ -15,6 +15,8 @@ export interface RuleForMatching {
   maxAmount: number | null
   name: string | null
   category: string | null
+  accountId: string | null
+  isSubscription: boolean
   updatedAt: string | Date
 }
 
@@ -60,11 +62,14 @@ export function normalizeTerms(terms: string[]): string[] {
 
 /**
  * Regex for a term: its words in order, separated by non-alphanumeric characters.
- * Every word must be a whole word, so "ola" does not match "COCA COLA".
+ * A term's edge that is a letter or digit must sit on a word edge, so "ola" does not match
+ * "COCA COLA". An edge that is a symbol ("@okaxis") has nothing to guard and matches anywhere.
  */
 function buildTermRegex(term: string): RegExp {
   const body = term.split(' ').map(escapeRegExp).join(`${NOT_WORD_CHAR}+`)
-  return new RegExp(`(?<!${WORD_CHAR})${body}(?!${WORD_CHAR})`, 'iu')
+  const before = new RegExp(`^${WORD_CHAR}`, 'u').test(term) ? `(?<!${WORD_CHAR})` : ''
+  const after = new RegExp(`${WORD_CHAR}$`, 'u').test(term) ? `(?!${WORD_CHAR})` : ''
+  return new RegExp(`${before}${body}${after}`, 'iu')
 }
 
 /**
@@ -130,19 +135,21 @@ function compareSpecificity(a: RuleForMatching, b: RuleForMatching): number {
 }
 
 /**
- * Resolve the name and category for a transaction from all matching rules.
- * Each field comes from the most specific matching rule that sets it.
+ * Resolve the name, category, account and subscription flag for a transaction from all matching rules.
+ * Each field comes from the most specific matching rule that sets it; the flag is only ever turned on.
  */
 export function resolveRuleFields(
   rules: RuleForMatching[],
   txn: TransactionForRule
-): { name?: string; category?: string } {
+): { name?: string; category?: string; accountId?: string; isSubscription?: true } {
   const matching = rules.filter((rule) => ruleMatches(rule, txn)).sort(compareSpecificity)
 
-  const result: { name?: string; category?: string } = {}
+  const result: { name?: string; category?: string; accountId?: string; isSubscription?: true } = {}
   for (const rule of matching) {
     if (result.name === undefined && rule.name) result.name = rule.name
     if (result.category === undefined && rule.category) result.category = rule.category
+    if (result.accountId === undefined && rule.accountId) result.accountId = rule.accountId
+    if (rule.isSubscription) result.isSubscription = true
   }
   return result
 }

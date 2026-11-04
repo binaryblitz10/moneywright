@@ -62,6 +62,7 @@ const updateTransactionSchema = z.object({
   summary: z.string().optional(),
   notes: z.string().max(2000).nullable().optional(),
   isHidden: z.boolean().optional(),
+  isSubscription: z.boolean().optional(),
   date: transactionDateSchema.optional(),
   amount: transactionAmountSchema.optional(),
   type: transactionTypeSchema.optional(),
@@ -99,6 +100,7 @@ const bulkUpdateSchema = z
       .optional(),
     summary: z.string().optional(),
     isHidden: z.boolean().optional(),
+    isSubscription: z.boolean().optional(),
     confirmCategory: z.literal(true).optional(),
     // 'rule' marks a rule applied to existing rows: sources become 'rule' and no events are logged
     source: z.enum(['user', 'rule']).optional(),
@@ -108,6 +110,7 @@ const bulkUpdateSchema = z
       data.category !== undefined ||
       data.summary !== undefined ||
       data.isHidden !== undefined ||
+      data.isSubscription !== undefined ||
       data.confirmCategory !== undefined,
     { message: 'Nothing to update' }
   )

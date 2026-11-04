@@ -1,0 +1,1 @@
+ALTER TABLE "transaction_rules" ADD COLUMN "is_subscription" boolean DEFAULT false NOT NULL;

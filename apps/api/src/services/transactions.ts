@@ -495,6 +495,7 @@ export async function updateTransaction(
     summary?: string
     notes?: string | null
     isHidden?: boolean
+    isSubscription?: boolean
     date?: string
     amount?: number
     type?: 'credit' | 'debit'
@@ -539,6 +540,10 @@ export async function updateTransaction(
 
   if (data.isHidden !== undefined) {
     updateData.isHidden = data.isHidden
+  }
+
+  if (data.isSubscription !== undefined) {
+    updateData.isSubscription = data.isSubscription
   }
 
   if (data.notes !== undefined) {
@@ -754,6 +759,8 @@ export async function createSmsTransaction(
     ruleMatched: boolean
     /** A transaction rule chose the name */
     nameRuleMatched?: boolean
+    /** A transaction rule marked it as a subscription */
+    isSubscription?: boolean
   }
 ): Promise<TransactionResponse> {
   const account = await getAccountByIdRaw(data.accountId, userId)
@@ -785,6 +792,7 @@ export async function createSmsTransaction(
       categoryConfidence: data.ruleMatched
         ? ('1.00' as unknown as Transaction['categoryConfidence'])
         : null,
+      isSubscription: data.isSubscription ?? false,
       hash: `sms:${data.guid}`,
       createdAt: now as Date,
       updatedAt: now as Date,
@@ -810,7 +818,13 @@ export async function createSmsTransaction(
 export async function bulkUpdateTransactions(
   transactionIds: string[],
   userId: string,
-  data: { category?: string; summary?: string; isHidden?: boolean; confirmCategory?: boolean },
+  data: {
+    category?: string
+    summary?: string
+    isHidden?: boolean
+    isSubscription?: boolean
+    confirmCategory?: boolean
+  },
   options: { source?: 'user' | 'rule' } = {}
 ): Promise<number> {
   const source = options.source ?? 'user'
@@ -876,6 +890,9 @@ export async function bulkUpdateTransactions(
   }
   if (data.isHidden !== undefined) {
     updateData.isHidden = data.isHidden
+  }
+  if (data.isSubscription !== undefined) {
+    updateData.isSubscription = data.isSubscription
   }
 
   const updated = await db
@@ -1008,18 +1025,28 @@ export async function bulkDeleteTransactions(
   }
 
   // A deleted transaction takes its message record with it, so a deleted import leaves nothing
-  // behind. Verified records stay: they are the sender's track record, not a trace of the transaction.
+  // behind. Verified records stay as the sender's track record, but lose their text.
   if (deleted.length > 0) {
-    await db.delete(tables.smsMessages).where(
-      and(
-        eq(tables.smsMessages.userId, userId),
-        eq(tables.smsMessages.status, 'imported'),
-        inArray(
-          tables.smsMessages.transactionId,
-          deleted.map((row) => row.id)
+    const deletedIds = deleted.map((row) => row.id)
+    await db
+      .delete(tables.smsMessages)
+      .where(
+        and(
+          eq(tables.smsMessages.userId, userId),
+          eq(tables.smsMessages.status, 'imported'),
+          inArray(tables.smsMessages.transactionId, deletedIds)
         )
       )
-    )
+    await db
+      .update(tables.smsMessages)
+      .set({ body: null })
+      .where(
+        and(
+          eq(tables.smsMessages.userId, userId),
+          eq(tables.smsMessages.status, 'verified'),
+          inArray(tables.smsMessages.transactionId, deletedIds)
+        )
+      )
   }
 
   invalidateDuplicateCache(userId)

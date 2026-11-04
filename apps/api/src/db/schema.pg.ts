@@ -819,6 +819,10 @@ export const transactionRules = pgTable(
     // Values applied to matching transactions
     name: text('name'),
     category: varchar('category', { length: 50 }),
+    accountId: varchar('account_id', { length: 21 }).references(() => accounts.id, {
+      onDelete: 'set null',
+    }), // used when a message has no account
+    isSubscription: boolean('is_subscription').notNull().default(false), // marks matching transactions as subscriptions
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
