@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RangeCalendar } from '@/components/ui/range-calendar'
 import { toLocalDateString } from '@/components/dashboard/utils'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
+import { PICKER_COLORS_CLASS, PICKER_CONTENT_COLORS_CLASS } from '@/components/ui/picker-styles'
 import {
   FINANCIAL_YEAR_PRESETS,
   LAST_PRESETS,
@@ -254,12 +255,9 @@ export function DateRangePicker({
           variant="outline"
           size={variant === 'field' ? 'default' : 'sm'}
           className={cn(
-            variant === 'field'
-              ? cn(
-                  'h-10 justify-between rounded-lg font-normal',
-                  hasDateFilter && 'border-primary/30 bg-primary/5'
-                )
-              : 'h-9 text-sm',
+            variant === 'field' ? 'h-10 justify-between rounded-lg font-normal' : 'h-9 text-sm',
+            PICKER_COLORS_CLASS,
+            hasDateFilter && variant === 'field' && 'border-primary/30 bg-primary/5',
             className
           )}
         >
@@ -273,7 +271,10 @@ export function DateRangePicker({
       <PopoverContent
         align={align}
         collisionPadding={16}
-        className="w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0"
+        className={cn(
+          PICKER_CONTENT_COLORS_CLASS,
+          'w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0'
+        )}
         {...navigation}
       >
         <div className="flex flex-col md:flex-row">

@@ -4,7 +4,11 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CreditCard, Building2, Check, ChevronDown, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { PICKER_COLORS_CLASS, PICKER_CONTENT_COLORS_CLASS } from '@/components/ui/picker-styles'
+import {
+  PICKER_COLORS_CLASS,
+  PICKER_CONTENT_COLORS_CLASS,
+  PICKER_SEARCH_CLASS,
+} from '@/components/ui/picker-styles'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
 import type { Account } from '@/lib/api'
@@ -253,22 +257,20 @@ export function AccountSelector({
         >
           {/* Search */}
           {showSearch && (
-            <div className="border-b border-border-subtle p-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search accounts..."
-                  data-option-search
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-8 pl-8 text-sm"
-                />
-              </div>
+            <div className="relative border-b border-border-subtle">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search accounts..."
+                data-option-search
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={PICKER_SEARCH_CLASS}
+              />
             </div>
           )}
 
           {/* Account List */}
-          <div className="max-h-80 overflow-y-auto p-1.5">
+          <div className="max-h-80 overflow-y-auto p-1.5 [scrollbar-width:thin]">
             {/* All Accounts Option */}
             {(showAllOption || clearLabel) && !search && (
               <AccountItem

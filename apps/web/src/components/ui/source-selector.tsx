@@ -4,6 +4,11 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Check, ChevronDown, MessageSquareText, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  PICKER_COLORS_CLASS,
+  PICKER_CONTENT_COLORS_CLASS,
+  PICKER_SEARCH_CLASS,
+} from '@/components/ui/picker-styles'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
 import {
@@ -120,26 +125,31 @@ export function SourceSelector({
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
-        <Button variant="outline" className={cn('justify-between font-normal', triggerClassName)}>
+        <Button
+          variant="outline"
+          className={cn('justify-between font-normal', PICKER_COLORS_CLASS, triggerClassName)}
+        >
           <span className="truncate">{triggerLabel}</span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className={cn('w-96 p-0', contentClassName)} align="start" {...navigation}>
-        <div className="border-b border-border-subtle p-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by month, account, file or messages..."
-              data-option-search
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 text-sm"
-            />
-          </div>
+      <PopoverContent
+        className={cn('w-96 p-0', PICKER_CONTENT_COLORS_CLASS, contentClassName)}
+        align="start"
+        {...navigation}
+      >
+        <div className="relative border-b border-border-subtle">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by month, account, file or messages..."
+            data-option-search
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={PICKER_SEARCH_CLASS}
+          />
         </div>
 
-        <div className="max-h-80 overflow-y-auto p-1.5">
+        <div className="max-h-80 overflow-y-auto p-1.5 [scrollbar-width:thin]">
           {!search && (
             <StatementRow
               title="All sources"
