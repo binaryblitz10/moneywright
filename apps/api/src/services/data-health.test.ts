@@ -124,6 +124,26 @@ describe('findBalanceBreaks', () => {
   })
 })
 
+describe('findBalanceBreaks with overlapping statements', () => {
+  const txns = [
+    { date: '2026-10-05', type: 'debit' as const, amount: 100, duplicateOfId: null },
+    { date: '2026-10-10', type: 'credit' as const, amount: 40, duplicateOfId: null },
+    { date: '2026-10-20', type: 'debit' as const, amount: 999, duplicateOfId: null },
+  ]
+  // Earlier statement closes 15 Oct at 940; the later one opens 1 Oct at 1000
+  const earlier = stmt('s1', '2026-04-01', '2026-10-15', 0, 940)
+  const later = stmt('s2', '2026-10-01', '2026-10-31', 1000, 0)
+
+  test('winds the earlier closing back over the overlap', () => {
+    expect(findBalanceBreaks([earlier, later], { kind: 'bank', txns })).toEqual([])
+  })
+
+  test('still flags a real difference', () => {
+    const off = stmt('s2', '2026-10-01', '2026-10-31', 1500, 0)
+    expect(findBalanceBreaks([earlier, off], { kind: 'bank', txns })).toHaveLength(1)
+  })
+})
+
 describe('reconcileStatement', () => {
   const txns = [
     { type: 'credit' as const, amount: 1000 },
@@ -178,6 +198,21 @@ describe('transactionsToReconcile', () => {
   test('account-wide check covers the period and ignores merged copies', () => {
     const statement = { ...stmt('s', '2026-01-01', '2026-01-31'), skippedDuplicateCount: 2 }
     expect(transactionsToReconcile(statement, account, [])).toEqual([own])
+  })
+})
+
+describe('transactionsToReconcile with overlapping statements', () => {
+  const own = txn('own', 'a1', '2026-01-05', 'debit', 10)
+  const statement = stmt('s', '2026-01-01', '2026-01-31')
+  const sibling = stmt('other', '2025-06-01', '2026-01-15')
+
+  test('a period overlapping a sibling is checked against all of the account', () => {
+    expect(transactionsToReconcile(statement, [own], [], [statement, sibling])).toEqual([own])
+  })
+
+  test('no overlap keeps the statement own rows', () => {
+    const far = stmt('far', '2025-01-01', '2025-12-31')
+    expect(transactionsToReconcile(statement, [own], [], [statement, far])).toEqual([])
   })
 })
 

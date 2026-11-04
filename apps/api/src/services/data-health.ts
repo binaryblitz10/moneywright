@@ -544,9 +544,18 @@ export function findGapsAndOverlaps(statements: StatementLite[]): {
 }
 
 /**
- * Consecutive statements whose closing and opening balances disagree
+ * Consecutive statements whose closing and opening balances disagree. When the next statement
+ * starts before the previous one ends, its opening balance is the balance the day before it
+ * starts, not the previous closing. With the account's transactions, the previous closing is
+ * wound back over the overlap before comparing.
  */
-export function findBalanceBreaks(statements: StatementLite[]): BalanceBreak[] {
+export function findBalanceBreaks(
+  statements: StatementLite[],
+  context?: {
+    kind: AccountKind
+    txns: Array<Pick<TxnLite, 'date' | 'type' | 'amount' | 'duplicateOfId'>>
+  }
+): BalanceBreak[] {
   const sorted = sortByPeriod(statements)
   const breaks: BalanceBreak[] = []
 
@@ -554,7 +563,14 @@ export function findBalanceBreaks(statements: StatementLite[]): BalanceBreak[] {
     const prev = sorted[i - 1]!
     const next = sorted[i]!
     if (prev.closingBalance === null || next.openingBalance === null) continue
-    const difference = next.openingBalance - prev.closingBalance
+    let expectedOpening = prev.closingBalance
+    if (context && next.periodStart <= prev.periodEnd) {
+      const overlapMovement = context.txns
+        .filter((t) => !t.duplicateOfId && t.date >= next.periodStart && t.date <= prev.periodEnd)
+        .reduce((sum, t) => sum + signedAmount(context.kind, t.type, t.amount), 0)
+      expectedOpening = prev.closingBalance - overlapMovement
+    }
+    const difference = next.openingBalance - expectedOpening
     if (Math.abs(difference) > BALANCE_TOLERANCE) {
       breaks.push({
         afterDate: prev.periodEnd,
@@ -572,15 +588,23 @@ export function findBalanceBreaks(statements: StatementLite[]): BalanceBreak[] {
 
 /**
  * The transactions a statement is checked against. A statement whose overlapping rows live under
- * an earlier statement is checked against every transaction of the account in its period instead
- * of only its own; merged copies are left out there, as the kept row already counts.
+ * another statement (it skipped duplicates, or its period overlaps a sibling's) is checked against
+ * every transaction of the account in its period instead of only its own; merged copies are left
+ * out there, as the kept row already counts.
  */
 export function transactionsToReconcile(
   statement: StatementLite,
   accountTxns: TxnLite[],
-  statementTxns: TxnLite[]
+  statementTxns: TxnLite[],
+  siblings: StatementLite[] = []
 ): TxnLite[] {
-  if (statement.skippedDuplicateCount === 0) return statementTxns
+  const overlapsSibling = siblings.some(
+    (other) =>
+      other.id !== statement.id &&
+      other.periodStart <= statement.periodEnd &&
+      statement.periodStart <= other.periodEnd
+  )
+  if (statement.skippedDuplicateCount === 0 && !overlapsSibling) return statementTxns
   return accountTxns.filter(
     (t) => !t.duplicateOfId && t.date >= statement.periodStart && t.date <= statement.periodEnd
   )
@@ -839,7 +863,10 @@ export async function getDataHealth(
       daysSinceLastStatement: daysSince,
       isStale: daysSince === null || daysSince > STALE_AFTER_DAYS,
       ...findGapsAndOverlaps(sorted),
-      balanceBreaks: findBalanceBreaks(sorted),
+      balanceBreaks: findBalanceBreaks(sorted, {
+        kind,
+        txns: txnsByAccount.get(account.id) ?? [],
+      }),
       missingPeriod: missingByAccount.get(account.id) ?? [],
       reconciliation: sorted
         .map((s) =>
@@ -849,7 +876,8 @@ export async function getDataHealth(
             transactionsToReconcile(
               s,
               txnsByAccount.get(account.id) ?? [],
-              txnsByStatement.get(s.id) ?? []
+              txnsByStatement.get(s.id) ?? [],
+              sorted
             )
           )
         )
