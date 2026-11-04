@@ -109,7 +109,7 @@ export function TransactionFiltersBar({
     (filters.onlyHidden ? 1 : 0)
 
   return (
-    <div className="space-y-3">
+    <div>
       {/* Main Filter Bar */}
       <div
         className={cn(
@@ -373,8 +373,8 @@ export function TransactionFiltersBar({
       </div>
 
       {/* Active Filters Pills */}
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2 px-1">
+      <Collapsible open={!!hasActiveFilters}>
+        <CollapsibleContent className="flex flex-wrap items-center gap-2 px-1 pt-3">
           <MetaLabel>Active:</MetaLabel>
           {search && (
             <FilterPill
@@ -478,8 +478,8 @@ export function TransactionFiltersBar({
             <X className="h-3.5 w-3.5" />
             <span>Clear all</span>
           </button>
-        </div>
-      )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }

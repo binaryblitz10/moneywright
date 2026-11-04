@@ -136,7 +136,8 @@ function TransactionsPage() {
       (key) => next[key] === searchParams[key]
     )
     if (unchanged) return
-    void navigate({ search: next, replace: true })
+    // Not a page change, so skip the default view transition: it freezes the page while it snapshots
+    void navigate({ search: next, replace: true, viewTransition: false })
   }, [filters, debouncedSearch, navigate, searchParams])
 
   // Query enabled when we have a profileId OR we're in family view
