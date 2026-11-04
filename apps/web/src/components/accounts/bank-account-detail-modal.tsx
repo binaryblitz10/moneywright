@@ -3,6 +3,7 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  ChevronRight,
   ArrowDownLeft,
   ArrowUpRight,
   Landmark,
@@ -65,9 +66,10 @@ export function BankAccountDetailModal({
 
   const formatAmount = (amount: number | null) => {
     if (amount === null) return '—'
-    return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(
-      Math.abs(Math.round(amount))
-    )
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount))
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -238,20 +240,23 @@ export function BankAccountDetailModal({
                 </div>
               ) : transactions.length > 0 ? (
                 <div className="space-y-2">
-                  {transactions.map((txn) => {
+                  {transactions.map((txn, index) => {
                     const isCredit = txn.type === 'credit'
                     return (
                       <div
                         key={txn.id}
-                        className="flex items-center justify-between gap-3 p-4 rounded-xl border border-border-subtle bg-card"
+                        className={cn(
+                          'flex items-center justify-between p-4 rounded-xl border border-border-subtle',
+                          'bg-card hover:bg-surface-elevated transition-colors',
+                          'group cursor-default'
+                        )}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                          animation: 'fadeInUp 0.3s ease-out forwards',
+                        }}
                       >
                         <div className="flex items-center gap-4 min-w-0">
-                          <div
-                            className={cn(
-                              'h-10 w-10 rounded-lg flex items-center justify-center shrink-0',
-                              isCredit ? 'bg-positive/10' : 'bg-negative/10'
-                            )}
-                          >
+                          <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-surface-elevated border border-border-subtle shrink-0">
                             {isCredit ? (
                               <ArrowDownLeft className="h-5 w-5 text-positive" />
                             ) : (
@@ -272,16 +277,19 @@ export function BankAccountDetailModal({
                             </p>
                           </div>
                         </div>
-                        <p
-                          className={cn(
-                            'text-base font-semibold tabular-nums shrink-0',
-                            isCredit ? 'text-positive' : 'text-negative'
-                          )}
-                        >
-                          {isCredit ? '+' : '-'}
-                          {currencySymbol}
-                          {formatAmount(txn.amount)}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p
+                            className={cn(
+                              'text-base font-semibold tabular-nums',
+                              isCredit ? 'text-positive' : 'text-negative'
+                            )}
+                          >
+                            {isCredit ? '+' : '-'}
+                            {currencySymbol}
+                            {formatAmount(txn.amount)}
+                          </p>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                        </div>
                       </div>
                     )
                   })}
@@ -307,6 +315,20 @@ export function BankAccountDetailModal({
           </Button>
         </div>
       </DialogContent>
+
+      {/* Animation styles */}
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </Dialog>
   )
 }

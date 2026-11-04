@@ -337,8 +337,9 @@ export function CreditCardDetailModal({
   const formatAmount = (amount: number | null) => {
     if (amount === null) return '—'
     return new Intl.NumberFormat('en-IN', {
-      maximumFractionDigits: 0,
-    }).format(Math.abs(Math.round(amount)))
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount))
   }
 
   // Format date
