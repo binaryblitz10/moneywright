@@ -99,14 +99,11 @@ export function glanceHeadline(stats: GlanceStats, pace: MonthPace): string {
   const money = (amount: number) => formatBudgetAmount(amount, currency)
   if (!pace.isCurrent) {
     return over
-      ? `Closed ${money(-remaining)} over budget`
-      : `Closed ${money(remaining)} under budget`
+      ? `Finished ${money(-remaining)} over budget`
+      : `Finished ${money(remaining)} under budget`
   }
-  if (over) return `Over budget with ${pace.daysLeft} ${pace.daysLeft === 1 ? 'day' : 'days'} left`
-  const difference = spent - expected
-  return difference > 0
-    ? `${money(difference)} ahead of an even pace`
-    : `${money(-difference)} behind an even pace, nice`
+  if (over) return `Over budget by ${money(-remaining)}`
+  return spent > expected ? 'Spending faster than planned' : "You're on track"
 }
 
 /** e.g. "Oct 12" for a day of a YYYY-MM month */
