@@ -48,7 +48,14 @@ export function BudgetCard({
     pace.isCurrent && !over && pace.daysLeft > 0 ? budget.remaining / pace.daysLeft : null
 
   return (
-    <div className="group relative flex flex-col gap-5 rounded-xl border border-border-subtle bg-card p-5 shadow-sm transition-colors hover:border-border-hover animate-fade-in">
+    <div
+      className={cn(
+        'group relative flex flex-col gap-5 rounded-xl border border-border-subtle bg-card p-5 shadow-sm transition-colors hover:border-border-hover animate-fade-in',
+        // The overall budget leads the grid: full width with a soft tint
+        isTotal &&
+          'border-primary/25 bg-linear-to-br from-primary/10 via-card to-card p-6 md:col-span-2 xl:col-span-3'
+      )}
+    >
       <div className="flex items-center gap-3">
         <span
           className={cn(
@@ -122,7 +129,12 @@ export function BudgetCard({
 
       <div className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-2xl font-semibold tracking-tight tabular-nums">
+          <p
+            className={cn(
+              'font-semibold tracking-tight tabular-nums',
+              isTotal ? 'text-4xl' : 'text-2xl'
+            )}
+          >
             {formatBudgetAmount(budget.spent, currency)}
           </p>
           <p className="text-sm text-muted-foreground tabular-nums">
@@ -139,6 +151,7 @@ export function BudgetCard({
           percentUsed={budget.percentUsed}
           status={budget.status}
           label={`${budget.categoryLabel} budget used`}
+          className={isTotal ? 'h-3' : undefined}
           pacePercent={pace.isCurrent ? pace.percentElapsed : undefined}
         />
       </div>
