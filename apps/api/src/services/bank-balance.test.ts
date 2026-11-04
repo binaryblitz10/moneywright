@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { computeBankBalance } from './bank-balance'
+import { computeAverageBalance, computeBankBalance } from './bank-balance'
 
 describe('computeBankBalance', () => {
   it('returns null without a statement balance', () => {
@@ -24,5 +24,22 @@ describe('computeBankBalance', () => {
       { date: '2026-09-15', type: 'credit' as const, amount: 100 },
     ]
     expect(computeBankBalance(1000, '2026-09-30', activity)).toBe(1000)
+  })
+})
+
+describe('computeAverageBalance', () => {
+  it('averages end-of-day balances, undoing activity going back', () => {
+    // Balance is 100 today after a 40 credit today; yesterday and before it was 60
+    const avg = computeAverageBalance(
+      100,
+      [{ date: '2026-01-10', type: 'credit', amount: 40 }],
+      '2026-01-10',
+      4
+    )
+    expect(avg).toBe(70) // (100 + 60 + 60 + 60) / 4
+  })
+
+  it('is the current balance when nothing moved', () => {
+    expect(computeAverageBalance(250, [], '2026-01-10', 365)).toBe(250)
   })
 })

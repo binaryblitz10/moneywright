@@ -199,4 +199,22 @@ accountRoutes.get('/:id/payment-history', async (c) => {
   }
 })
 
+/**
+ * GET /accounts/:id/average-balance
+ * Average end-of-day balance of a bank account over the last 12 months
+ */
+accountRoutes.get('/:id/average-balance', async (c) => {
+  const userId = c.get('userId')
+  const accountId = c.req.param('id')
+
+  try {
+    const { getAverageBalance } = await import('../services/accounts')
+    const averageBalance = await getAverageBalance(accountId, userId)
+    return c.json({ averageBalance })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get average balance'
+    return c.json({ error: 'fetch_failed', message }, 400)
+  }
+})
+
 export default accountRoutes

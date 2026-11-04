@@ -1,4 +1,4 @@
-import { eq, and, desc, gt, inArray, ne } from 'drizzle-orm'
+import { eq, and, desc, gt, gte, inArray, ne } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import { MANUAL_DOCUMENT_TYPE } from '../lib/manual-statement'
 import type { Account } from '../db'
@@ -7,7 +7,7 @@ import { getAccountTypesForCountry, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
 import { accountNumbersMatch, getLast4 } from '../lib/account-number'
 import { getLoanLiabilities, type LoanLiabilityInfo } from './loans'
-import { computeBankBalance } from './bank-balance'
+import { computeAverageBalance, computeBankBalance } from './bank-balance'
 import { computeCardBalance, type CardActivity, type LinkedCardPayment } from './card-balance'
 
 /**
@@ -235,6 +235,52 @@ async function getLatestAccountBalance(
     paymentsSinceStatement: result.paymentsSinceStatement,
     statementDate,
   }
+}
+
+/**
+ * Average end-of-day balance of a bank account over the last `days` days.
+ * Null when the account has no statement balance to work back from.
+ */
+export async function getAverageBalance(
+  accountId: string,
+  userId: string,
+  days: number = 365
+): Promise<number | null> {
+  const account = await getAccountByIdRaw(accountId, userId)
+  if (!account) return null
+
+  const { balance } = await getLatestAccountBalance(account, userId)
+  if (balance === null) return null
+
+  const today = new Date().toISOString().slice(0, 10)
+  const start = new Date()
+  start.setUTCDate(start.getUTCDate() - days)
+  const rows = await db
+    .select({
+      date: tables.transactions.date,
+      type: tables.transactions.type,
+      amount: tables.transactions.amount,
+    })
+    .from(tables.transactions)
+    .where(
+      and(
+        eq(tables.transactions.userId, userId),
+        eq(tables.transactions.accountId, account.id),
+        eq(tables.transactions.isHidden, false),
+        gte(tables.transactions.date, start.toISOString().slice(0, 10))
+      )
+    )
+
+  return computeAverageBalance(
+    balance,
+    rows.map((r) => ({
+      date: String(r.date),
+      type: r.type === 'credit' ? 'credit' : 'debit',
+      amount: typeof r.amount === 'string' ? parseFloat(r.amount) : Number(r.amount),
+    })),
+    today,
+    days
+  )
 }
 
 /**
