@@ -269,7 +269,7 @@ export function AccountSelector({
           )}
 
           {/* Account List */}
-          <div className="max-h-80 overflow-y-auto p-1.5 [scrollbar-width:thin]">
+          <div className="max-h-80 overflow-y-auto p-1.5">
             {/* All Accounts Option */}
             {(showAllOption || clearLabel) && !search && (
               <AccountItem

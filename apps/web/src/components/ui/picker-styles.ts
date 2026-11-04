@@ -19,4 +19,4 @@ export const PICKER_TRIGGER_CLASS = `h-10 w-full justify-between rounded-lg font
 export const PICKER_CONTENT_CLASS = `w-(--radix-popover-trigger-width) min-w-72 overflow-hidden p-0 ${PICKER_CONTENT_COLORS_CLASS}`
 export const PICKER_SEARCH_CLASS =
   'h-11 rounded-none border-0 bg-transparent pl-10 text-sm shadow-none focus-visible:ring-0'
-export const PICKER_LIST_CLASS = 'max-h-72 space-y-0.5 overflow-y-auto p-1.5 [scrollbar-width:thin]'
+export const PICKER_LIST_CLASS = 'max-h-72 space-y-0.5 overflow-y-auto p-1.5'

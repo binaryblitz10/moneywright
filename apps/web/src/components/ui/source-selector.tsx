@@ -149,7 +149,7 @@ export function SourceSelector({
           />
         </div>
 
-        <div className="max-h-80 overflow-y-auto p-1.5 [scrollbar-width:thin]">
+        <div className="max-h-80 overflow-y-auto p-1.5">
           {!search && (
             <StatementRow
               title="All sources"
