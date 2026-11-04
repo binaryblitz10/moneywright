@@ -15,6 +15,7 @@ interface MergeData {
 function duplicatesFixer(options: {
   id: string
   label: string
+  hint: string
   safe: boolean
   tier: 'sure' | 'likely'
 }): Fixer {
@@ -22,6 +23,7 @@ function duplicatesFixer(options: {
   return {
     id,
     label: options.label,
+    hint: options.hint,
     safe: options.safe,
     usesAi: false,
     async find(ctx) {
@@ -63,6 +65,7 @@ function duplicatesFixer(options: {
 export const duplicatesSure = duplicatesFixer({
   id: 'duplicates-sure',
   label: 'Merge duplicate transactions',
+  hint: 'The same transaction was imported more than once. The extra copies are merged into one.',
   safe: true,
   tier: 'sure',
 })
@@ -70,6 +73,7 @@ export const duplicatesSure = duplicatesFixer({
 export const duplicatesLikely = duplicatesFixer({
   id: 'duplicates-likely',
   label: 'Merge probable duplicates',
+  hint: 'Lines that look like the same transaction but could not be matched exactly. The extra copies are merged into one.',
   safe: false,
   tier: 'likely',
 })

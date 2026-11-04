@@ -43,6 +43,8 @@ export interface ChangeRecord {
 export interface Fixer {
   id: string
   label: string
+  /** One plain sentence on what the fix does and why, shown above the list of changes */
+  hint: string
   /** Safe fixers run on their own after an import; the others wait for the user's button */
   safe: boolean
   usesAi: boolean

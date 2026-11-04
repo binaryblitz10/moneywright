@@ -64,6 +64,7 @@ const STUCK_ID = 'stuck-uncategorized'
 export const stuckUncategorized: Fixer = {
   id: STUCK_ID,
   label: 'Categorize transactions that were skipped',
+  hint: 'These transactions were never given a category.',
   safe: false,
   usesAi: true,
   async find(ctx) {
@@ -111,6 +112,7 @@ function isBetter(now: Transaction, was: Transaction): boolean {
 export const recheckLowConfidence: Fixer = {
   id: RECHECK_ID,
   label: 'Re-check uncertain categories',
+  hint: 'The category for these was a low-confidence guess, so it is checked again.',
   safe: false,
   usesAi: true,
   async find(ctx) {

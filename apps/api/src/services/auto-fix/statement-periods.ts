@@ -20,6 +20,7 @@ interface PeriodData {
 export const statementPeriods: Fixer = {
   id: ID,
   label: 'Fill in missing statement dates',
+  hint: 'Statements with no start or end date get them from their transactions.',
   safe: true,
   usesAi: false,
   async find(ctx) {

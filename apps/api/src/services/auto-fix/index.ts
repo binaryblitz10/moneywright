@@ -33,6 +33,7 @@ const FIXERS: Fixer[] = [
 export interface FixPreview {
   fixer: string
   label: string
+  hint: string
   safe: boolean
   usesAi: boolean
   count: number
@@ -70,6 +71,7 @@ export async function previewFixes(ctx: FixContext): Promise<FixPreview[]> {
       return {
         fixer: fixer.id,
         label: fixer.label,
+        hint: fixer.hint,
         safe: fixer.safe,
         usesAi: fixer.usesAi,
         count: fixes.length,

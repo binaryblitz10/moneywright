@@ -37,6 +37,7 @@ async function loadMessages(userId: string, transactionIds: string[]) {
 export const bankMessageRef: Fixer = {
   id: ID,
   label: 'Match bank messages by reference number',
+  hint: 'A bank SMS and a statement line share the same reference number, so they are the same transaction.',
   safe: true,
   usesAi: false,
   async find(ctx) {

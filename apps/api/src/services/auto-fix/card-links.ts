@@ -50,6 +50,7 @@ const CARD_PAYMENT_ID = 'card-payment-unique'
 export const cardPaymentUnique: Fixer = {
   id: CARD_PAYMENT_ID,
   label: 'Link card bill payments',
+  hint: 'A payment from your bank account is linked to the credit card it paid, so it is not counted as spending.',
   safe: true,
   usesAi: false,
   async find(ctx) {
@@ -81,9 +82,35 @@ export const cardPaymentUnique: Fixer = {
 
 const TRANSFER_ID = 'transfer-pairs'
 
+async function loadAccountNames(userId: string): Promise<Map<string, string>> {
+  const accounts = await db
+    .select({ id: tables.accounts.id, name: tables.accounts.accountName })
+    .from(tables.accounts)
+    .where(eq(tables.accounts.userId, userId))
+  return new Map(accounts.map((account) => [account.id, account.name ?? 'Account']))
+}
+
+/** "INR 1,00,000.00 from Axis Bank to ICICI Bank on 20 Apr 2026" */
+function describeTransfer(
+  row: Transaction,
+  partner: { id: string; accountId: string; date: string },
+  names: Map<string, string>
+): string {
+  const [from, to] =
+    row.type === 'debit' ? [row.accountId, partner.accountId] : [partner.accountId, row.accountId]
+  const amount = Number(row.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })
+  const date = new Date(`${row.date}T00:00:00`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  return `${row.currency} ${amount} from ${names.get(from) ?? 'Account'} to ${names.get(to) ?? 'Account'} on ${date}`
+}
+
 export const transferPairs: Fixer = {
   id: TRANSFER_ID,
   label: 'Link transfers between your accounts',
+  hint: 'Pairs the debit and the credit of the same money moving between two of your own accounts. Your totals do not change, since both sides are already marked as transfers.',
   safe: false,
   usesAi: false,
   async find(ctx) {
@@ -102,6 +129,7 @@ export const transferPairs: Fixer = {
       .orderBy(asc(tables.transactions.date))
       .limit(MAX_TRANSFER_ROWS)
 
+    const accountNames = await loadAccountNames(ctx.userId)
     const fixes = new Map<string, Fix>()
     for (const row of rows) {
       const candidates = await findLinkCandidates(row.id, ctx.userId)
@@ -118,7 +146,7 @@ export const transferPairs: Fixer = {
       fixes.set(id, {
         id,
         fixer: TRANSFER_ID,
-        description: `Link the transfer of ${row.currency} ${Number(row.amount).toFixed(2)} on ${row.date} with ${partner.date}`,
+        description: describeTransfer(row, partner, accountNames),
         entityIds: ids,
         data: { firstId: ids[0]!, secondId: ids[1]! } satisfies PairData,
       })
@@ -158,6 +186,7 @@ function repairFor(credit: Transaction, target: Transaction | undefined): Repair
 export const brokenLinks: Fixer = {
   id: BROKEN_ID,
   label: 'Repair one-way card payment links',
+  hint: 'A card payment link that only points one way is fixed or removed.',
   safe: true,
   usesAi: false,
   async find(ctx) {
