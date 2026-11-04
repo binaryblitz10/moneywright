@@ -9,10 +9,14 @@ export const ROW_ACTIVE_CLASS = 'bg-foreground/[0.08] text-foreground'
 /** For rows outside the keyboard-highlighted list, which have no highlight of their own */
 export const ROW_HOVER_CLASS = 'hover:bg-foreground/[0.08] hover:text-foreground'
 
-export const PICKER_TRIGGER_CLASS =
-  'h-10 w-full justify-between rounded-lg font-normal bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover'
-export const PICKER_CONTENT_CLASS =
-  'w-(--radix-popover-trigger-width) min-w-72 overflow-hidden rounded-xl border-border-hover bg-popover p-0 dark:bg-background shadow-2xl shadow-black/15 dark:shadow-black/60'
+/** Trigger colors alone, for dropdowns that keep their own size */
+export const PICKER_COLORS_CLASS =
+  'bg-surface-elevated border-border-subtle hover:bg-surface-hover hover:border-border-hover'
+/** Popup colors alone, for dropdowns that keep their own size */
+export const PICKER_CONTENT_COLORS_CLASS =
+  'rounded-xl border-border-hover bg-popover dark:bg-background shadow-2xl shadow-black/15 dark:shadow-black/60'
+export const PICKER_TRIGGER_CLASS = `h-10 w-full justify-between rounded-lg font-normal ${PICKER_COLORS_CLASS}`
+export const PICKER_CONTENT_CLASS = `w-(--radix-popover-trigger-width) min-w-72 overflow-hidden p-0 ${PICKER_CONTENT_COLORS_CLASS}`
 export const PICKER_SEARCH_CLASS =
   'h-11 rounded-none border-0 bg-transparent pl-10 text-sm shadow-none focus-visible:ring-0'
 export const PICKER_LIST_CLASS = 'max-h-72 space-y-0.5 overflow-y-auto p-1.5 [scrollbar-width:thin]'

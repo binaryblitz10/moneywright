@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CreditCard, Building2, Check, ChevronDown, Search, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PICKER_COLORS_CLASS, PICKER_CONTENT_COLORS_CLASS } from '@/components/ui/picker-styles'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
 import { useConstants } from '@/hooks/useConstants'
 import type { Account } from '@/lib/api'
@@ -22,6 +23,8 @@ export interface AccountSelectorProps {
   mode?: 'single' | 'multi'
   /** Show "All accounts" option */
   showAllOption?: boolean
+  /** Single-select: label of an option that clears the selection; the trigger then shows the placeholder while empty */
+  clearLabel?: string
   /** Label for "All accounts" option */
   allOptionLabel?: string
   /** Placeholder when nothing selected */
@@ -52,6 +55,7 @@ export function AccountSelector({
   onValuesChange,
   mode = 'single',
   showAllOption = true,
+  clearLabel,
   allOptionLabel = 'All accounts',
   placeholder = 'Select account',
   searchable = true,
@@ -181,7 +185,7 @@ export function AccountSelector({
   // Get trigger label
   const getTriggerLabel = () => {
     if (mode === 'single') {
-      if (!value) return allOptionLabel
+      if (!value) return clearLabel ? placeholder : allOptionLabel
       const selected = selectedAccounts[0]
       if (!selected) return placeholder
       return getAccountDisplayName(selected)
@@ -211,6 +215,7 @@ export function AccountSelector({
             className={cn(
               'justify-between gap-2 font-normal',
               compact ? 'h-9 w-9 p-0' : 'h-9 min-w-40',
+              PICKER_COLORS_CLASS,
               triggerClassName
             )}
           >
@@ -241,7 +246,11 @@ export function AccountSelector({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className={cn('w-72 p-0', contentClassName)} align={align} {...navigation}>
+        <PopoverContent
+          className={cn('w-72 p-0', PICKER_CONTENT_COLORS_CLASS, contentClassName)}
+          align={align}
+          {...navigation}
+        >
           {/* Search */}
           {showSearch && (
             <div className="border-b border-border-subtle p-2">
@@ -261,9 +270,9 @@ export function AccountSelector({
           {/* Account List */}
           <div className="max-h-80 overflow-y-auto p-1.5">
             {/* All Accounts Option */}
-            {showAllOption && !search && (
+            {(showAllOption || clearLabel) && !search && (
               <AccountItem
-                label={allOptionLabel}
+                label={showAllOption ? allOptionLabel : (clearLabel ?? '')}
                 icon={<Sparkles className="h-4 w-4 text-muted-foreground" />}
                 isSelected={!hasSelection}
                 onClick={() => handleSelect(null)}
