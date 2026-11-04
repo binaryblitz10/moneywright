@@ -28,41 +28,51 @@ interface FixIssuesDialogProps {
 interface FixerRowProps {
   fixer: AutoFixerPreview
   checked: boolean
+  defaultOpen: boolean
   onCheckedChange: (checked: boolean) => void
 }
 
-function FixerRow({ fixer, checked, onCheckedChange }: FixerRowProps) {
-  const [open, setOpen] = useState(false)
+function FixerRow({ fixer, checked, defaultOpen, onCheckedChange }: FixerRowProps) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="py-3">
-      <div className="flex items-center gap-3">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={cn(
+        'rounded-xl border p-4 transition-colors',
+        checked ? 'border-border bg-card' : 'border-border-subtle bg-transparent'
+      )}
+    >
+      <div className="flex items-start gap-3">
         <Checkbox
           checked={checked}
           onCheckedChange={(value) => onCheckedChange(value === true)}
           aria-label={fixer.label}
+          className="mt-0.5"
         />
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="truncate text-sm font-medium">{fixer.label}</span>
-          {fixer.usesAi && (
-            <Badge variant="secondary" className="gap-1">
-              <Sparkles className="h-3 w-3" />
-              Uses AI
-            </Badge>
-          )}
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">{fixer.label}</span>
+            {fixer.usesAi && (
+              <Badge variant="secondary" className="gap-1">
+                <Sparkles className="h-3 w-3" />
+                Uses AI
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">{fixer.hint}</p>
         </div>
-        <span className="text-xs font-medium text-muted-foreground tabular-nums">
-          {fixer.count}
-        </span>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Show details">
-            <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
-          </Button>
-        </CollapsibleTrigger>
       </div>
+      <CollapsibleTrigger className="mt-3 ml-7 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+        <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+        {open ? 'Hide' : 'Show'} {fixer.count} {fixer.count === 1 ? 'change' : 'changes'}
+      </CollapsibleTrigger>
       <CollapsibleContent className="mt-2 ml-7">
-        <ul className="max-h-48 space-y-1.5 overflow-y-auto text-xs text-muted-foreground">
+        <ul className="max-h-56 divide-y divide-border-subtle overflow-y-auto rounded-lg border border-border-subtle">
           {fixer.items.map((item) => (
-            <li key={item.id}>{item.description}</li>
+            <li key={item.id} className="px-3 py-2 text-sm leading-snug">
+              {item.description}
+            </li>
           ))}
         </ul>
       </CollapsibleContent>
@@ -127,7 +137,8 @@ function FixIssuesBody({ onOpenChange, profileId }: Omit<FixIssuesDialogProps, '
       <DialogHeader>
         <DialogTitle>Fix issues</DialogTitle>
         <DialogDescription>
-          Review what will change. Every fix can be undone from the Auto-fixed tab.
+          Tick the fixes you want, then apply. You can undo any of them later from the Auto-fixed
+          tab.
         </DialogDescription>
       </DialogHeader>
 
@@ -136,12 +147,13 @@ function FixIssuesBody({ onOpenChange, profileId }: Omit<FixIssuesDialogProps, '
       ) : rows.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Nothing to fix right now</p>
       ) : (
-        <div className="max-h-[50vh] divide-y divide-border-subtle overflow-y-auto">
+        <div className="max-h-[55vh] space-y-3 overflow-y-auto">
           {rows.map((f) => (
             <FixerRow
               key={f.fixer}
               fixer={f}
               checked={isChecked(f)}
+              defaultOpen={rows.length === 1}
               onCheckedChange={(checked) => toggle(f, checked)}
             />
           ))}

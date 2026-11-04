@@ -3863,6 +3863,7 @@ export interface AutoFixItem {
 export interface AutoFixerPreview {
   fixer: string
   label: string
+  hint: string
   safe: boolean
   usesAi: boolean
   count: number
