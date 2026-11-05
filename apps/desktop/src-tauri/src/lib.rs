@@ -906,11 +906,16 @@ pub fn run() {
                 }
                 "logs" => open_logs_window(app),
                 "clear_cookies" => clear_cookies(app),
-                "quit" => {
-                    // Kill server process synchronously before exit (only in release mode)
-                    #[cfg(not(debug_assertions))]
-                    let _ = kill_process_on_port(SERVER_PORT);
-                    app.exit(0);
+                "quit" => quit_app(app),
+                "close_window" => {
+                    // Cmd+W: quit from the main window, close secondary windows (About, Logs)
+                    let focused = app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false));
+                    match focused {
+                        Some(w) if w.label() != "main" => {
+                            let _ = w.close();
+                        }
+                        _ => quit_app(app),
+                    }
                 }
                 _ => {}
             }
@@ -937,6 +942,14 @@ pub fn run() {
                 _ => {}
             }
         });
+}
+
+/// Kill the server process and exit the app
+fn quit_app(app: &AppHandle) {
+    // Kill server process synchronously before exit (only in release mode)
+    #[cfg(not(debug_assertions))]
+    let _ = kill_process_on_port(SERVER_PORT);
+    app.exit(0);
 }
 
 fn setup_menu(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -990,6 +1003,7 @@ fn setup_menu(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Window submenu
+    let close_window = MenuItem::with_id(app, "close_window", "Close Window", true, Some("CmdOrCtrl+W"))?;
     let window_menu = Submenu::with_items(
         app,
         "Window",
@@ -998,7 +1012,7 @@ fn setup_menu(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             &PredefinedMenuItem::minimize(app, None)?,
             &PredefinedMenuItem::maximize(app, None)?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::close_window(app, None)?,
+            &close_window,
         ],
     )?;
 
