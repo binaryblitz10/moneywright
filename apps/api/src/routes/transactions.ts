@@ -230,6 +230,7 @@ function parseTransactionFilters(c: Context): TransactionFilters {
       reviewStatus === 'pending' ||
       reviewStatus === 'other' ||
       reviewStatus === 'low_confidence' ||
+      reviewStatus === 'needs_review' ||
       reviewStatus === 'all'
         ? reviewStatus
         : undefined,

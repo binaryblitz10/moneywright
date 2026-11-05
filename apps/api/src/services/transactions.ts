@@ -147,7 +147,7 @@ export interface TransactionFilters {
   reviewStatus?: ReviewStatus
 }
 
-export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all'
+export type ReviewStatus = 'pending' | 'other' | 'low_confidence' | 'all' | 'needs_review'
 
 /** Low-confidence review queue: categorizations the model was unsure of */
 export const LOW_CONFIDENCE_BELOW = 0.7
@@ -321,7 +321,9 @@ export function buildFilterConditions(userId: string, filters?: TransactionFilte
           ? isOther
           : filters.reviewStatus === 'low_confidence'
             ? isLowConfidenceCategory()
-            : or(isPending, isOther)!
+            : filters.reviewStatus === 'needs_review'
+              ? or(isPending, isOther, isLowConfidenceCategory())!
+              : or(isPending, isOther)!
     )
   }
 
