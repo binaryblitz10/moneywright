@@ -115,6 +115,7 @@ export function HistoryPanel({
                 <DuplicateGroupCards
                   group={group}
                   accounts={tableProps.accounts}
+                  categories={tableProps.categories}
                   countryCode={tableProps.countryCode}
                   formatAmount={formatAmount}
                 />

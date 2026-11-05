@@ -100,6 +100,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       group={group}
       keeperId={keeperOf(group)}
       accounts={tableProps.accounts}
+      categories={tableProps.categories}
       countryCode={tableProps.countryCode}
       formatAmount={formatAmount}
       onMakeKeeper={(id) => makeKeeper(group, id)}

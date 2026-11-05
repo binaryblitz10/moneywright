@@ -3,7 +3,9 @@ import { AccountAvatar } from '@/components/transactions/transaction-table'
 import { cn } from '@/lib/utils'
 import { formatShortDate } from '@/lib/date-presets'
 import { getAccountShortLabel } from '@/lib/statement-display'
-import type { Account, DuplicateGroup, Transaction } from '@/lib/api'
+import { CategoryIcon } from '@/components/ui/category-icon'
+import { getCategoryColorClasses } from '@/lib/category-colors'
+import type { Account, Category, DuplicateGroup, Transaction } from '@/lib/api'
 
 const COLUMNS: Record<number, string> = {
   2: 'lg:grid-cols-2',
@@ -36,6 +38,7 @@ interface DuplicateGroupCardsProps {
   /** The transaction that stays when the group is merged. Omit for dismissed groups. */
   keeperId?: string
   accounts: Account[]
+  categories: Category[]
   countryCode: string
   formatAmount: (amount: number, currency: string) => string
   onMakeKeeper?: (id: string) => void
@@ -48,6 +51,7 @@ export function DuplicateGroupCards({
   group,
   keeperId,
   accounts,
+  categories,
   countryCode,
   formatAmount,
   onMakeKeeper,
@@ -61,6 +65,8 @@ export function DuplicateGroupCards({
     const account = accounts.find((a) => a.id === txn.accountId)
     const isKeeper = txn.id === keeperId
     const name = txn.summary || txn.originalDescription
+    const category = categories.find((c) => c.code === txn.category)
+    const colors = getCategoryColorClasses(category?.color ?? 'zinc')
     const content = (
       <>
         <div className="flex items-center gap-3">
@@ -115,9 +121,30 @@ export function DuplicateGroupCards({
             {formatAmount(txn.amount, txn.currency)}
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {txn.smsSource ? 'Bank message' : 'Statement'}
-        </p>
+        <div className="space-y-3">
+          {txn.notes && (
+            <p className="line-clamp-2 text-xs italic text-muted-foreground">{txn.notes}</p>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            {category && txn.category !== 'other' ? (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium',
+                  colors.bg,
+                  colors.text
+                )}
+              >
+                <CategoryIcon code={txn.category} className="h-4 w-4" />
+                {category.label}
+              </span>
+            ) : (
+              <span />
+            )}
+            <p className="shrink-0 text-xs text-muted-foreground">
+              {txn.smsSource ? 'Bank message' : 'Statement'}
+            </p>
+          </div>
+        </div>
       </>
     )
     const className = cn(
