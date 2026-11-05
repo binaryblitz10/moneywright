@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { Wrench } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
@@ -105,7 +106,12 @@ function ReviewPage() {
       <PageHeader
         title="Review"
         description="Resolve duplicate, uncategorized and low-confidence transactions"
-        actions={<Button onClick={() => setFixOpen(true)}>Fix issues</Button>}
+        actions={
+          <Button onClick={() => setFixOpen(true)}>
+            <Wrench className="h-4 w-4 mr-2" />
+            Fix issues
+          </Button>
+        }
       />
 
       <Tabs
