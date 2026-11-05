@@ -1,0 +1,1 @@
+ALTER TABLE `transactions` ADD `is_categorizing` integer DEFAULT false;

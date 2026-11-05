@@ -357,6 +357,16 @@ async function aiCategorizationAvailable(userId: string): Promise<boolean> {
   return (await getLLMSettings()).isConfigured
 }
 
+/** Let the transactions of this user that a sync was categorizing show up in the review queues */
+async function clearCategorizing(userId: string): Promise<void> {
+  await db
+    .update(tables.transactions)
+    .set({ isCategorizing: false })
+    .where(
+      and(eq(tables.transactions.userId, userId), eq(tables.transactions.isCategorizing, true))
+    )
+}
+
 /**
  * Categorize newly imported transactions the same way statements are: the user's rules, then the
  * AI with the account type, profile summary and categorization hints for context, then entity
@@ -636,7 +646,23 @@ async function autoFixAfterSync(userId: string): Promise<void> {
   await applySafeFixesAfterImport({ userId, countryCode: user.country as CountryCode }, [])
 }
 
+/**
+ * A sync saves transactions that wait for the AI as "categorizing", which keeps them out of the
+ * review queues. Whatever happens, none stay that way once the run is over (a run that was cut
+ * short by a crash is cleaned up by the next one).
+ */
 async function runSync(userId: string, since?: Date): Promise<SyncResult> {
+  await clearCategorizing(userId)
+  try {
+    return await readAndImport(userId, since)
+  } finally {
+    await clearCategorizing(userId).catch((error) =>
+      logger.error('[SmsImport] Could not clear the categorizing marks:', error)
+    )
+  }
+}
+
+async function readAndImport(userId: string, since?: Date): Promise<SyncResult> {
   const result: SyncResult = { imported: 0, needsReview: 0, verified: 0 }
   if (checkMessagesAccess() !== 'ok') return result
 

@@ -281,6 +281,7 @@ export const transactions = pgTable(
     // Manual editing and visibility
     isManuallyCategorized: boolean('is_manually_categorized').default(false), // true if user manually edited summary or category
     isHidden: boolean('is_hidden').default(false), // true if user hides this transaction from queries
+    isCategorizing: boolean('is_categorizing').default(false), // true while a bank message sync is still categorizing it; kept out of the review queues
     notes: text('notes'), // free-form note written by the user
     smsVerified: boolean('sms_verified').notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
     duplicateOfId: varchar('duplicate_of_id', { length: 21 }), // ID of the transaction this one was flagged as a duplicate of

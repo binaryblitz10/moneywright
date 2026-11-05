@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "is_categorizing" boolean DEFAULT false;

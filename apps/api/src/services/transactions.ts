@@ -312,6 +312,8 @@ export function buildFilterConditions(userId: string, filters?: TransactionFilte
       eq(tables.transactions.category, 'other')
     )!
     conditions.push(eq(tables.transactions.isManuallyCategorized, false))
+    // Rows a bank message sync is still categorizing are not waiting for the user yet
+    conditions.push(eq(tables.transactions.isCategorizing, false))
     conditions.push(
       filters.reviewStatus === 'pending'
         ? isPending
@@ -793,6 +795,8 @@ export async function createSmsTransaction(
         ? ('1.00' as unknown as Transaction['categoryConfidence'])
         : null,
       isSubscription: data.isSubscription ?? false,
+      // Left for the categorizer, which the sync runs right after: not for review until it is done
+      isCategorizing: data.summary === null,
       hash: `sms:${data.guid}`,
       createdAt: now as Date,
       updatedAt: now as Date,

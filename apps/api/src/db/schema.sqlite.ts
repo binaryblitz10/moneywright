@@ -290,6 +290,7 @@ export const transactions = sqliteTable(
     // Manual editing and visibility
     isManuallyCategorized: integer('is_manually_categorized', { mode: 'boolean' }).default(false), // true if user manually edited summary or category
     isHidden: integer('is_hidden', { mode: 'boolean' }).default(false), // true if user hides this transaction from queries
+    isCategorizing: integer('is_categorizing', { mode: 'boolean' }).default(false), // true while a bank message sync is still categorizing it; kept out of the review queues
     notes: text('notes'), // free-form note written by the user
     smsVerified: integer('sms_verified', { mode: 'boolean' }).notNull().default(false), // true once a bank message alert and a statement line were matched to this transaction
     duplicateOfId: text('duplicate_of_id'), // ID of the transaction this one was flagged as a duplicate of
