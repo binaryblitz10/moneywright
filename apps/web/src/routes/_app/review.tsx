@@ -4,16 +4,8 @@ import { Wrench } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
-import {
-  useAuth,
-  useCategories,
-  useAccounts,
-  useStatements,
-  useDebounce,
-  useProfileSelection,
-  useReviewCounts,
-} from '@/hooks'
-import { TransactionFiltersBar, EditTransactionDialog } from '@/components/transactions'
+import { useAuth, useCategories, useAccounts, useProfileSelection, useReviewCounts } from '@/hooks'
+import { EditTransactionDialog } from '@/components/transactions'
 import {
   CategorizationPanel,
   DuplicatesPanel,
@@ -58,21 +50,15 @@ function ReviewPage() {
 
   const [fixOpen, setFixOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-  const [filters, setFilters] = useState<TransactionFilters>({})
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 300)
 
   const queryEnabled = !!activeProfileId || showFamilyView
   const activeFilters: TransactionFilters & { enabled?: boolean } = {
-    ...filters,
     profileId: activeProfileId,
-    search: debouncedSearch || undefined,
     enabled: queryEnabled,
   }
 
   const { data: categoriesData } = useCategories()
   const { data: accounts } = useAccounts(activeProfileId, { enabled: queryEnabled })
-  const { data: statements } = useStatements(activeProfileId, { enabled: queryEnabled })
   const { data: counts } = useReviewCounts(activeProfileId)
   const categories = categoriesData?.categories || []
 
@@ -152,24 +138,6 @@ function ReviewPage() {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
       </Tabs>
-
-      {activeTab !== 'possible_matches' && activeTab !== 'history' && (
-        <TransactionFiltersBar
-          filters={filters}
-          search={search}
-          categories={categories}
-          accounts={accounts || []}
-          statements={statements || []}
-          country={user?.country}
-          onFiltersChange={setFilters}
-          onSearchChange={setSearch}
-          onClearFilters={() => {
-            setFilters({})
-            setSearch('')
-          }}
-          getCategoryLabel={getCategoryLabel}
-        />
-      )}
 
       {activeTab === 'duplicates' ? (
         <DuplicatesPanel {...panelProps} />

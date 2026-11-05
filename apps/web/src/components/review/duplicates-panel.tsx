@@ -8,6 +8,7 @@ import { TableSkeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useDismissDuplicates, useDuplicateGroups, useMergeDuplicates } from '@/hooks'
 import { DuplicateGroupCards } from './duplicate-card'
+import { ReviewActionButton } from './review-action-button'
 import type { DuplicateGroup } from '@/lib/api'
 import type { ReviewPanelProps } from './types'
 
@@ -123,22 +124,12 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
   }
 
   return (
-    <div className="space-y-4">
-      {sureGroups.length > 0 && (
-        <div className="flex justify-end">
-          <Button size="sm" disabled={busy} onClick={() => void handleMergeAllSure()}>
-            {mergingAll ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <GitMerge className="mr-2 h-4 w-4" />
-            )}
-            Merge all sure ({sureGroups.length})
-          </Button>
-        </div>
-      )}
-
+    <div className="space-y-4 pt-8">
       {current && (
-        <div key={current.key} className={cn('animate-fade-in', isPlaceholderData && 'opacity-60')}>
+        <div
+          key={current.key}
+          className={cn('min-h-[18.5rem] animate-fade-in', isPlaceholderData && 'opacity-60')}
+        >
           {renderGroup(current)}
         </div>
       )}
@@ -146,18 +137,13 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       {current && (
         <div className="flex flex-col items-center gap-5 pt-2">
           <div className="flex flex-col items-center gap-3">
-            <Button
-              className="h-12 w-60 rounded-xl text-base"
+            <ReviewActionButton
+              icon={GitMerge}
+              loading={(mergeMutation.isPending || merge !== null) && !mergingAll}
+              label="Merge"
               disabled={busy}
               onClick={() => handleMerge(current)}
-            >
-              {(mergeMutation.isPending || merge !== null) && !mergingAll ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <GitMerge className="h-5 w-5" />
-              )}
-              <span className="ml-2">Merge these</span>
-            </Button>
+            />
             <button
               type="button"
               disabled={dismissMutation.isPending || merge !== null}
@@ -179,7 +165,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="px-1 text-sm text-muted-foreground">
-              Group {currentIndex + 1} of {groups.length}
+              {currentIndex + 1} of {groups.length}
             </span>
             <Button
               size="icon"
@@ -192,6 +178,23 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+      )}
+      {sureGroups.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void handleMergeAllSure()}
+          >
+            {mergingAll ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <GitMerge className="mr-2 h-4 w-4" />
+            )}
+            Merge all sure ({sureGroups.length})
+          </Button>
         </div>
       )}
     </div>

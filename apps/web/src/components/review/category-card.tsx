@@ -1,10 +1,16 @@
 import { useState } from 'react'
-import { Check, Pencil, Plus } from 'lucide-react'
+import { ChevronDown, Pencil } from 'lucide-react'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { AccountAvatar, TransactionTable } from '@/components/transactions/transaction-table'
 import { Button } from '@/components/ui/button'
 import { CategoryIcon } from '@/components/ui/category-icon'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { formatDate } from '@/components/dashboard/utils'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { getAccountShortLabel } from '@/lib/statement-display'
@@ -15,18 +21,18 @@ import type { ReviewPanelProps } from './types'
 interface CategoryCardProps extends Omit<ReviewPanelProps, 'filters'> {
   group: MerchantGroupData
   isBusy: boolean
-  onConfirmAll: (ids: string[]) => void
+  className?: string
   onChangeAll: (ids: string[], category: string) => void
 }
 
 export function CategoryCard({
   group,
   isBusy,
-  onConfirmAll,
+  className,
   onChangeAll,
   ...tableProps
 }: CategoryCardProps) {
-  const [open, setOpen] = useState(false)
+  const [rowsOpen, setRowsOpen] = useState(false)
   const { transactions } = group
   const first = transactions[0]
   if (!first) return null
@@ -40,13 +46,6 @@ export function CategoryCard({
   const category = categories.find((c) => c.code === first.category)
   const colors = getCategoryColorClasses(category?.color ?? 'zinc')
   const hasSuggestion = first.summary !== null && first.category !== 'other'
-
-  const confidences = transactions.flatMap((t) =>
-    t.categoryConfidence === null ? [] : [t.categoryConfidence]
-  )
-  const confidence = confidences.length
-    ? Math.round((confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100)
-    : null
 
   const isCredit = isGroup ? group.net >= 0 : first.type === 'credit'
   const amount = isGroup ? Math.abs(group.net) : first.amount
@@ -62,10 +61,11 @@ export function CategoryCard({
   )
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-surface-elevated p-4"
+    <article
+      className={cn(
+        'relative flex flex-col justify-between rounded-2xl border border-border-subtle bg-surface-elevated p-8 animate-fade-in',
+        className
+      )}
     >
       <div className="flex items-center gap-3">
         <AccountAvatar
@@ -76,7 +76,7 @@ export function CategoryCard({
           isCard={account?.type === 'credit_card'}
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
+          <p className="truncate text-base font-medium">
             {account ? getAccountShortLabel(account) : 'Account'}
           </p>
           {!isGroup && <p className="text-xs text-muted-foreground">{formatDate(first.date)}</p>}
@@ -96,22 +96,21 @@ export function CategoryCard({
 
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium" title={group.name}>
+          <p className="truncate text-xl font-medium" title={group.name}>
             {group.name}
           </p>
           {isGroup ? (
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="-ml-2 mt-0.5 h-6 px-2 text-xs text-muted-foreground"
-              >
-                {count} transactions
-              </Button>
-            </CollapsibleTrigger>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 mt-1 h-7 px-2 text-sm text-muted-foreground"
+              onClick={() => setRowsOpen(true)}
+            >
+              {count} transactions
+            </Button>
           ) : (
             first.summary && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <p className="mt-1 truncate text-sm text-muted-foreground">
                 {first.originalDescription}
               </p>
             )
@@ -119,7 +118,7 @@ export function CategoryCard({
         </div>
         <p
           className={cn(
-            'shrink-0 text-2xl font-semibold tracking-tight tabular-nums',
+            'shrink-0 text-4xl font-semibold tracking-tight tabular-nums',
             isCredit && 'text-positive'
           )}
         >
@@ -128,56 +127,48 @@ export function CategoryCard({
         </p>
       </div>
 
-      {hasSuggestion && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium',
-              colors.bg,
-              colors.text
-            )}
-          >
-            <CategoryIcon code={first.category} className="h-3.5 w-3.5" />
-            {category?.label ?? first.category}
-          </span>
-          {confidence !== null && <span>{confidence}% confidence</span>}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        {hasSuggestion ? (
-          <>
-            <Button size="sm" disabled={isBusy} onClick={() => onConfirmAll(ids)}>
-              <Check className="mr-2 h-4 w-4" />
-              Mark as correct
-            </Button>
-            {picker(
-              <Button size="sm" variant="outline" disabled={isBusy}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Change
-              </Button>
-            )}
-          </>
-        ) : (
-          picker(
-            <Button
-              size="sm"
-              variant="outline"
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        {picker(
+          hasSuggestion ? (
+            <button
+              type="button"
               disabled={isBusy}
-              className="border-dashed text-muted-foreground hover:text-foreground"
+              className={cn(
+                'inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-1.5 text-base font-medium transition hover:brightness-95 disabled:opacity-50',
+                colors.bg,
+                colors.text
+              )}
             >
-              <Plus className="mr-1.5 h-4 w-4" />
-              Add category
-            </Button>
+              <CategoryIcon code={first.category} className="h-4 w-4" />
+              {category?.label ?? first.category}
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBusy}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-dashed border-border px-3.5 py-1.5 text-base font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+            >
+              Uncategorized
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            </button>
           )
         )}
       </div>
 
       {isGroup && (
-        <CollapsibleContent className="overflow-hidden rounded-lg border border-border-subtle">
-          <TransactionTable transactions={transactions} {...tableProps} />
-        </CollapsibleContent>
+        <Dialog open={rowsOpen} onOpenChange={setRowsOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{group.name}</DialogTitle>
+              <DialogDescription>{count} transactions waiting for a category.</DialogDescription>
+            </DialogHeader>
+            <div className="overflow-auto rounded-lg border border-border-subtle">
+              <TransactionTable transactions={transactions} {...tableProps} />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
-    </Collapsible>
+    </article>
   )
 }
