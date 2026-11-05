@@ -59,8 +59,6 @@ export {
   useUnmergeDuplicate,
   useReviewCounts,
   useResolveReviewItem,
-  usePossibleMatches,
-  useResolvePossibleMatch,
   useLinkTransactions,
   useUnlinkTransaction,
   useCategorizationStatus,

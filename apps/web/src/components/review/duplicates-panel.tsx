@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { CheckCheck, ChevronLeft, ChevronRight, GitMerge, Loader2 } from 'lucide-react'
+import { CheckCheck, ChevronLeft, ChevronRight, GitMerge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { QueryError } from '@/components/ui/query-error'
@@ -30,20 +30,23 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
   const [index, setIndex] = useState(0)
   // Keepers chosen over the suggested one
   const [keeperOverride, setKeeperOverride] = useState<Record<string, string>>({})
-  const [mergingAll, setMergingAll] = useState(false)
   const [merge, setMerge] = useState<{ key: string; stage: 'slide' | 'done' } | null>(null)
 
   // The group that goes away after a merge or dismiss is replaced by the next one
   const currentIndex = Math.min(index, Math.max(groups.length - 1, 0))
   const current = groups[currentIndex]
 
-  const busy = mergeMutation.isPending || mergingAll || merge !== null
+  const busy = mergeMutation.isPending || merge !== null
 
   const keeperOf = (group: DuplicateGroup): string =>
-    keeperOverride[group.key] && group.transactions.some((t) => t.id === keeperOverride[group.key])
+    group.kind === 'duplicate' &&
+    keeperOverride[group.key] &&
+    group.transactions.some((t) => t.id === keeperOverride[group.key])
       ? keeperOverride[group.key]!
       : group.suggestedKeeperId
   const copiesOf = (group: DuplicateGroup): string[] => {
+    // A match merges only its bank message / hand-entered transaction into the statement line
+    if (group.kind === 'match') return group.provisionalId ? [group.provisionalId] : []
     const keeperId = keeperOf(group)
     return group.transactions.filter((t) => t.id !== keeperId).map((t) => t.id)
   }
@@ -69,25 +72,6 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
         }
       )
     }, MERGE_SLIDE_MS + MERGE_CONFIRM_MS)
-  }
-
-  const sureGroups = groups.filter((g) => g.tier === 'sure' && copiesOf(g).length > 0)
-
-  const handleMergeAllSure = async () => {
-    setMergingAll(true)
-    let merged = 0
-    let failed = 0
-    for (const group of sureGroups) {
-      try {
-        await mergeMutation.mutateAsync({ keeperId: keeperOf(group), ids: copiesOf(group) })
-        merged += 1
-      } catch {
-        failed += 1
-      }
-    }
-    setMergingAll(false)
-    if (merged > 0) toast.success(`Merged ${merged} group${merged === 1 ? '' : 's'}`)
-    if (failed > 0) toast.error(`Failed to merge ${failed} group${failed === 1 ? '' : 's'}`)
   }
 
   const handleDismiss = (signature: string, dismissed: boolean) => {
@@ -118,7 +102,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
         <EmptyState
           icon={CheckCheck}
           title="No duplicates found"
-          description="No transactions share the same account, date, amount and description."
+          description="No transactions share the same account, date and amount, and no bank messages are waiting for a match."
         />
       </div>
     )
@@ -140,7 +124,7 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
           <div className="flex flex-col items-center gap-3">
             <ReviewActionButton
               icon={GitMerge}
-              loading={(mergeMutation.isPending || merge !== null) && !mergingAll}
+              loading={mergeMutation.isPending || merge !== null}
               label="Merge"
               disabled={busy}
               onClick={() => handleMerge(current)}
@@ -179,23 +163,6 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-      )}
-      {sureGroups.length > 0 && (
-        <div className="flex justify-center">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => void handleMergeAllSure()}
-          >
-            {mergingAll ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <GitMerge className="mr-2 h-4 w-4" />
-            )}
-            Merge all sure ({sureGroups.length})
-          </Button>
         </div>
       )}
     </div>

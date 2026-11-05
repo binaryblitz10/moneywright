@@ -11,11 +11,10 @@ import {
   DuplicatesPanel,
   FixIssuesDialog,
   HistoryPanel,
-  PossibleMatchesPanel,
 } from '@/components/review'
 import { Button } from '@/components/ui/button'
 
-type ReviewTab = 'duplicates' | 'categorization' | 'possible_matches' | 'history'
+type ReviewTab = 'duplicates' | 'categorization' | 'history'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
@@ -28,15 +27,15 @@ export const Route = createFileRoute('/_app/review')({
   validateSearch: (search: Record<string, unknown>): ReviewSearchParams => ({
     segment: search.tab === 'auto-fixed' ? 'auto-fixed' : undefined,
     tab:
-      search.tab === 'categorization' ||
-      search.tab === 'possible_matches' ||
-      search.tab === 'history'
+      search.tab === 'categorization' || search.tab === 'history'
         ? search.tab
         : search.tab === 'auto-fixed'
           ? 'history'
           : search.tab === 'low_confidence'
             ? 'categorization'
-            : undefined,
+            : search.tab === 'possible_matches'
+              ? 'duplicates'
+              : undefined,
   }),
 })
 
@@ -108,10 +107,7 @@ function ReviewPage() {
         onValueChange={(value) =>
           navigate({
             search: {
-              tab:
-                value === 'categorization' || value === 'possible_matches' || value === 'history'
-                  ? value
-                  : undefined,
+              tab: value === 'categorization' || value === 'history' ? value : undefined,
             },
           })
         }
@@ -120,7 +116,9 @@ function ReviewPage() {
           <TabsTrigger value="duplicates">
             Duplicates
             {counts && (
-              <span className="text-xs text-muted-foreground">{counts.duplicateGroups}</span>
+              <span className="text-xs text-muted-foreground">
+                {counts.duplicateGroups + counts.possibleMatches}
+              </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="categorization">
@@ -129,12 +127,6 @@ function ReviewPage() {
               <span className="text-xs text-muted-foreground">{categorizationCount}</span>
             )}
           </TabsTrigger>
-          {(counts?.possibleMatches ?? 0) > 0 && (
-            <TabsTrigger value="possible_matches">
-              Possible matches
-              <span className="text-xs text-muted-foreground">{counts?.possibleMatches}</span>
-            </TabsTrigger>
-          )}
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -143,8 +135,6 @@ function ReviewPage() {
         <DuplicatesPanel {...panelProps} />
       ) : activeTab === 'history' ? (
         <HistoryPanel {...panelProps} initialSegment={segment ?? 'merged'} />
-      ) : activeTab === 'possible_matches' ? (
-        <PossibleMatchesPanel {...panelProps} />
       ) : (
         <CategorizationPanel {...panelProps} />
       )}

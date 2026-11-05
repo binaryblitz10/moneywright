@@ -92,7 +92,7 @@ export function ReviewHealth({
       )}
       {possibleMatches > 0 && (
         <li>
-          <Link to="/review" search={{ tab: 'possible_matches' }} className={ROW_CLASS}>
+          <Link to="/review" search={{ tab: 'duplicates' }} className={ROW_CLASS}>
             <Row icon={MessageSquareWarning} count={possibleMatches}>
               Bank messages to match
             </Row>

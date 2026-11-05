@@ -24,6 +24,10 @@ function polishReason(reason: string): string {
       return 'Same day, same amount and a closely matching description'
     case 'Same amount, similar description':
       return 'Same amount and a closely matching description'
+    case 'Same date and amount, different description':
+      return 'Same date and amount, but a different description'
+    case 'Same amount, entered by you':
+      return 'Same amount, entered by you'
     case 'From 2 different statements':
       return 'Found in two different statements'
     case 'From different sources':
@@ -64,6 +68,8 @@ export function DuplicateGroupCards({
   const renderCard = (txn: Transaction, index: number) => {
     const account = accounts.find((a) => a.id === txn.accountId)
     const isKeeper = txn.id === keeperId
+    // In a match, the bank message / hand-entered transaction is the one being merged away
+    const isProvisional = group.kind === 'match' && txn.id === group.provisionalId
     const name = txn.summary || txn.originalDescription
     const category = categories.find((c) => c.code === txn.category)
     const colors = getCategoryColorClasses(category?.color ?? 'zinc')
@@ -86,6 +92,7 @@ export function DuplicateGroupCards({
             <p className="text-xs text-muted-foreground">{formatShortDate(txn.date)}</p>
           </div>
           {!dismissed &&
+            !isProvisional &&
             (isKeeper ? (
               <span className="flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-1 pr-3 text-xs font-medium text-primary">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -159,7 +166,7 @@ export function DuplicateGroupCards({
     const style = {
       '--merge-shift': `calc(${keeperIndex - index} * (100% + 1rem))`,
     } as React.CSSProperties
-    if (dismissed || isKeeper) {
+    if (dismissed || isKeeper || isProvisional) {
       return (
         <div key={txn.id} className={className} style={style}>
           {content}

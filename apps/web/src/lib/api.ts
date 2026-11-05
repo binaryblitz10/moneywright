@@ -1200,6 +1200,10 @@ export interface DuplicateGroup {
   reasons: string[]
   /** The copy the server suggests keeping */
   suggestedKeeperId: string
+  /** 'match' pairs a statement line with a bank message or hand-entered transaction */
+  kind: 'duplicate' | 'match'
+  /** For a match, the bank message or hand-entered transaction that is merged into the statement line */
+  provisionalId: string | null
 }
 
 /** A copy that was merged into another transaction, with a summary of what it was merged into */
@@ -1283,33 +1287,6 @@ export interface ReviewCounts {
 export async function getReviewCounts(profileId?: string): Promise<ReviewCounts> {
   const response = await api.get('/transactions/review-counts', { params: { profileId } })
   return response.data
-}
-
-/**
- * An SMS or hand-entered transaction that agrees with statement lines on date and amount but not
- * clearly on the merchant
- */
-export interface PossibleMatch {
-  kind: 'sms' | 'manual'
-  sms: Transaction
-  candidates: Transaction[]
-}
-
-export async function getPossibleMatches(profileId?: string): Promise<PossibleMatch[]> {
-  const response = await api.get('/transactions/possible-matches', { params: { profileId } })
-  return response.data.matches
-}
-
-/** Say whether an SMS transaction and a statement line are the same purchase */
-export async function resolvePossibleMatch(
-  smsTransactionId: string,
-  transactionId: string,
-  same: boolean
-): Promise<void> {
-  await api.post(`/transactions/possible-matches/${same ? 'confirm' : 'dismiss'}`, {
-    smsTransactionId,
-    transactionId,
-  })
 }
 
 /**
