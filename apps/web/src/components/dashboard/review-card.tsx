@@ -84,10 +84,7 @@ export function ReviewCard({
       className={cn('gap-2', className)}
       contentClassName="space-y-5"
       action={
-        <Link
-          to="/review"
-          search={{ tab: queue === 'check' ? 'low_confidence' : 'categorization' }}
-        >
+        <Link to="/review" search={{ tab: 'categorization' }}>
           <Button
             variant="ghost"
             size="sm"

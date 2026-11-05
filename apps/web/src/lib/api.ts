@@ -910,7 +910,7 @@ export interface TransactionFilters {
   includeHidden?: boolean
   onlyHidden?: boolean
   /** Review queues: never categorized ('pending'), only in the fallback 'other' category, low model confidence on a larger amount ('low_confidence'), or pending/other ('all') */
-  reviewStatus?: 'pending' | 'other' | 'low_confidence' | 'all'
+  reviewStatus?: 'pending' | 'other' | 'low_confidence' | 'all' | 'needs_review'
 }
 
 /**

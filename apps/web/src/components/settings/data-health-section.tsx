@@ -105,7 +105,7 @@ function IssueLink({ target, children }: { target: IssueTarget; children: React.
       )
     case 'review':
       return (
-        <Link to="/review" search={{ tab: 'low_confidence' }} className={className}>
+        <Link to="/review" search={{ tab: 'categorization' }} className={className}>
           {children}
         </Link>
       )

@@ -15,42 +15,43 @@ import {
 } from '@/hooks'
 import { TransactionFiltersBar, EditTransactionDialog } from '@/components/transactions'
 import {
-  AutoFixedPanel,
   CategorizationPanel,
   DuplicatesPanel,
   FixIssuesDialog,
+  HistoryPanel,
   PossibleMatchesPanel,
 } from '@/components/review'
 import { Button } from '@/components/ui/button'
 
-type ReviewTab =
-  | 'duplicates'
-  | 'categorization'
-  | 'low_confidence'
-  | 'possible_matches'
-  | 'auto-fixed'
+type ReviewTab = 'duplicates' | 'categorization' | 'possible_matches' | 'history'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
+  /** Set when an old 'auto-fixed' link opens the History tab on its Auto-fixed segment */
+  segment?: 'auto-fixed'
 }
 
 export const Route = createFileRoute('/_app/review')({
   component: ReviewPage,
   validateSearch: (search: Record<string, unknown>): ReviewSearchParams => ({
+    segment: search.tab === 'auto-fixed' ? 'auto-fixed' : undefined,
     tab:
       search.tab === 'categorization' ||
-      search.tab === 'low_confidence' ||
       search.tab === 'possible_matches' ||
-      search.tab === 'auto-fixed'
+      search.tab === 'history'
         ? search.tab
-        : undefined,
+        : search.tab === 'auto-fixed'
+          ? 'history'
+          : search.tab === 'low_confidence'
+            ? 'categorization'
+            : undefined,
   }),
 })
 
 function ReviewPage() {
   const { user, profiles } = useAuth()
   const navigate = Route.useNavigate()
-  const { tab } = useSearch({ from: '/_app/review' })
+  const { tab, segment } = useSearch({ from: '/_app/review' })
   const activeTab: ReviewTab = tab ?? 'duplicates'
   const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
@@ -99,13 +100,15 @@ function ReviewPage() {
     formatAmount,
   }
 
-  const categorizationCount = counts ? counts.pending + counts.other : undefined
+  const categorizationCount = counts
+    ? counts.pending + counts.other + counts.lowConfidence
+    : undefined
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Review"
-        description="Resolve duplicate, uncategorized and low-confidence transactions"
+        description="Resolve duplicates and sort out transactions that need a category"
         actions={
           <Button onClick={() => setFixOpen(true)}>
             <Wrench className="h-4 w-4 mr-2" />
@@ -120,10 +123,7 @@ function ReviewPage() {
           navigate({
             search: {
               tab:
-                value === 'categorization' ||
-                value === 'low_confidence' ||
-                value === 'possible_matches' ||
-                value === 'auto-fixed'
+                value === 'categorization' || value === 'possible_matches' || value === 'history'
                   ? value
                   : undefined,
             },
@@ -138,15 +138,9 @@ function ReviewPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="categorization">
-            Needs categorization
+            Categories
             {categorizationCount !== undefined && (
               <span className="text-xs text-muted-foreground">{categorizationCount}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="low_confidence">
-            Low confidence
-            {counts && (
-              <span className="text-xs text-muted-foreground">{counts.lowConfidence}</span>
             )}
           </TabsTrigger>
           {(counts?.possibleMatches ?? 0) > 0 && (
@@ -155,11 +149,11 @@ function ReviewPage() {
               <span className="text-xs text-muted-foreground">{counts?.possibleMatches}</span>
             </TabsTrigger>
           )}
-          <TabsTrigger value="auto-fixed">Auto-fixed</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {activeTab !== 'possible_matches' && activeTab !== 'auto-fixed' && (
+      {activeTab !== 'possible_matches' && activeTab !== 'history' && (
         <TransactionFiltersBar
           filters={filters}
           search={search}
@@ -179,16 +173,12 @@ function ReviewPage() {
 
       {activeTab === 'duplicates' ? (
         <DuplicatesPanel {...panelProps} />
-      ) : activeTab === 'auto-fixed' ? (
-        <AutoFixedPanel profileId={activeProfileId} />
+      ) : activeTab === 'history' ? (
+        <HistoryPanel {...panelProps} initialSegment={segment ?? 'merged'} />
       ) : activeTab === 'possible_matches' ? (
         <PossibleMatchesPanel {...panelProps} />
       ) : (
-        <CategorizationPanel
-          key={activeTab}
-          queue={activeTab === 'low_confidence' ? 'low_confidence' : 'categorization'}
-          {...panelProps}
-        />
+        <CategorizationPanel {...panelProps} />
       )}
 
       <FixIssuesDialog open={fixOpen} onOpenChange={setFixOpen} profileId={activeProfileId} />
