@@ -278,13 +278,16 @@ export function useOfferSimilarChange() {
         category && sample
           ? `still ${getCategoryLabel(sample.category)}`
           : `still named ${sample?.summary ?? 'differently'}`
-      toast(`${count} other ${merchantName} transaction${count === 1 ? ' is' : 's are'} ${state}`, {
-        duration: 15000,
-        action: {
-          label: 'Change them too',
-          onClick: () => bulkUpdate.mutate({ transactionIds: ids, category, summary: name }),
-        },
-      })
+      toast.success(
+        `${count} other ${merchantName} transaction${count === 1 ? ' is' : 's are'} ${state}`,
+        {
+          duration: 15000,
+          action: {
+            label: 'Change them too',
+            onClick: () => bulkUpdate.mutate({ transactionIds: ids, category, summary: name }),
+          },
+        }
+      )
     } catch {
       // The offer is a nicety: a failed lookup must not get in the way of the edit
     }
