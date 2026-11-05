@@ -56,6 +56,8 @@ export interface SmsImportStatus {
   aiAvailable: boolean
   access: MessagesAccess | null
   lastSyncAt: string | null
+  /** A read of the Messages app is running right now */
+  syncing: boolean
   pendingCount: number
 }
 
@@ -161,6 +163,7 @@ export async function getSmsImportStatus(userId: string): Promise<SmsImportStatu
     aiAvailable: llm.isConfigured,
     access: supported ? checkMessagesAccess() : null,
     lastSyncAt,
+    syncing: syncInFlight !== null,
     pendingCount: pending,
   }
 }

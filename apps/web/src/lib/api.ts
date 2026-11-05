@@ -3553,6 +3553,7 @@ export interface SmsImportStatus {
   aiAvailable: boolean
   access: MessagesAccess | null
   lastSyncAt: string | null
+  syncing: boolean
   pendingCount: number
 }
 

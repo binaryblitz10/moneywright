@@ -101,6 +101,8 @@ export {
 export {
   smsImportKeys,
   useSmsImportStatus,
+  useSmsSyncing,
+  useSyncingToast,
   usePendingSms,
   useSyncedSms,
   useOpenSmsPermissionSettings,

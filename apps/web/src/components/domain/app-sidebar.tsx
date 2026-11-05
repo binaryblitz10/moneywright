@@ -1,6 +1,12 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
-import { useProfileSelection, useReviewCounts, useSmsImportStatus, useUpdateChecker } from '@/hooks'
+import {
+  useProfileSelection,
+  useReviewCounts,
+  useSmsImportStatus,
+  useSmsSyncing,
+  useUpdateChecker,
+} from '@/hooks'
 import { useTheme } from '@/hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { ProfileSelector } from './profile-selector'
@@ -20,7 +26,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
-import { Download, Moon, Search, Sun, X } from 'lucide-react'
+import { Download, Loader2, Moon, Search, Sun, X } from 'lucide-react'
 import { MOD_KEY } from '@/lib/platform'
 import { askPennyNavItem, getNavGroups, settingsNavItem, type NavItem } from './nav-items'
 
@@ -63,6 +69,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
 
   // Bank Messages only appears once reading bank messages is switched on
   const { data: smsStatus } = useSmsImportStatus()
+  const smsSyncing = useSmsSyncing()
   const navGroups = getNavGroups(!!smsStatus?.enabled)
 
   const badgeCounts: Record<string, number> = {
@@ -73,6 +80,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
   const renderNavItem = (item: NavItem) => {
     const isActive = activeHref === item.href
     const badge = badgeCounts[item.href] ?? 0
+    const syncingHere = item.href === '/bank-messages' && smsSyncing
     return (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
@@ -104,8 +112,19 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
           )}
           <item.icon className={cn('h-4 w-4', isActive && 'text-primary')} />
           <span className="text-sm">{item.title}</span>
+          {syncingHere && (
+            <Loader2
+              className="ml-auto h-3.5 w-3.5 animate-spin text-primary"
+              aria-label="Reading bank messages"
+            />
+          )}
           {badge > 0 && (
-            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1 text-[10px] font-medium text-primary">
+            <span
+              className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1 text-[10px] font-medium text-primary',
+                syncingHere ? 'ml-1.5' : 'ml-auto'
+              )}
+            >
               {badge > 99 ? '99+' : badge}
             </span>
           )}

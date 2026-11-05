@@ -16,6 +16,7 @@ import {
   useCategories,
   usePendingSms,
   useSmsImportStatus,
+  useSmsSyncing,
   useSyncSmsImport,
   useSyncedSms,
 } from '@/hooks'
@@ -43,6 +44,7 @@ function BankMessagesPage() {
   } = useSyncedSms(enabled)
   const { data: accounts = [] } = useAccounts()
   const syncMutation = useSyncSmsImport()
+  const syncing = useSmsSyncing()
   const { user } = useAuth()
   const { data: categoriesData } = useCategories()
   const categories = categoriesData?.categories || []
@@ -67,7 +69,7 @@ function BankMessagesPage() {
             {enabled && (
               <Button
                 className="px-5 has-[>svg]:px-5"
-                disabled={syncMutation.isPending || status?.access !== 'ok'}
+                disabled={syncing || status?.access !== 'ok'}
                 title={
                   status?.access !== 'ok'
                     ? 'Allow Moneywright to read Messages in Settings'
@@ -75,12 +77,12 @@ function BankMessagesPage() {
                 }
                 onClick={() => syncMutation.mutate(undefined)}
               >
-                {syncMutation.isPending ? (
+                {syncing ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="mr-2 h-4 w-4" />
                 )}
-                Sync
+                {syncing ? 'Syncing' : 'Sync'}
               </Button>
             )}
           </div>

@@ -24,6 +24,7 @@ import { DeleteSmsTransactionsButton } from './delete-sms-transactions-button'
 import {
   useOpenSmsPermissionSettings,
   useSmsImportStatus,
+  useSmsSyncing,
   useSyncSmsImport,
   useUpdateSmsImportSettings,
 } from '@/hooks'
@@ -84,6 +85,7 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
   const updateMutation = useUpdateSmsImportSettings()
   const openSettingsMutation = useOpenSmsPermissionSettings()
   const syncMutation = useSyncSmsImport()
+  const syncing = useSmsSyncing()
   const { refetch, isFetching } = useSmsImportStatus()
   const [syncOpen, setSyncOpen] = useState(false)
   const [since, setSince] = useState(toDateInput(daysAgo(DEFAULT_DAYS_BACK)))
@@ -179,12 +181,12 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
                   Cancel
                 </Button>
                 <Button
-                  disabled={!since || syncMutation.isPending}
+                  disabled={!since || syncing}
                   onClick={() =>
                     syncMutation.mutate(since, { onSuccess: () => setSyncOpen(false) })
                   }
                 >
-                  {syncMutation.isPending ? (
+                  {syncing ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="mr-2 h-4 w-4" />

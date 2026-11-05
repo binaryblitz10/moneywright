@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useIsMutating, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getSmsImportStatus,
@@ -25,6 +25,7 @@ export const smsImportKeys = {
   status: () => [...smsImportKeys.all, 'status'] as const,
   pending: () => [...smsImportKeys.all, 'pending'] as const,
   messages: () => [...smsImportKeys.all, 'messages'] as const,
+  sync: () => [...smsImportKeys.all, 'sync'] as const,
   transactionMessage: (transactionId: string) =>
     [...smsImportKeys.all, 'transaction-message', transactionId] as const,
 }
@@ -36,7 +37,19 @@ export function useSmsImportStatus() {
   return useQuery({
     queryKey: smsImportKeys.status(),
     queryFn: getSmsImportStatus,
+    // Keep checking while a sync runs so the indicator clears and new rows appear when it ends
+    refetchInterval: (query) => (query.state.data?.syncing ? 1000 : false),
   })
+}
+
+/**
+ * Whether bank messages are being read right now, whether started here, by the unlock sync or
+ * by another window
+ */
+export function useSmsSyncing(): boolean {
+  const { data: status } = useSmsImportStatus()
+  const manualSyncs = useIsMutating({ mutationKey: smsImportKeys.sync() })
+  return manualSyncs > 0 || !!status?.syncing
 }
 
 /**
@@ -104,6 +117,7 @@ export function useSyncSmsImport() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: smsImportKeys.sync(),
     mutationFn: (since?: string) => syncSmsImport(since),
     onSuccess: ({ imported, needsReview, verified }) => {
       queryClient.invalidateQueries({ queryKey: smsImportKeys.all })
@@ -120,6 +134,25 @@ export function useSyncSmsImport() {
     },
     onError: () => toast.error('Could not read messages'),
   })
+}
+
+const SYNCING_TOAST_ID = 'sms-syncing'
+
+/**
+ * Keep a loading toast up while bank messages are being read
+ */
+export function useSyncingToast(enabled: boolean) {
+  const syncing = useSmsSyncing()
+  const { data: status } = useSmsImportStatus()
+  const show = enabled && !!status?.enabled && syncing
+
+  useEffect(() => {
+    if (!show) return
+    toast.loading('Syncing bank messages', { id: SYNCING_TOAST_ID, duration: Infinity })
+    return () => {
+      toast.dismiss(SYNCING_TOAST_ID)
+    }
+  }, [show])
 }
 
 /**
