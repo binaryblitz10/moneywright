@@ -248,15 +248,20 @@ export async function getDismissedSmsMatches(userId: string): Promise<string[]> 
 }
 
 /**
- * Helper: Remember that an SMS transaction and a statement transaction are different purchases
+ * Helper: Dismiss pairs of an SMS (or hand-entered) transaction and a statement transaction as
+ * different purchases, or bring them back. Pairs are `[provisionalId, transactionId]`.
  */
-export async function dismissSmsMatch(
+export async function setSmsMatchesDismissed(
   userId: string,
-  smsTransactionId: string,
-  transactionId: string
+  pairs: Array<[string, string]>,
+  dismissed: boolean
 ): Promise<void> {
   const current = new Set(await getDismissedSmsMatches(userId))
-  current.add(`${smsTransactionId}|${transactionId}`)
+  for (const [provisionalId, transactionId] of pairs) {
+    const pair = `${provisionalId}|${transactionId}`
+    if (dismissed) current.add(pair)
+    else current.delete(pair)
+  }
   await setPreference(userId, PREFERENCE_KEYS.DISMISSED_SMS_MATCHES, JSON.stringify([...current]))
 }
 

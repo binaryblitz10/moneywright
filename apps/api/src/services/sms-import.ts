@@ -36,7 +36,7 @@ import {
   toTransactionResponse,
   type TransactionResponse,
 } from './transactions'
-import { reconcileSmsTransactions } from './sms-matching'
+import { reconcileSmsTransactions } from './sms-reconcile'
 import { getRulesForUser } from './transaction-rules'
 import { resolveRuleFields } from '../lib/transaction-rules'
 import { getPreference, setPreference, PREFERENCE_KEYS } from './preferences'

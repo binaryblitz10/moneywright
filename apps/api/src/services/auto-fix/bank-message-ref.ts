@@ -7,13 +7,13 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db, tables } from '../../db'
 import { decryptOptional } from '../../lib/encryption'
 import { references } from '../../lib/duplicate-references'
-import { confirmPossibleMatch, findPossibleMatches } from '../sms-matching'
-import { asRecord, loadTransactions, trackTransactions, transactionLabel } from './rows'
-import { changedColumns, makeFixId } from './values'
-import type { ChangeRecord, Fix, Fixer } from './types'
+import { findPossibleMatches } from '../sms-matching'
+import { mergeDuplicates } from '../duplicates'
+import { trackTransactions, transactionLabel } from './rows'
+import { makeFixId } from './values'
+import type { Fix, Fixer } from './types'
 
 const ID = 'bank-message-ref'
-const SMS_COLUMNS = ['status', 'transactionId', 'accountId'] as const
 
 interface MatchData {
   provisionalId: string
@@ -79,68 +79,16 @@ export const bankMessageRef: Fixer = {
   },
   async apply(ctx, fix) {
     const { provisionalId, targetId } = fix.data as MatchData
-    const [provisional] = [...(await loadTransactions(ctx.userId, [provisionalId])).values()]
-    if (!provisional) return []
-
-    const messagesBefore = await loadMessages(ctx.userId, [provisionalId])
-    const [statementBefore] = await db
-      .select({ deletedTransactionCount: tables.statements.deletedTransactionCount })
-      .from(tables.statements)
-      .where(eq(tables.statements.id, provisional.statementId))
-
-    const transactionRecords = await trackTransactions(
+    return trackTransactions(
       ctx.userId,
       [provisionalId, targetId],
       async () => {
-        await confirmPossibleMatch(ctx.userId, provisionalId, targetId)
+        await mergeDuplicates(ctx.userId, targetId, [provisionalId])
       },
       (before, after) =>
-        after
-          ? `Marked ${transactionLabel(before)} as verified by its bank message`
-          : `Removed the bank message copy of ${transactionLabel(before)}`
+        after?.duplicateOfId
+          ? `Merged the bank message copy of ${transactionLabel(before)} into its statement line`
+          : `Marked ${transactionLabel(before)} as verified by its bank message`
     )
-    if (transactionRecords.length === 0) return []
-
-    // Undo runs these backwards: the removed transaction must exist again before a message points at it
-    const records: ChangeRecord[] = transactionRecords.filter((record) => record.after !== null)
-    const messagesAfter = await db
-      .select()
-      .from(tables.smsMessages)
-      .where(
-        inArray(
-          tables.smsMessages.id,
-          messagesBefore.map((message) => message.id)
-        )
-      )
-    for (const was of messagesBefore) {
-      const now = messagesAfter.find((message) => message.id === was.id)
-      const changed = now && changedColumns(asRecord(was), asRecord(now), SMS_COLUMNS)
-      if (changed) {
-        records.push({
-          entityType: 'sms_message',
-          entityId: was.id,
-          ...changed,
-          description: `Pointed the bank message for ${transactionLabel(provisional)} at its statement line`,
-        })
-      }
-    }
-    const [statementAfter] = await db
-      .select({ deletedTransactionCount: tables.statements.deletedTransactionCount })
-      .from(tables.statements)
-      .where(eq(tables.statements.id, provisional.statementId))
-    const statementChange =
-      statementBefore &&
-      statementAfter &&
-      changedColumns(statementBefore, statementAfter, ['deletedTransactionCount'])
-    if (statementChange) {
-      records.push({
-        entityType: 'statement',
-        entityId: provisional.statementId,
-        ...statementChange,
-        description: `Counted the removed bank message copy of ${transactionLabel(provisional)}`,
-      })
-    }
-    records.push(...transactionRecords.filter((record) => record.after === null))
-    return records
   },
 }

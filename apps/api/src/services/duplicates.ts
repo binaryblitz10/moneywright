@@ -3,7 +3,7 @@
  * merging a group into the copy worth keeping, and undoing a merge.
  */
 
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, like } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { duplicateKey } from '../lib/duplicate-key'
@@ -14,7 +14,12 @@ import {
   type DuplicateCandidate,
 } from '../lib/duplicate-score'
 import { logger } from '../lib/logger'
-import { getDismissedDuplicates } from './preferences'
+import {
+  getDismissedDuplicates,
+  setDuplicatesDismissed,
+  setSmsMatchesDismissed,
+} from './preferences'
+import { findPossibleMatches } from './sms-matching'
 import {
   buildFilterConditions,
   toTransactionResponse,
@@ -36,7 +41,13 @@ export interface DuplicateGroup {
   /** Why the copies are thought to be the same, deduplicated across the group */
   reasons: string[]
   suggestedKeeperId: string
+  /** 'match': a bank message or hand-entered transaction and the statement line it may belong to */
+  kind: 'duplicate' | 'match'
+  /** For a match, the bank-message or hand-entered transaction merged into the statement line */
+  provisionalId: string | null
 }
+
+const MATCH_PREFIX = 'match:'
 
 interface DuplicateRow {
   txn: TransactionResponse
@@ -140,9 +151,63 @@ export async function findDuplicateGroups(
       tier: comparisons.every((c) => c.tier === 'sure') ? 'sure' : 'likely',
       reasons: [...new Set(comparisons.flatMap((c) => c.reasons))],
       suggestedKeeperId: keeper.id,
+      kind: 'duplicate',
+      provisionalId: null,
     })
   }
-  return groups.sort((a, b) => b.transactions[0]!.date.localeCompare(a.transactions[0]!.date))
+  groups.sort((a, b) => b.transactions[0]!.date.localeCompare(a.transactions[0]!.date))
+  return [...groups, ...(await findMatchGroups(userId, filters?.profileId, dismissed))]
+}
+
+/** Each possible match pair (a provisional row and one statement line) as a group of two */
+async function findMatchGroups(
+  userId: string,
+  profileId: string | undefined,
+  dismissed: boolean
+): Promise<DuplicateGroup[]> {
+  const matches = await findPossibleMatches(userId, profileId, dismissed)
+  return matches.flatMap((match) =>
+    match.candidates.map((candidate) => {
+      const signature = `${MATCH_PREFIX}${match.sms.id}|${candidate.id}`
+      return {
+        key: signature,
+        signature,
+        transactions: [candidate, match.sms],
+        tier: 'likely' as const,
+        reasons: [
+          match.kind === 'manual'
+            ? 'Same amount, entered by you'
+            : 'Same date and amount, different description',
+        ],
+        suggestedKeeperId: candidate.id,
+        kind: 'match' as const,
+        provisionalId: match.sms.id,
+      }
+    })
+  )
+}
+
+/**
+ * Dismiss duplicate groups and possible match pairs as not duplicates, or bring them back.
+ * Match signatures are `match:<provisionalId>|<candidateId>`.
+ */
+export async function setDuplicateGroupsDismissed(
+  userId: string,
+  signatures: string[],
+  dismissed: boolean
+): Promise<void> {
+  const pairs: Array<[string, string]> = []
+  const groups: string[] = []
+  for (const signature of signatures) {
+    if (!signature.startsWith(MATCH_PREFIX)) {
+      groups.push(signature)
+      continue
+    }
+    const [provisionalId, candidateId] = signature.slice(MATCH_PREFIX.length).split('|')
+    if (provisionalId && candidateId) pairs.push([provisionalId, candidateId])
+  }
+  if (groups.length > 0) await setDuplicatesDismissed(userId, groups, dismissed)
+  if (pairs.length > 0) await setSmsMatchesDismissed(userId, pairs, dismissed)
 }
 
 // ============================================================================
@@ -267,7 +332,21 @@ export async function mergeDuplicates(
       const withNotes = found.find((copy) => copy.notes)
       if (withNotes) carried.notes = withNotes.notes
     }
-    if (!keeper.smsVerified && found.some((copy) => copy.smsVerified)) carried.smsVerified = true
+    // A bank message copy proves the keeper (its statement line) was announced by the bank
+    if (
+      !keeper.smsVerified &&
+      found.some((copy) => copy.smsVerified || copy.hash.startsWith('sms:'))
+    ) {
+      carried.smsVerified = true
+    }
+
+    // A hidden hand-entered or bank message copy keeps the merged transaction hidden
+    if (
+      !keeper.isHidden &&
+      found.some((copy) => copy.isHidden && /^(sms|manual):/.test(copy.hash))
+    ) {
+      carried.isHidden = true
+    }
 
     // Links move to the keeper when it has none; a transaction pointing back at the copy follows
     const linked = !keeper.linkedEntityId ? found.find((copy) => copy.linkedEntityId) : undefined
@@ -296,6 +375,24 @@ export async function mergeDuplicates(
         .set({ ...carried, updatedAt: now })
         .where(eq(tables.transactions.id, keeperId))
     }
+    // The message of a bank message copy now belongs to the statement line it was merged into
+    for (const copy of found) {
+      if (!copy.hash.startsWith('sms:')) continue
+      await tx
+        .update(tables.smsMessages)
+        .set({
+          transactionId: keeperId,
+          accountId: keeper.accountId,
+          status: 'verified',
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(tables.smsMessages.userId, userId),
+            eq(tables.smsMessages.guid, copy.hash.slice('sms:'.length))
+          )
+        )
+    }
     await tx
       .update(tables.transactions)
       .set({ isHidden: true, duplicateOfId: keeperId, updatedAt: now })
@@ -318,6 +415,15 @@ export async function mergeDuplicates(
 /** Bring a merged copy back as its own transaction. Returns false when it is not a merged copy. */
 export async function unmergeDuplicate(userId: string, id: string): Promise<boolean> {
   const now = (dbType === 'postgres' ? new Date() : new Date().toISOString()) as Date
+  const [copy] = await db
+    .select({
+      hash: tables.transactions.hash,
+      accountId: tables.transactions.accountId,
+      duplicateOfId: tables.transactions.duplicateOfId,
+    })
+    .from(tables.transactions)
+    .where(and(eq(tables.transactions.id, id), eq(tables.transactions.userId, userId)))
+  const keeperId = copy?.duplicateOfId
   const updated = await db
     .update(tables.transactions)
     .set({ isHidden: false, duplicateOfId: null, updatedAt: now })
@@ -330,6 +436,35 @@ export async function unmergeDuplicate(userId: string, id: string): Promise<bool
     )
     .returning({ id: tables.transactions.id })
   if (updated.length === 0) return false
+  if (keeperId && copy.hash.startsWith('sms:')) {
+    await db
+      .update(tables.smsMessages)
+      .set({ transactionId: id, accountId: copy.accountId, status: 'imported', updatedAt: now })
+      .where(
+        and(
+          eq(tables.smsMessages.userId, userId),
+          eq(tables.smsMessages.guid, copy.hash.slice('sms:'.length))
+        )
+      )
+    // The keeper stays verified only while another bank message copy is still merged into it
+    const [remaining] = await db
+      .select({ id: tables.transactions.id })
+      .from(tables.transactions)
+      .where(
+        and(
+          eq(tables.transactions.userId, userId),
+          eq(tables.transactions.duplicateOfId, keeperId),
+          like(tables.transactions.hash, 'sms:%')
+        )
+      )
+      .limit(1)
+    if (!remaining) {
+      await db
+        .update(tables.transactions)
+        .set({ smsVerified: false, updatedAt: now })
+        .where(eq(tables.transactions.id, keeperId))
+    }
+  }
   invalidateDuplicateCache(userId)
   return true
 }

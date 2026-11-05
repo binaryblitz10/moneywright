@@ -10,7 +10,7 @@ import { logger } from '../logger'
 import { merchantFingerprint } from '../merchant-fingerprint'
 import { selectRowsToInsert, type DuplicateKeyInput } from '../duplicate-key'
 import { invalidateDuplicateCache } from '../../services/duplicates'
-import { reconcileWithCounts } from '../../services/sms-matching'
+import { reconcileWithCounts } from '../../services/sms-reconcile'
 import type { RawPdfTransaction, InsertResult } from './types'
 
 /**

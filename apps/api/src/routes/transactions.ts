@@ -25,17 +25,13 @@ import {
 import { queueRenameJob, getRenameJobStatus } from '../services/transaction-rename'
 import { findSimilarForCorrection } from '../services/categorization-events'
 import { getProfileById } from '../services/profiles'
-import {
-  findPossibleMatches,
-  confirmPossibleMatch,
-  rejectPossibleMatch,
-} from '../services/sms-matching'
-import { setCardPaymentsDismissed, setDuplicatesDismissed } from '../services/preferences'
+import { setCardPaymentsDismissed } from '../services/preferences'
 import {
   findDuplicateGroups,
   invalidateDuplicateCache,
   listMerged,
   mergeDuplicates,
+  setDuplicateGroupsDismissed,
   unmergeDuplicate,
 } from '../services/duplicates'
 import { getLinkSuggestions } from '../services/card-payments'
@@ -144,11 +140,6 @@ const mergeDuplicatesSchema = z.object({
 
 const unmergeDuplicateSchema = z.object({
   id: z.string().min(1),
-})
-
-const possibleMatchSchema = z.object({
-  smsTransactionId: z.string().min(1),
-  transactionId: z.string().min(1),
 })
 
 const dismissCardPaymentsSchema = z.object({
@@ -338,7 +329,7 @@ transactionRoutes.get('/duplicates', async (c) => {
 
 /**
  * POST /transactions/duplicates/dismissed
- * Mark duplicate groups as not duplicates (or bring them back)
+ * Mark duplicate groups and possible matches as not duplicates (or bring them back)
  */
 transactionRoutes.post('/duplicates/dismissed', async (c) => {
   const userId = c.get('userId')
@@ -350,7 +341,7 @@ transactionRoutes.post('/duplicates/dismissed', async (c) => {
       400
     )
   }
-  await setDuplicatesDismissed(userId, result.data.signatures, result.data.dismissed)
+  await setDuplicateGroupsDismissed(userId, result.data.signatures, result.data.dismissed)
   invalidateDuplicateCache(userId)
   return c.json({ success: true })
 })
@@ -393,63 +384,6 @@ transactionRoutes.post('/duplicates/unmerge', async (c) => {
   if (!(await unmergeDuplicate(userId, result.data.id))) {
     return c.json({ error: 'not_found', message: 'Merged transaction not found' }, 404)
   }
-  return c.json({ success: true })
-})
-
-/**
- * GET /transactions/possible-matches
- * SMS transactions that agree with a statement line on date and amount but not on the merchant
- * NOTE: This must be defined BEFORE /:id to avoid matching "possible-matches" as an ID
- */
-transactionRoutes.get('/possible-matches', async (c) => {
-  const userId = c.get('userId')
-  const matches = await findPossibleMatches(userId, c.req.query('profileId') || undefined)
-  return c.json({ matches })
-})
-
-/**
- * POST /transactions/possible-matches/confirm
- * The SMS transaction and the statement line are the same purchase
- */
-transactionRoutes.post('/possible-matches/confirm', async (c) => {
-  const userId = c.get('userId')
-  const body = await c.req.json().catch(() => ({}))
-  const result = possibleMatchSchema.safeParse(body)
-  if (!result.success) {
-    return c.json(
-      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
-      400
-    )
-  }
-  const confirmed = await confirmPossibleMatch(
-    userId,
-    result.data.smsTransactionId,
-    result.data.transactionId
-  )
-  if (!confirmed) return c.json({ error: 'not_found', message: 'Match not found' }, 404)
-  return c.json({ success: true })
-})
-
-/**
- * POST /transactions/possible-matches/dismiss
- * The SMS transaction and the statement line are different purchases
- */
-transactionRoutes.post('/possible-matches/dismiss', async (c) => {
-  const userId = c.get('userId')
-  const body = await c.req.json().catch(() => ({}))
-  const result = possibleMatchSchema.safeParse(body)
-  if (!result.success) {
-    return c.json(
-      { error: 'validation_error', message: result.error.issues[0]?.message || 'Invalid request' },
-      400
-    )
-  }
-  const rejected = await rejectPossibleMatch(
-    userId,
-    result.data.smsTransactionId,
-    result.data.transactionId
-  )
-  if (!rejected) return c.json({ error: 'not_found', message: 'Match not found' }, 404)
   return c.json({ success: true })
 })
 
