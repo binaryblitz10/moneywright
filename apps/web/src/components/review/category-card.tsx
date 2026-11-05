@@ -15,6 +15,7 @@ import { formatDate } from '@/components/dashboard/utils'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { getAccountShortLabel } from '@/lib/statement-display'
 import { cn } from '@/lib/utils'
+import type { Transaction } from '@/lib/api'
 import type { MerchantGroupData } from './merchant-groups'
 import type { ReviewPanelProps } from './types'
 
@@ -33,6 +34,10 @@ export function CategoryCard({
   ...tableProps
 }: CategoryCardProps) {
   const [rowsOpen, setRowsOpen] = useState(false)
+  // While the popup is open its rows stay put: the ones the user categorizes keep showing, with
+  // their new category, even though they no longer belong to the review queue
+  const [openRows, setOpenRows] = useState<Transaction[]>([])
+  const [changed, setChanged] = useState<Record<string, string>>({})
   const { transactions } = group
   const first = transactions[0]
   if (!first) return null
@@ -104,7 +109,11 @@ export function CategoryCard({
               variant="ghost"
               size="sm"
               className="-ml-2 mt-1 h-7 px-2 text-sm text-muted-foreground"
-              onClick={() => setRowsOpen(true)}
+              onClick={() => {
+                setOpenRows(transactions)
+                setChanged({})
+                setRowsOpen(true)
+              }}
             >
               {count} transactions
             </Button>
@@ -156,15 +165,27 @@ export function CategoryCard({
         )}
       </div>
 
-      {isGroup && (
+      {(isGroup || rowsOpen) && (
         <Dialog open={rowsOpen} onOpenChange={setRowsOpen}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>{group.name}</DialogTitle>
-              <DialogDescription>{count} transactions waiting for a category.</DialogDescription>
+              <DialogDescription>
+                {openRows.length} transactions from this merchant.
+              </DialogDescription>
             </DialogHeader>
             <div className="overflow-auto rounded-lg border border-border-subtle">
-              <TransactionTable transactions={transactions} {...tableProps} />
+              <TransactionTable
+                transactions={openRows.map((t) =>
+                  changed[t.id]
+                    ? { ...t, category: changed[t.id]!, isManuallyCategorized: true }
+                    : t
+                )}
+                onCategoryChanged={(txn, category) =>
+                  setChanged((prev) => ({ ...prev, [txn.id]: category }))
+                }
+                {...tableProps}
+              />
             </div>
           </DialogContent>
         </Dialog>

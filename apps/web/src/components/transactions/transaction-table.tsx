@@ -63,6 +63,8 @@ interface TransactionTableProps {
   isSelectable?: (transaction: Transaction) => boolean
   /** Whether a row's category can be changed in place (default: always) */
   isCategoryEditable?: (transaction: Transaction) => boolean
+  /** Called after a row's category was changed in place and saved */
+  onCategoryChanged?: (transaction: Transaction, category: string) => void
 }
 
 // Sort indicator component
@@ -161,6 +163,7 @@ export function TransactionTable({
   isEditable,
   isSelectable,
   isCategoryEditable,
+  onCategoryChanged,
 }: TransactionTableProps) {
   const updateTransaction = useUpdateTransaction()
   const offerSimilarChange = useOfferSimilarChange()
@@ -173,13 +176,15 @@ export function TransactionTable({
     updateTransaction.mutate(
       { transactionId: txn.id, data: { category } },
       {
-        onSuccess: () =>
+        onSuccess: () => {
+          onCategoryChanged?.(txn, category)
           void offerSimilarChange({
             transactionId: txn.id,
             category,
             merchantName: txn.summary || txn.originalDescription,
             getCategoryLabel,
-          }),
+          })
+        },
       }
     )
 

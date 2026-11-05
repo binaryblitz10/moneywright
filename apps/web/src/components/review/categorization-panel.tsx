@@ -22,6 +22,9 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
   // Settled ones leave at once, before the refetch drops them
   const [settled, setSettled] = useState<Set<string>>(new Set())
   const [index, setIndex] = useState(0)
+  // The merchant on show stays on show when the list reorders under it, e.g. after one of its
+  // transactions is categorized in the transactions dialog
+  const [activeKey, setActiveKey] = useState<string | null>(null)
 
   const mutation = useBulkUpdateTransactions()
 
@@ -35,8 +38,19 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
   const groups = useMemo(() => groupByMerchant(transactions), [transactions])
 
   const deck = groups.filter((g) => !settled.has(g.key))
-  const currentIndex = Math.min(index, Math.max(deck.length - 1, 0))
+  const anchoredIndex = deck.findIndex((g) => g.key === activeKey)
+  const currentIndex =
+    anchoredIndex >= 0 ? anchoredIndex : Math.min(index, Math.max(deck.length - 1, 0))
   const current = deck[currentIndex]
+  const currentKey = current?.key
+
+  // Adjusting state while rendering is React's way of following a value that changed
+  if (currentKey && currentKey !== activeKey) setActiveKey(currentKey)
+
+  const goTo = (next: number) => {
+    setIndex(next)
+    setActiveKey(deck[next]?.key ?? null)
+  }
 
   const settle = (key: string, input: { transactionIds: string[]; category?: string }) =>
     mutation.mutate(
@@ -102,24 +116,28 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
       </div>
 
       <div className="flex flex-col items-center gap-5 pt-2">
-        {hasSuggestion ? (
-          <ReviewActionButton
-            icon={Check}
-            label="Confirm"
-            disabled={busy}
-            onClick={() => settle(current.key, { transactionIds: ids })}
-          />
-        ) : (
-          <CategoryPicker
-            categories={tableProps.categories}
-            value=""
-            onChange={(code) =>
-              code && settle(current.key, { transactionIds: ids, category: code })
-            }
-            fitContent
-            trigger={<ReviewActionButton icon={Plus} label="Add category" disabled={busy} />}
-          />
-        )}
+        {/* Same shape as the Duplicates button group (button + link) so the pagination lines up */}
+        <div className="flex flex-col items-center gap-3">
+          {hasSuggestion ? (
+            <ReviewActionButton
+              icon={Check}
+              label="Confirm"
+              disabled={busy}
+              onClick={() => settle(current.key, { transactionIds: ids })}
+            />
+          ) : (
+            <CategoryPicker
+              categories={tableProps.categories}
+              value=""
+              onChange={(code) =>
+                code && settle(current.key, { transactionIds: ids, category: code })
+              }
+              fitContent
+              trigger={<ReviewActionButton icon={Plus} label="Add category" disabled={busy} />}
+            />
+          )}
+          <div aria-hidden className="h-5" />
+        </div>
         <div className="flex items-center gap-1">
           <Button
             size="icon"
@@ -127,7 +145,7 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
             className="h-8 w-8"
             aria-label="Previous merchant"
             disabled={currentIndex === 0}
-            onClick={() => setIndex(currentIndex - 1)}
+            onClick={() => goTo(currentIndex - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -140,7 +158,7 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
             className="h-8 w-8"
             aria-label="Next merchant"
             disabled={currentIndex >= deck.length - 1}
-            onClick={() => setIndex(currentIndex + 1)}
+            onClick={() => goTo(currentIndex + 1)}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
