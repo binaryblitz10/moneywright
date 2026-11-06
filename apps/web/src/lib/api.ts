@@ -3870,6 +3870,11 @@ export interface AutoFixChange {
   entityId: string
   description: string
   undoneAt: string | null
+  /** The changed columns before and after the fix */
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  /** The transaction as it is now, for transaction changes (null once it no longer exists) */
+  transaction: Transaction | null
 }
 
 export interface AutoFixBatch {

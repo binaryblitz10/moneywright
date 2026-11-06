@@ -384,6 +384,8 @@ export function useUnmergeDuplicate() {
     mutationFn: (id: string) => unmergeDuplicate(id),
     onSuccess: () => {
       invalidateTransactionTotals(queryClient)
+      // The auto-fix log marks the merge as undone too (literal key: useAutoFix imports this file)
+      queryClient.invalidateQueries({ queryKey: ['auto-fix'] })
       toast.success('Transaction unmerged')
     },
     onError: () => {

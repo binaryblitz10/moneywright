@@ -2,16 +2,17 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
   ArrowRight,
+  CalendarCheck,
   CopyCheck,
   Check,
   ChevronDown,
   GitMerge,
   History,
+  Link2,
   Undo2,
   Wand2,
   type LucideIcon,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -23,7 +24,6 @@ import {
   useDismissDuplicates,
   useDuplicateGroups,
   useMergedDuplicates,
-  useUndoBatch,
   useUndoChange,
   useUnmergeDuplicate,
 } from '@/hooks'
@@ -32,6 +32,7 @@ import { CategoryIcon } from '@/components/ui/category-icon'
 import { getAccountShortLabel } from '@/lib/statement-display'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import type { Account, Category } from '@/lib/api'
+import { useHistoryUiState } from './history-state'
 import type { ReviewPanelProps } from './types'
 
 interface FeedItem {
@@ -40,6 +41,8 @@ interface FeedItem {
   at: string
   icon: LucideIcon
   title: ReactNode
+  /** Small marker after the title, e.g. that auto-fix did this */
+  chip?: ReactNode
   detail: string
   action: ReactNode
   /** What the row opens to show */
@@ -97,6 +100,10 @@ function TxnCard({
   const account = accounts.find((a) => a.id === accountId)
   const categoryInfo = categories.find((c) => c.code === category)
   const colors = getCategoryColorClasses(categoryInfo?.color ?? 'zinc')
+  // Every card shows its category, even one the list doesn't know (named from its code)
+  const fallbackLabel = category.replace(/_/g, ' ')
+  const categoryLabel =
+    categoryInfo?.label ?? fallbackLabel.charAt(0).toUpperCase() + fallbackLabel.slice(1)
   return (
     <div
       className={cn(
@@ -155,20 +162,16 @@ function TxnCard({
         </p>
       </div>
       <div className="flex items-center justify-between gap-3">
-        {categoryInfo && category !== 'other' ? (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-              colors.bg,
-              colors.text
-            )}
-          >
-            <CategoryIcon code={category} className="h-3.5 w-3.5" />
-            {categoryInfo.label}
-          </span>
-        ) : (
-          <span />
-        )}
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+            colors.bg,
+            colors.text
+          )}
+        >
+          <CategoryIcon code={category} className="h-3.5 w-3.5" />
+          {categoryLabel}
+        </span>
         <p className="shrink-0 text-xs text-muted-foreground">
           {smsSource ? 'Bank message' : 'Statement'}
         </p>
@@ -177,34 +180,46 @@ function TxnCard({
   )
 }
 
-/** "duplicates-sure" -> "Duplicate" for the chip on each fix */
-const FIXER_LABELS: Record<string, string> = {
-  'duplicates-sure': 'Duplicate',
-  'duplicates-likely': 'Likely duplicate',
-  'card-links': 'Card link',
-  categorization: 'Category',
-  'statement-periods': 'Statement period',
+/** Merges: shown through the merged list, not as rows of their own */
+const MERGE_FIXERS = new Set(['duplicates-sure', 'duplicates-likely', 'bank-message-ref'])
+
+/** How each transaction fixer reads in the feed */
+const FIX_KINDS: Record<string, { verb: string; icon: LucideIcon }> = {
+  'card-payment-unique': { verb: 'Linked card payment', icon: Link2 },
+  'transfer-pairs': { verb: 'Linked transfer', icon: Link2 },
+  'broken-links': { verb: 'Repaired link on', icon: Link2 },
 }
 
-function fixerLabel(fixer: string): string {
-  const text = FIXER_LABELS[fixer] ?? fixer.replace(/[-_]/g, ' ')
-  return text.charAt(0).toUpperCase() + text.slice(1)
+function AutoFixedChip() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+      <Wand2 className="h-3 w-3" />
+      Auto
+    </span>
+  )
 }
 
 function ExpandedPanel({ children }: { children: ReactNode }) {
   return <div className="rounded-xl border border-border-subtle bg-muted/30 p-3">{children}</div>
 }
 
-function FeedRow({ item }: { item: FeedItem }) {
-  const [open, setOpen] = useState(false)
+function FeedRow({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: FeedItem
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   // Built on first open (then kept mounted so closing animates): most rows are never opened
-  const [opened, setOpened] = useState(false)
+  const [opened, setOpened] = useState(open)
   const Icon = item.icon
   return (
     <Collapsible
       open={open}
       onOpenChange={(next) => {
-        setOpen(next)
+        onOpenChange(next)
         if (next) setOpened(true)
       }}
     >
@@ -212,7 +227,10 @@ function FeedRow({ item }: { item: FeedItem }) {
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="truncate text-sm">{item.title}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-sm">{item.title}</p>
+              {item.chip}
+            </div>
             <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
           </div>
           <ChevronDown
@@ -229,27 +247,19 @@ function FeedRow({ item }: { item: FeedItem }) {
   )
 }
 
-interface HistoryPanelProps extends ReviewPanelProps {
-  /** Months shown beyond This week / This month. Held by the Review page so it survives tab switches. */
-  extraMonths: number
-  onShowMore: () => void
-}
-
 export function HistoryPanel({
   filters,
   accounts,
   categories,
   countryCode,
   formatAmount,
-  extraMonths,
-  onShowMore,
-}: HistoryPanelProps) {
+}: ReviewPanelProps) {
+  const { extraMonths, openIds, showMore, setOpen } = useHistoryUiState()
   const { data: dismissedGroups = [] } = useDuplicateGroups({ ...filters, dismissed: true })
   const { data: mergedItems = [] } = useMergedDuplicates(filters.profileId)
   const { data: batches = [] } = useAutoFixBatches(filters.profileId)
   const dismissMutation = useDismissDuplicates()
   const unmergeMutation = useUnmergeDuplicate()
-  const undoBatch = useUndoBatch()
   const undoChange = useUndoChange()
 
   const groups = useMemo<FeedGroup[]>(() => {
@@ -284,7 +294,7 @@ export function HistoryPanel({
         ),
         expanded: (
           <ExpandedPanel>
-            <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
+            <div className="relative grid items-center gap-5 sm:grid-cols-2">
               <TxnCard
                 {...cardContext}
                 badge="merged"
@@ -297,7 +307,7 @@ export function HistoryPanel({
                 category={copy.category}
                 smsSource={copy.smsSource}
               />
-              <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-muted-foreground sm:rotate-0" />
+              <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-muted-foreground sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rotate-0" />
               {keeper ? (
                 <TxnCard
                   {...cardContext}
@@ -351,7 +361,7 @@ export function HistoryPanel({
         ),
         expanded: (
           <ExpandedPanel>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2">
               {group.transactions.map((t) => (
                 <TxnCard
                   key={t.id}
@@ -372,72 +382,93 @@ export function HistoryPanel({
       })
     }
 
+    // Merges made by auto-fix show as the merged rows above, marked with the chip
+    const autoMergedIds = new Set<string>()
     for (const batch of batches) {
-      const count = batch.changes.length
-      feed.push({
-        id: `fix-${batch.id}`,
-        at: batch.createdAt,
-        icon: Wand2,
-        title: (
-          <>
-            Auto-fixed <strong>{count}</strong> {count === 1 ? 'thing' : 'things'}
-          </>
-        ),
-        detail: batch.trigger === 'import' ? 'After an import' : 'Run by you',
-        action: batch.undoneAt ? (
-          <span className="text-xs text-muted-foreground">Undone</span>
-        ) : (
+      for (const change of batch.changes) {
+        if (!change.undoneAt && MERGE_FIXERS.has(change.fixer)) autoMergedIds.add(change.entityId)
+      }
+    }
+    for (const item of feed) {
+      if (autoMergedIds.has(item.id.replace(/^merged-/, ''))) item.chip = <AutoFixedChip />
+    }
+
+    for (const batch of batches) {
+      for (const change of batch.changes) {
+        if (change.undoneAt || MERGE_FIXERS.has(change.fixer)) continue
+        const kind = FIX_KINDS[change.fixer]
+        const undo = (
           <Button
             size="sm"
             variant="outline"
             className="h-7"
-            disabled={undoBatch.isPending}
-            onClick={() => undoBatch.mutate(batch.id, { onSuccess: onResult, onError })}
+            disabled={undoChange.isPending}
+            onClick={() => undoChange.mutate(change.id, { onSuccess: onResult, onError })}
           >
             <Undo2 className="mr-2 h-3.5 w-3.5" />
-            Undo all
+            Undo
           </Button>
-        ),
-        expanded: (
-          <ExpandedPanel>
-            <ul className="divide-y divide-border-subtle">
-              {batch.changes.map((change) => {
-                const undone = !!change.undoneAt || !!batch.undoneAt
-                return (
-                  <li key={change.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                    <Badge variant="secondary" className="shrink-0 font-normal">
-                      {fixerLabel(change.fixer)}
-                    </Badge>
-                    <p
-                      className={cn(
-                        'min-w-0 flex-1 text-sm',
-                        undone && 'text-muted-foreground line-through'
-                      )}
-                    >
-                      {change.description}
-                    </p>
-                    {undone ? (
-                      <span className="text-xs text-muted-foreground">Undone</span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7"
-                        disabled={undoChange.isPending}
-                        onClick={() =>
-                          undoChange.mutate(change.id, { onSuccess: onResult, onError })
-                        }
-                      >
-                        Undo
-                      </Button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </ExpandedPanel>
-        ),
-      })
+        )
+
+        if (change.entityType === 'statement') {
+          const period = change.after as { periodStart?: string; periodEnd?: string } | null
+          feed.push({
+            id: `fix-${change.id}`,
+            at: batch.createdAt,
+            icon: CalendarCheck,
+            chip: <AutoFixedChip />,
+            title: <>Filled in statement dates</>,
+            detail: change.description.replace(/^Set the dates of /, ''),
+            action: undo,
+            expanded: (
+              <ExpandedPanel>
+                <p className="text-sm text-muted-foreground">
+                  The statement had no dates
+                  {period?.periodStart && period.periodEnd
+                    ? `, so they were taken from its transactions: ${formatShortDate(period.periodStart)} to ${formatShortDate(period.periodEnd)}.`
+                    : ', so they were taken from its transactions.'}
+                </p>
+              </ExpandedPanel>
+            ),
+          })
+          continue
+        }
+
+        const txn = change.transaction
+        if (change.entityType !== 'transaction' || !txn || !kind) continue
+        const name = txn.summary || txn.originalDescription
+        feed.push({
+          id: `fix-${change.id}`,
+          at: batch.createdAt,
+          icon: kind.icon,
+          chip: <AutoFixedChip />,
+          title: (
+            <>
+              {kind.verb} <strong>{name}</strong>
+            </>
+          ),
+          detail: `${formatShortDate(txn.date)} · ${formatAmount(txn.amount, txn.currency)}`,
+          action: undo,
+          expanded: (
+            <ExpandedPanel>
+              {/* Same width as the cards in a pair */}
+              <div className="grid gap-5 sm:grid-cols-2">
+                <TxnCard
+                  {...cardContext}
+                  accountId={txn.accountId}
+                  date={txn.date}
+                  name={name}
+                  description={txn.originalDescription}
+                  amount={formatAmount(txn.amount, txn.currency)}
+                  type={txn.type}
+                  category={txn.category}
+                  smsSource={txn.smsSource}
+                />
+              </div>
+            </ExpandedPanel>
+          ),
+        })
+      }
     }
 
     feed.sort((a, b) => b.at.localeCompare(a.at))
@@ -460,7 +491,6 @@ export function HistoryPanel({
     formatAmount,
     unmergeMutation,
     dismissMutation,
-    undoBatch,
     undoChange,
   ])
 
@@ -488,14 +518,19 @@ export function HistoryPanel({
           </p>
           <div className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-card">
             {group.items.map((item) => (
-              <FeedRow key={item.id} item={item} />
+              <FeedRow
+                key={item.id}
+                item={item}
+                open={openIds.includes(item.id)}
+                onOpenChange={(open) => setOpen(item.id, open)}
+              />
             ))}
           </div>
         </div>
       ))}
       {hidden > 0 && (
         <div className="flex justify-center">
-          <Button variant="outline" size="sm" onClick={onShowMore}>
+          <Button variant="outline" size="sm" onClick={showMore}>
             Show more
           </Button>
         </div>
