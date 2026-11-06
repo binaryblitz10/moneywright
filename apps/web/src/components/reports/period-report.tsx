@@ -5,17 +5,8 @@
 
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import {
-  AlertTriangle,
-  CreditCard,
-  Info,
-  PiggyBank,
-  TrendingUp,
-  Wallet,
-  type LucideIcon,
-} from 'lucide-react'
+import { CreditCard, Info, PiggyBank, TrendingUp, Wallet, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { InlineEmptyState } from '@/components/ui/empty-state'
 import {
@@ -95,6 +86,7 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
       <StatCardGrid className="lg:grid-cols-2 xl:grid-cols-5">
         {statCard('Income', 'income', Wallet, 'up')}
         {statCard('Expenses', 'expenses', CreditCard, 'down')}
+        {statCard('Surplus', 'surplus', PiggyBank, 'up')}
         <StatCard
           label="Savings rate"
           value={rate === null ? undefined : rate * 100}
@@ -115,7 +107,6 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
           }
         />
         {statCard('Invested', 'invested', TrendingUp, 'up')}
-        {statCard('Surplus', 'surplus', PiggyBank, 'up')}
       </StatCardGrid>
 
       <CategoryTable
@@ -141,8 +132,6 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
       <MerchantsTable report={report} />
 
       <AccountsTable report={report} />
-
-      <WarningsCard warnings={report.warnings} />
     </div>
   )
 }
@@ -425,35 +414,5 @@ function AccountsTable({ report }: { report: PeriodReport }) {
         </TableBody>
       </Table>
     </ReportCard>
-  )
-}
-
-function WarningsCard({ warnings }: { warnings: PeriodReport['warnings'] }) {
-  if (warnings.count === 0) return null
-  const hidden = warnings.count - warnings.items.length
-
-  return (
-    <Card className="gap-3 py-5 border-amber-500/30">
-      <CardContent className="px-4 sm:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-2 text-base font-semibold">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Check your data
-          </h3>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/statements">Statements</Link>
-          </Button>
-        </div>
-        <ul className="mt-3 space-y-2">
-          {warnings.items.map((item, index) => (
-            <li key={index} className="text-sm">
-              <span className="font-medium">{item.accountName}</span>
-              <span className="text-muted-foreground"> · {item.message}</span>
-            </li>
-          ))}
-        </ul>
-        {hidden > 0 && <p className="mt-2 text-xs text-muted-foreground">and {hidden} more</p>}
-      </CardContent>
-    </Card>
   )
 }
