@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -185,16 +185,35 @@ export function DateRangePicker({
   const currentPresetId =
     presetId === undefined ? findPresetId({ startDate, endDate }, country) : presetId
   const hasDateFilter = !!(startDate || endDate)
-  const buttonLabel = label ?? getRangeLabel({ startDate, endDate }, country, currentPresetId)
+
+  // Month taken with the arrows. The page behind the picker can take a moment to catch up, so
+  // the switcher goes by this until the dates it was given arrive; rapid clicks keep stepping
+  const [stepped, setStepped] = useState<DateRangeValue | null>(null)
+  useEffect(() => {
+    if (!stepped) return
+    // The page may not accept the month (out of range); stop waiting for it
+    const giveUp = setTimeout(() => setStepped(null), 3000)
+    return () => clearTimeout(giveUp)
+  }, [stepped])
+  const waiting = !!stepped && (stepped.startDate !== startDate || stepped.endDate !== endDate)
+  const shown = waiting ? stepped : { startDate, endDate }
+  const buttonLabel = waiting
+    ? getRangeLabel(stepped, country, null)
+    : (label ?? getRangeLabel({ startDate, endDate }, country, currentPresetId))
 
   // The compact picker is a month switcher: the arrows step by whole months from the month the
   // range ends in, and the middle opens the picker
   const switcher = variant === 'compact'
-  const baseMonth = endDate ? parseLocalDate(endDate) : new Date()
+  const baseMonth = shown.endDate ? parseLocalDate(shown.endDate) : new Date()
   const prevMonthRange = getMonthRange(baseMonth, -1)
   const nextMonthRange = getMonthRange(baseMonth, 1)
   const canGoPrev = !minDate || prevMonthRange.endDate! >= minDate
   const canGoNext = nextMonthRange.startDate! <= (maxDate ?? toLocalDateString(new Date()))
+
+  const stepTo = (range: DateRangeValue) => {
+    setStepped(range)
+    onChange(range.startDate, range.endDate, null)
+  }
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
@@ -253,6 +272,7 @@ export function DateRangePicker({
   }
 
   const apply = () => {
+    setStepped(null)
     onChange(draft.startDate, draft.endDate, draft.presetId === 'monthly' ? null : draft.presetId)
     setOpen(false)
   }
@@ -289,6 +309,11 @@ export function DateRangePicker({
       {switcher ? (
         <PopoverAnchor asChild>
           <div
+            // Clicking the arrows quickly counts as a double click, which would select the text
+            // around the picker. Pressing down here never starts a selection, and a selection
+            // that still forms is cleared
+            onMouseDown={(e) => e.preventDefault()}
+            onDoubleClick={() => window.getSelection()?.removeAllRanges()}
             className={cn(
               'inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-card p-1 select-none',
               className
@@ -300,7 +325,7 @@ export function DateRangePicker({
               className="h-8 w-8"
               aria-label="Previous month"
               disabled={!canGoPrev}
-              onClick={() => onChange(prevMonthRange.startDate, prevMonthRange.endDate, null)}
+              onClick={() => stepTo(prevMonthRange)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -315,7 +340,7 @@ export function DateRangePicker({
               className="h-8 w-8"
               aria-label="Next month"
               disabled={!canGoNext}
-              onClick={() => onChange(nextMonthRange.startDate, nextMonthRange.endDate, null)}
+              onClick={() => stepTo(nextMonthRange)}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
