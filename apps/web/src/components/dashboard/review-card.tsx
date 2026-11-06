@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { EditTransactionDialog } from '@/components/transactions'
-import { CategorizationPanel, DuplicatesPanel } from '@/components/review'
+import { CategorizationPanel } from '@/components/review'
 import { Button } from '@/components/ui/button'
 import { SectionCard } from '@/components/ui/section-card'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
 import {
   useAccounts,
@@ -18,8 +17,6 @@ import {
 import { countOpenDataIssues } from '@/components/settings'
 import { ReviewHealth } from './review-health'
 import { PREFERENCE_KEYS, type Category, type Transaction } from '@/lib/api'
-
-type ReviewTab = 'duplicates' | 'categorization'
 
 interface ReviewCardProps {
   /** Undefined in family view, which reviews everyone's transactions */
@@ -38,7 +35,7 @@ function formatAmount(amount: number, currency: string): string {
   }).format(amount)
 }
 
-/** The Review page's Duplicates and Categories tabs, settled from the dashboard */
+/** Transactions to categorize, settled from the dashboard, with links to duplicates and data issues */
 export function ReviewCard({
   profileId,
   enabled,
@@ -46,7 +43,6 @@ export function ReviewCard({
   countryCode,
   className,
 }: ReviewCardProps) {
-  const [chosenTab, setChosenTab] = useState<ReviewTab | null>(null)
   const [editing, setEditing] = useState<Transaction | null>(null)
 
   const { profiles } = useAuth()
@@ -59,10 +55,6 @@ export function ReviewCard({
 
   const duplicatesCount = counts ? counts.duplicateGroups + counts.possibleMatches : 0
   const categorizationCount = counts ? counts.pending + counts.other + counts.lowConfidence : 0
-  // Start on the tab that has something in it, until one is picked
-  const tab: ReviewTab =
-    chosenTab ??
-    (duplicatesCount === 0 && categorizationCount > 0 ? 'categorization' : 'duplicates')
   // Checks ignored in Settings stay out; the shaky-category check is already part of Categories
   const dataIssues = health
     ? countOpenDataIssues(health, preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS])
@@ -73,7 +65,6 @@ export function ReviewCard({
       .filter((b) => !b.undoneAt && new Date(b.createdAt).getTime() >= weekAgo)
       .reduce((sum, b) => sum + b.changes.filter((c) => !c.undoneAt).length, 0)
   }, [batches, mountedAt])
-  const toReview = duplicatesCount + categorizationCount
 
   const panelProps = {
     filters: { profileId, enabled },
@@ -93,15 +84,14 @@ export function ReviewCard({
     <SectionCard
       title="Review"
       description={
-        toReview > 0 ? `${toReview} ${toReview === 1 ? 'item' : 'items'}` : 'Nothing to review'
+        categorizationCount > 0
+          ? `${categorizationCount} ${categorizationCount === 1 ? 'transaction' : 'transactions'}`
+          : 'Nothing to categorize'
       }
       className={cn('gap-2', className)}
-      contentClassName="space-y-5"
+      contentClassName="flex flex-1 flex-col gap-3"
       action={
-        <Link
-          to="/review"
-          search={{ tab: tab === 'categorization' ? 'categorization' : undefined }}
-        >
+        <Link to="/review" search={{ tab: 'categorization' }}>
           <Button
             variant="ghost"
             size="sm"
@@ -113,39 +103,10 @@ export function ReviewCard({
         </Link>
       }
     >
-      <SegmentedControl
-        aria-label="Review tab"
-        size="sm"
-        value={tab}
-        onChange={setChosenTab}
-        options={[
-          {
-            value: 'duplicates',
-            label: (
-              <>
-                Duplicates <span className="tabular-nums opacity-70">{duplicatesCount}</span>
-              </>
-            ),
-          },
-          {
-            value: 'categorization',
-            label: (
-              <>
-                Categories <span className="tabular-nums opacity-70">{categorizationCount}</span>
-              </>
-            ),
-          },
-        ]}
-      />
+      <CategorizationPanel {...panelProps} />
 
-      {tab === 'duplicates' ? (
-        <DuplicatesPanel {...panelProps} />
-      ) : (
-        <CategorizationPanel {...panelProps} />
-      )}
-
-      <div className="border-t border-border-subtle pt-4">
-        <ReviewHealth dataIssues={dataIssues} autoFixed={autoFixed} />
+      <div className="border-t border-border-subtle pt-3">
+        <ReviewHealth duplicates={duplicatesCount} dataIssues={dataIssues} autoFixed={autoFixed} />
       </div>
 
       <EditTransactionDialog

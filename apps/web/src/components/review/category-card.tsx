@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Pencil } from 'lucide-react'
+import { Check, ChevronDown, Pencil, Plus } from 'lucide-react'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { AccountAvatar, TransactionTable } from '@/components/transactions/transaction-table'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,10 @@ interface CategoryCardProps extends Omit<ReviewPanelProps, 'filters'> {
   isBusy: boolean
   className?: string
   onChangeAll: (ids: string[], category: string) => void
+  /** Confirms the suggested category; the compact card has its own button for it */
+  onConfirm?: () => void
+  /** Shown at the end of the compact card's button row, e.g. the pager */
+  footerEnd?: React.ReactNode
 }
 
 export function CategoryCard({
@@ -31,6 +35,8 @@ export function CategoryCard({
   isBusy,
   className,
   onChangeAll,
+  onConfirm,
+  footerEnd,
   ...tableProps
 }: CategoryCardProps) {
   const [rowsOpen, setRowsOpen] = useState(false)
@@ -42,7 +48,7 @@ export function CategoryCard({
   const first = transactions[0]
   if (!first) return null
 
-  const { accounts, categories, countryCode, formatAmount, onEditTransaction } = tableProps
+  const { accounts, categories, countryCode, formatAmount, onEditTransaction, compact } = tableProps
   const ids = transactions.map((t) => t.id)
   const count = transactions.length
   const isGroup = count > 1
@@ -68,7 +74,8 @@ export function CategoryCard({
   return (
     <article
       className={cn(
-        'relative flex flex-col justify-between rounded-2xl border border-border-subtle bg-surface-elevated p-8 animate-fade-in',
+        'relative flex flex-col border border-border-subtle bg-surface-elevated animate-fade-in',
+        compact ? 'gap-4 rounded-xl p-4' : 'justify-between rounded-2xl p-8',
         className
       )}
     >
@@ -81,7 +88,7 @@ export function CategoryCard({
           isCard={account?.type === 'credit_card'}
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-medium">
+          <p className={cn('truncate font-medium', compact ? 'text-sm' : 'text-base')}>
             {account ? getAccountShortLabel(account) : 'Account'}
           </p>
           {!isGroup && <p className="text-xs text-muted-foreground">{formatDate(first.date)}</p>}
@@ -99,9 +106,12 @@ export function CategoryCard({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      <div className={cn('flex items-center justify-between gap-4', compact && 'flex-1')}>
         <div className="min-w-0">
-          <p className="truncate text-xl font-medium" title={group.name}>
+          <p
+            className={cn('truncate font-medium', compact ? 'text-sm' : 'text-xl')}
+            title={group.name}
+          >
             {group.name}
           </p>
           {isGroup ? (
@@ -119,7 +129,12 @@ export function CategoryCard({
             </Button>
           ) : (
             first.summary && (
-              <p className="mt-1 truncate text-sm text-muted-foreground">
+              <p
+                className={cn(
+                  'truncate text-muted-foreground',
+                  compact ? 'mt-0.5 text-xs' : 'mt-1 text-sm'
+                )}
+              >
                 {first.originalDescription}
               </p>
             )
@@ -127,7 +142,8 @@ export function CategoryCard({
         </div>
         <p
           className={cn(
-            'shrink-0 text-4xl font-semibold tracking-tight tabular-nums',
+            'shrink-0 font-semibold tracking-tight tabular-nums',
+            compact ? 'text-2xl' : 'text-4xl',
             isCredit && 'text-positive'
           )}
         >
@@ -136,34 +152,83 @@ export function CategoryCard({
         </p>
       </div>
 
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        {picker(
-          hasSuggestion ? (
-            <button
-              type="button"
-              disabled={isBusy}
-              className={cn(
-                'inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-1.5 text-base font-medium transition hover:brightness-95 disabled:opacity-50',
-                colors.bg,
-                colors.text
+      {compact ? (
+        <>
+          {hasSuggestion && (
+            <div className="flex items-center gap-2">
+              {picker(
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  className={cn(
+                    'inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition hover:brightness-95 disabled:opacity-50',
+                    colors.bg,
+                    colors.text
+                  )}
+                >
+                  <CategoryIcon code={first.category} className="h-3.5 w-3.5" />
+                  {category?.label ?? first.category}
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                </button>
               )}
-            >
-              <CategoryIcon code={first.category} className="h-4 w-4" />
-              {category?.label ?? first.category}
-              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isBusy}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-dashed border-border px-3.5 py-1.5 text-base font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
-            >
-              Uncategorized
-              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-            </button>
-          )
-        )}
-      </div>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {hasSuggestion ? (
+              <Button size="sm" disabled={isBusy} onClick={onConfirm}>
+                <Check className="mr-2 h-4 w-4" />
+                Confirm
+              </Button>
+            ) : (
+              picker(
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isBusy}
+                  className="border-dashed text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Add category
+                </Button>
+              )
+            )}
+            {footerEnd}
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {picker(
+            hasSuggestion ? (
+              <button
+                type="button"
+                disabled={isBusy}
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-2 rounded-full font-medium transition hover:brightness-95 disabled:opacity-50',
+                  compact ? 'px-3 py-1 text-sm' : 'px-3.5 py-1.5 text-base',
+                  colors.bg,
+                  colors.text
+                )}
+              >
+                <CategoryIcon code={first.category} className="h-4 w-4" />
+                {category?.label ?? first.category}
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isBusy}
+                className={cn(
+                  'inline-flex cursor-pointer items-center gap-2 rounded-full border border-dashed border-border font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50',
+                  compact ? 'px-3 py-1 text-sm' : 'px-3.5 py-1.5 text-base'
+                )}
+              >
+                Uncategorized
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+            )
+          )}
+        </div>
+      )}
 
       {(isGroup || rowsOpen) && (
         <Dialog open={rowsOpen} onOpenChange={setRowsOpen}>

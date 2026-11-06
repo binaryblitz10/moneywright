@@ -17,6 +17,9 @@ const ROW_LIMIT = 200
 // The card is as tall as its content needs, so the deck keeps it and the stack below fixed
 const CARD_HEIGHT = 'h-[15rem]'
 const DECK_HEIGHT = 'h-[18.5rem]'
+// The dashboard widget's card keeps this size; spare height goes above and below it
+const COMPACT_CARD_HEIGHT = 'h-[13.5rem]'
+const COMPACT_DECK_HEIGHT = 'h-[14.25rem]'
 
 export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewPanelProps) {
   // Settled ones leave at once, before the refetch drops them
@@ -62,7 +65,14 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
 
   if (isError) return <QueryError error={error} onRetry={() => void refetch()} />
   if (isLoading)
-    return <Skeleton className={cn(DECK_HEIGHT, 'mx-auto w-full max-w-3xl rounded-xl')} />
+    return (
+      <Skeleton
+        className={cn(
+          compact ? COMPACT_DECK_HEIGHT : DECK_HEIGHT,
+          'mx-auto w-full max-w-3xl rounded-xl'
+        )}
+      />
+    )
   if (!current) {
     return (
       <EmptyState
@@ -72,28 +82,62 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
         glow
         className={cn(
           'flex flex-col items-center justify-center',
-          compact ? 'min-h-[11rem]' : 'min-h-[18.5rem]'
+          compact ? 'min-h-[11rem] flex-1' : 'min-h-[18.5rem]'
         )}
       />
     )
   }
+
+  const cardHeight = compact ? COMPACT_CARD_HEIGHT : CARD_HEIGHT
+  const deckHeight = compact ? COMPACT_DECK_HEIGHT : DECK_HEIGHT
 
   const ids = current.transactions.map((t) => t.id)
   const first = current.transactions[0]
   const hasSuggestion = first !== undefined && first.summary !== null && first.category !== 'other'
   const busy = mutation.isPending
 
+  // The widget's pager sits in the card, as two arrows
+  const arrows = (
+    <div className="ml-auto flex items-center">
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-muted-foreground"
+        aria-label="Previous merchant"
+        disabled={currentIndex === 0}
+        onClick={() => goTo(currentIndex - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-muted-foreground"
+        aria-label="Next merchant"
+        disabled={currentIndex >= deck.length - 1}
+        onClick={() => goTo(currentIndex + 1)}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 pt-8">
-      <div className={DECK_HEIGHT}>
+    <div
+      className={cn(
+        'mx-auto w-full max-w-3xl',
+        compact ? 'flex flex-1 flex-col justify-center gap-3' : 'space-y-4 pt-8'
+      )}
+    >
+      <div className={deckHeight}>
         <div className="relative pb-3">
           {/* Cards waiting underneath */}
           {deck.length > 2 && (
             <div
               aria-hidden
               className={cn(
-                'absolute inset-x-8 top-4 rounded-xl border border-border-subtle bg-surface-elevated/40',
-                CARD_HEIGHT
+                'absolute rounded-xl border border-border-subtle bg-surface-elevated/40',
+                cn(compact ? 'inset-x-6 top-3' : 'inset-x-8 top-4', cardHeight)
               )}
             />
           )}
@@ -101,71 +145,76 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
             <div
               aria-hidden
               className={cn(
-                'absolute inset-x-4 top-2 rounded-xl border border-border-subtle bg-surface-elevated/70',
-                CARD_HEIGHT
+                'absolute rounded-xl border border-border-subtle bg-surface-elevated/70',
+                cn(compact ? 'inset-x-3 top-1.5' : 'inset-x-4 top-2', cardHeight)
               )}
             />
           )}
           <CategoryCard
             key={current.key}
             group={current}
-            className={CARD_HEIGHT}
+            className={cardHeight}
+            compact={compact}
             isBusy={busy}
+            onConfirm={() => settle(current.key, { transactionIds: ids })}
+            footerEnd={compact ? arrows : undefined}
             onChangeAll={(ids, category) => settle(current.key, { transactionIds: ids, category })}
             {...tableProps}
           />
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-5 pt-2">
-        {/* Same shape as the Duplicates button group (button + link) so the pagination lines up */}
-        <div className="flex flex-col items-center gap-3">
-          {hasSuggestion ? (
-            <ReviewActionButton
-              icon={Check}
-              label="Confirm"
-              disabled={busy}
-              onClick={() => settle(current.key, { transactionIds: ids })}
-            />
-          ) : (
-            <CategoryPicker
-              categories={tableProps.categories}
-              value=""
-              onChange={(code) =>
-                code && settle(current.key, { transactionIds: ids, category: code })
-              }
-              fitContent
-              trigger={<ReviewActionButton icon={Plus} label="Add category" disabled={busy} />}
-            />
-          )}
-          <div aria-hidden className="h-5" />
+      {!compact && (
+        <div className="flex flex-col items-center gap-5 pt-2">
+          {/* Same shape as the Duplicates button group (button + link) so the pagination lines up */}
+          <div className="flex flex-col items-center gap-3">
+            {hasSuggestion ? (
+              <ReviewActionButton
+                icon={Check}
+                label="Confirm"
+                disabled={busy}
+                onClick={() => settle(current.key, { transactionIds: ids })}
+              />
+            ) : (
+              <CategoryPicker
+                categories={tableProps.categories}
+                value=""
+                onChange={(code) =>
+                  code && settle(current.key, { transactionIds: ids, category: code })
+                }
+                fitContent
+                trigger={<ReviewActionButton icon={Plus} label="Add category" disabled={busy} />}
+              />
+            )}
+            <div aria-hidden className="h-5" />
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              aria-label="Previous merchant"
+              disabled={currentIndex === 0}
+              onClick={() => goTo(currentIndex - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-1 text-sm text-muted-foreground">
+              {currentIndex + 1} of {deck.length}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              aria-label="Next merchant"
+              disabled={currentIndex >= deck.length - 1}
+              onClick={() => goTo(currentIndex + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            aria-label="Previous merchant"
-            disabled={currentIndex === 0}
-            onClick={() => goTo(currentIndex - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="px-1 text-sm text-muted-foreground">
-            {currentIndex + 1} of {deck.length}
-          </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            aria-label="Next merchant"
-            disabled={currentIndex >= deck.length - 1}
-            onClick={() => goTo(currentIndex + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      )}
 
       {total > transactions.length && (
         <p className="text-center text-xs text-muted-foreground">

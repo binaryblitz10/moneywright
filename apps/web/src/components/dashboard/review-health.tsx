@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, FileWarning, ShieldCheck, Wand2 } from 'lucide-react'
+import { ChevronRight, Copy, FileWarning, ShieldCheck, Wand2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 interface ReviewHealthProps {
+  /** Groups of likely duplicates plus bank messages waiting for a match */
+  duplicates: number
   /** Statement gaps, balances that don't add up, card payments to check and the like */
   dataIssues: number
   /** Changes the app made on its own in the last week and that are still in place */
@@ -33,7 +35,17 @@ function Row({
 }
 
 /** Data problems that aren't a single transaction to settle, each linking to where it's fixed */
-export function ReviewHealth({ dataIssues, autoFixed }: ReviewHealthProps) {
+export function ReviewHealth({ duplicates, dataIssues, autoFixed }: ReviewHealthProps) {
+  const duplicatesRow = duplicates > 0 && (
+    <li>
+      <Link to="/review" search={{}} className={ROW_CLASS}>
+        <Row icon={Copy} count={duplicates}>
+          Possible duplicates
+        </Row>
+      </Link>
+    </li>
+  )
+
   const autoFixedRow = autoFixed > 0 && (
     <li>
       <Link to="/review" search={{ tab: 'history' }} className={ROW_CLASS}>
@@ -58,13 +70,19 @@ export function ReviewHealth({ dataIssues, autoFixed }: ReviewHealthProps) {
             <p className="text-xs text-muted-foreground">No statement gaps or balance issues</p>
           </div>
         </div>
-        {autoFixedRow && <ul>{autoFixedRow}</ul>}
+        {(duplicatesRow || autoFixedRow) && (
+          <ul>
+            {duplicatesRow}
+            {autoFixedRow}
+          </ul>
+        )}
       </div>
     )
   }
 
   return (
     <ul>
+      {duplicatesRow}
       {dataIssues > 0 && (
         <li>
           <Link to="/settings" search={{ section: 'data' }} className={ROW_CLASS}>
