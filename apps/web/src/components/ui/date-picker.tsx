@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RangeCalendar } from '@/components/ui/range-calendar'
 import { PICKER_COLORS_CLASS, PICKER_CONTENT_COLORS_CLASS } from '@/components/ui/picker-styles'
-import { formatLongDate, parseLocalDate } from '@/lib/date-presets'
+import { formatLongDate, parseLocalDate, parseTypedDate } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
 
 export interface DatePickerProps {
@@ -47,25 +47,60 @@ export function DatePicker({
     setOpen(false)
   }
 
+  // What is being typed; null while the field just shows the current value
+  const [draft, setDraft] = useState<string | null>(null)
+  const text = draft ?? display(value)
+
+  /** Commits what was typed if it is a valid, allowed date; otherwise restores the current value */
+  const commit = () => {
+    const raw = text.trim()
+    setDraft(null)
+    if (!raw && clearable) return onChange('')
+    const parsed = parseTypedDate(raw)
+    if (parsed && (!minDate || parsed >= minDate) && (!maxDate || parsed <= maxDate)) {
+      onChange(parsed)
+    }
+  }
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
+      <PopoverAnchor asChild>
+        <div
           className={cn(
-            'h-10 w-full justify-between rounded-lg font-normal',
+            'flex h-10 w-full items-center rounded-lg border text-sm transition-colors focus-within:ring-2 focus-within:ring-ring',
             PICKER_COLORS_CLASS,
-            !value && 'text-muted-foreground',
+            disabled && 'pointer-events-none opacity-50',
             className
           )}
         >
-          <span className="truncate">{value ? formatLongDate(value) : placeholder}</span>
-          <Calendar className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+          <input
+            id={id}
+            type="text"
+            value={text}
+            disabled={disabled}
+            placeholder={placeholder}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commit()
+              }
+            }}
+            className="h-full min-w-0 flex-1 bg-transparent pl-3 outline-none placeholder:text-muted-foreground"
+          />
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label="Open calendar"
+              className="flex h-full shrink-0 cursor-pointer items-center px-3"
+            >
+              <Calendar className="h-4 w-4 opacity-50" />
+            </button>
+          </PopoverTrigger>
+        </div>
+      </PopoverAnchor>
       <PopoverContent
         align="start"
         collisionPadding={16}
@@ -101,4 +136,8 @@ export function DatePicker({
 function viewFor(value: string): Date {
   const anchor = value ? parseLocalDate(value) : new Date()
   return new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+}
+
+function display(value: string): string {
+  return value ? formatLongDate(value) : ''
 }

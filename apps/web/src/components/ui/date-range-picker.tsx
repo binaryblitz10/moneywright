@@ -20,6 +20,7 @@ import {
   getRangeLabel,
   getWholeMonth,
   parseLocalDate,
+  parseTypedDate,
   type DatePresetId,
   type DateRangeValue,
 } from '@/lib/date-presets'
@@ -43,15 +44,6 @@ interface Draft extends DateRangeValue {
   presetId: DatePresetId | null
 }
 
-/** Parse typed text such as "27 October 2026", "27 Oct 2026" or "2026-10-27" */
-function parseDateInput(text: string): string | null {
-  const value = text.trim()
-  if (!value) return null
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  const date = iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])) : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : toLocalDateString(date)
-}
-
 /** First month shown, so the range's end falls in the second month like Shopify's picker */
 function viewFor(range: DateRangeValue): Date {
   const anchor = range.endDate ? parseLocalDate(range.endDate) : new Date()
@@ -68,7 +60,7 @@ function DateField({ value, label, onCommit }: DateFieldProps) {
   const [text, setText] = useState<string | null>(null)
 
   const commit = () => {
-    const parsed = text === null ? null : parseDateInput(text)
+    const parsed = text === null ? null : parseTypedDate(text)
     if (parsed) onCommit(parsed)
     setText(null)
   }
