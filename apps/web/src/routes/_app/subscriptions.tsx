@@ -7,8 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { QueryError } from '@/components/ui/query-error'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +31,6 @@ import {
   TrendingUp,
   Repeat,
   Receipt,
-  Info,
   ArrowUpRight,
   Plus,
   Trash2,
@@ -45,6 +49,8 @@ import {
 import { getSubscriptions } from '@/lib/api'
 import type { DetectedSubscription, Profile } from '@/lib/api'
 import { CategoryIcon } from '@/components/ui/category-icon'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { getCategoryColorClasses } from '@/lib/category-colors'
 
 type SubscriptionsSearchParams = {
   /** Open the Add Subscription dialog on arrival */
@@ -131,18 +137,6 @@ function getAnnualPrice(amount: number, frequency: DetectedSubscription['frequen
   }
 }
 
-// Get billing period label
-function getBillingLabel(frequency: DetectedSubscription['frequency']): string {
-  switch (frequency) {
-    case 'quarterly':
-      return 'Billed quarterly'
-    case 'yearly':
-      return 'Billed yearly'
-    default:
-      return ''
-  }
-}
-
 type FrequencyFilter = 'all' | 'monthly' | 'quarterly' | 'yearly'
 type StatusFilter = 'all' | 'active' | 'inactive'
 
@@ -182,6 +176,11 @@ function SubscriptionsPage() {
       const cat = categories.find((c) => c.code === code)
       return cat?.label || code.replace(/_/g, ' ')
     },
+    [categories]
+  )
+
+  const getCategoryColor = useCallback(
+    (code: string) => categories.find((c) => c.code === code)?.color ?? '',
     [categories]
   )
 
@@ -479,6 +478,7 @@ function SubscriptionsPage() {
               currency={currency}
               countryCode={countryCode}
               getCategoryLabel={getCategoryLabel}
+              getCategoryColor={getCategoryColor}
               onClick={() => setSelectedKey(sub.key)}
               profiles={profiles}
               showProfileBadge={showFamilyView}
@@ -509,6 +509,7 @@ function SubscriptionsPage() {
         currency={currency}
         countryCode={countryCode}
         getCategoryLabel={getCategoryLabel}
+        getCategoryColor={getCategoryColor}
         onClose={() => setSelectedKey(null)}
         profiles={profiles}
         showProfileBadge={showFamilyView}
@@ -563,6 +564,7 @@ function SubscriptionCard({
   currency,
   countryCode,
   getCategoryLabel,
+  getCategoryColor,
   onClick,
   profiles,
   showProfileBadge,
@@ -571,6 +573,7 @@ function SubscriptionCard({
   currency: string
   countryCode: string
   getCategoryLabel: (code: string) => string
+  getCategoryColor: (code: string) => string
   onClick: () => void
   profiles?: Profile[]
   showProfileBadge?: boolean
@@ -605,7 +608,13 @@ function SubscriptionCard({
             )}
           </div>
           <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-            <CategoryIcon code={sub.category} className="h-3 w-3" />
+            <CategoryIcon
+              code={sub.category}
+              className={cn(
+                'h-3 w-3',
+                getCategoryColorClasses(getCategoryColor(sub.category)).text
+              )}
+            />
             <span className="truncate">{getCategoryLabel(sub.category)}</span>
           </p>
         </div>
@@ -672,6 +681,7 @@ function TransactionHistoryModal({
   currency,
   countryCode,
   getCategoryLabel,
+  getCategoryColor,
   onClose,
   profiles,
   showProfileBadge,
@@ -680,6 +690,7 @@ function TransactionHistoryModal({
   currency: string
   countryCode: string
   getCategoryLabel: (code: string) => string
+  getCategoryColor: (code: string) => string
   onClose: () => void
   profiles?: Profile[]
   showProfileBadge?: boolean
@@ -693,43 +704,56 @@ function TransactionHistoryModal({
   const institutionId = sub.institution || ''
   const logoPath = institutionId ? `/institutions/${countryCode}/${institutionId}.svg` : null
   const monthlyPrice = getMonthlyPrice(sub.amount, sub.frequency)
+  const annualPrice = getAnnualPrice(sub.amount, sub.frequency)
 
   return (
     <Dialog open={!!sub} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="pb-4 border-b border-border-subtle pr-8">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <DialogTitle className="text-lg font-semibold truncate">{sub.name}</DialogTitle>
-                {showProfileBadge && profiles && sub.profileId && (
-                  <ProfileBadge profileId={sub.profileId} profiles={profiles} size="md" />
+        <DialogHeader className="pb-4 border-b border-border-subtle">
+          <div className="flex items-center gap-2 pr-8">
+            <DialogTitle className="truncate">{sub.name}</DialogTitle>
+            {showProfileBadge && profiles && sub.profileId && (
+              <ProfileBadge profileId={sub.profileId} profiles={profiles} size="md" />
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-3 mt-0.5">
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+              <CategoryIcon
+                code={sub.category}
+                className={cn(
+                  'h-3.5 w-3.5 shrink-0',
+                  getCategoryColorClasses(getCategoryColor(sub.category)).text
                 )}
-              </div>
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
-                <CategoryIcon code={sub.category} className="h-3.5 w-3.5" />
-                {getCategoryLabel(sub.category)}
+              />
+              <span className="truncate">{getCategoryLabel(sub.category)}</span>
+            </p>
+            <span
+              className={cn(
+                'shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full',
+                FREQUENCY_PILL_STYLES[sub.frequency]
+              )}
+            >
+              {getFrequencyLabel(sub.frequency)}
+            </span>
+          </div>
+
+          {/* Monthly and annual cost */}
+          <div className="flex items-end justify-between gap-3 pt-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                Monthly
+              </p>
+              <p className="text-base font-bold tabular-nums text-foreground">
+                {formatCurrency(monthlyPrice, currency)}
               </p>
             </div>
-            <div className="text-right shrink-0">
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold tabular-nums">
-                  {formatCurrency(monthlyPrice, currency)}
-                </span>
-                {(sub.frequency === 'quarterly' || sub.frequency === 'yearly') && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent side="left" className="text-xs">
-                      {getBillingLabel(sub.frequency)}: {formatCurrency(sub.amount, currency)}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {getFrequencyLabel(sub.frequency)}
-              </span>
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                Annual
+              </p>
+              <p className="text-base font-bold tabular-nums text-foreground">
+                {formatCurrency(annualPrice, currency)}
+              </p>
             </div>
           </div>
 
@@ -752,8 +776,8 @@ function TransactionHistoryModal({
         </DialogHeader>
 
         {/* Edit */}
-        <div className="flex items-end gap-3 pt-3">
-          <div className="flex-1 space-y-1.5">
+        <div className="pt-3">
+          <div className="space-y-1.5">
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
               Billed
             </p>
@@ -763,14 +787,6 @@ function TransactionHistoryModal({
               disabled={setFrequency.isPending}
             />
           </div>
-          <Button
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setConfirmRemove(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-            Remove
-          </Button>
         </div>
 
         <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
@@ -802,52 +818,60 @@ function TransactionHistoryModal({
         </AlertDialog>
 
         {/* Transaction list */}
-        <div className="py-2">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
+        <div>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
             Transaction History
           </p>
-          <div className="space-y-1 max-h-[320px] overflow-y-auto -mx-2 px-2">
-            {sub.transactions.map((txn, i) => (
-              <div
-                key={txn.id}
-                className={cn(
-                  'flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors',
-                  i === 0 ? 'bg-primary/5 border border-primary/10' : 'hover:bg-surface-hover'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'w-1.5 h-1.5 rounded-full shrink-0',
-                      i === 0 ? 'bg-primary' : 'bg-border-subtle'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-sm',
-                      i === 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
-                    )}
-                  >
-                    {formatDate(txn.date)}
-                  </span>
-                  {i === 0 && (
-                    <span className="text-[9px] font-medium text-primary uppercase tracking-wide">
-                      Latest
-                    </span>
-                  )}
-                </div>
-                <span
+          <ScrollArea className="rounded-lg border border-border-subtle [&>[data-slot=scroll-area-viewport]]:max-h-[320px]">
+            <ul className="divide-y divide-border-subtle">
+              {sub.transactions.map((txn, i) => (
+                <li
+                  key={txn.id}
                   className={cn(
-                    'text-sm tabular-nums',
-                    i === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'
+                    'flex items-center justify-between gap-3 px-3 py-2',
+                    i === 0 && 'bg-primary/5'
                   )}
                 >
-                  {formatCurrency(txn.amount, currency)}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'text-sm tabular-nums',
+                        i === 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
+                      )}
+                    >
+                      {formatDate(txn.date)}
+                    </span>
+                    {i === 0 && (
+                      <span className="text-[9px] font-medium text-primary uppercase tracking-wide">
+                        Latest
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      'text-sm tabular-nums',
+                      i === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'
+                    )}
+                  >
+                    {formatCurrency(txn.amount, currency)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
         </div>
+
+        <DialogFooter className="sm:justify-start">
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setConfirmRemove(true)}
+            disabled={removeSubscription.isPending}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Remove
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
