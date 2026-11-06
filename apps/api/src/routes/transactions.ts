@@ -37,6 +37,7 @@ import {
 import { getLinkSuggestions } from '../services/card-payments'
 import { getAccountByIdRaw } from '../services/accounts'
 import { findUserById } from '../services/user'
+import { markMergeUndone } from '../services/auto-fix'
 import { TRANSACTION_LINK_TYPES, isKnownCategory, type CountryCode } from '../lib/constants'
 import {
   transactionAmountSchema,
@@ -384,6 +385,7 @@ transactionRoutes.post('/duplicates/unmerge', async (c) => {
   if (!(await unmergeDuplicate(userId, result.data.id))) {
     return c.json({ error: 'not_found', message: 'Merged transaction not found' }, 404)
   }
+  await markMergeUndone(userId, result.data.id)
   return c.json({ success: true })
 })
 

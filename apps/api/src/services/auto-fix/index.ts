@@ -3,14 +3,16 @@
  * change so it can be undone. Safe fixers run after an import; the others wait for the user.
  */
 
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { db, dbType, tables } from '../../db'
 import { logger } from '../../lib/logger'
 import { invalidateDuplicateCache } from '../duplicates'
+import { toTransactionResponse, type TransactionResponse } from '../transactions'
 import { bankMessageRef } from './bank-message-ref'
 import { brokenLinks, cardPaymentUnique, transferPairs } from './card-links'
 import { recheckLowConfidence, stuckUncategorized } from './categorization'
 import { duplicatesLikely, duplicatesSure } from './duplicates'
+import { loadTransactions } from './rows'
 import { statementPeriods } from './statement-periods'
 import { columnValue, valuesMatch } from './values'
 import type { ChangeEntityType, ChangeRecord, Fix, FixContext, Fixer } from './types'
@@ -286,6 +288,56 @@ export async function undoChange(userId: string, changeId: string): Promise<Undo
   return found ? undoChanges(userId, found.batchId, changeId) : null
 }
 
+/** The fixers whose change on a row is a merge into another transaction */
+const MERGE_FIXER_IDS = [duplicatesSure.id, duplicatesLikely.id, bankMessageRef.id]
+
+/**
+ * A merged copy was brought back by hand (Unmerge in History): mark the auto-fix changes that
+ * merged it as undone too, so the log does not still show the merge as in effect.
+ */
+export async function markMergeUndone(userId: string, copyId: string): Promise<void> {
+  const changes = await db
+    .select({ id: tables.autoFixChanges.id, batchId: tables.autoFixChanges.batchId })
+    .from(tables.autoFixChanges)
+    .innerJoin(tables.autoFixBatches, eq(tables.autoFixBatches.id, tables.autoFixChanges.batchId))
+    .where(
+      and(
+        eq(tables.autoFixBatches.userId, userId),
+        eq(tables.autoFixChanges.entityType, 'transaction'),
+        eq(tables.autoFixChanges.entityId, copyId),
+        inArray(tables.autoFixChanges.fixer, MERGE_FIXER_IDS),
+        isNull(tables.autoFixChanges.undoneAt)
+      )
+    )
+  if (changes.length === 0) return
+
+  const now = dbTime(new Date())
+  await db
+    .update(tables.autoFixChanges)
+    .set({ undoneAt: now })
+    .where(
+      inArray(
+        tables.autoFixChanges.id,
+        changes.map((change) => change.id)
+      )
+    )
+  for (const batchId of new Set(changes.map((change) => change.batchId))) {
+    const open = await db
+      .select({ id: tables.autoFixChanges.id })
+      .from(tables.autoFixChanges)
+      .where(
+        and(eq(tables.autoFixChanges.batchId, batchId), isNull(tables.autoFixChanges.undoneAt))
+      )
+      .limit(1)
+    if (open.length === 0) {
+      await db
+        .update(tables.autoFixBatches)
+        .set({ undoneAt: now })
+        .where(eq(tables.autoFixBatches.id, batchId))
+    }
+  }
+}
+
 // ============================================================================
 // HISTORY
 // ============================================================================
@@ -306,6 +358,11 @@ export interface BatchResponse {
     entityId: string
     description: string
     undoneAt: string | null
+    /** The changed columns before and after the fix */
+    before: Record<string, unknown> | null
+    after: Record<string, unknown> | null
+    /** The transaction as it is now, for transaction changes (null when it no longer exists) */
+    transaction: TransactionResponse | null
   }>
 }
 
@@ -343,6 +400,11 @@ export async function listBatches(
     )
     .orderBy(tables.autoFixChanges.createdAt)
 
+  const transactions = await loadTransactions(
+    userId,
+    changes.filter((change) => change.entityType === 'transaction').map((change) => change.entityId)
+  )
+
   return batches.map((batch) => ({
     id: batch.id,
     profileId: batch.profileId,
@@ -360,6 +422,12 @@ export async function listBatches(
         entityId: change.entityId,
         description: change.description,
         undoneAt: isoOrNull(change.undoneAt),
+        before: parseRecord(change.before),
+        after: parseRecord(change.after),
+        transaction:
+          change.entityType === 'transaction' && transactions.has(change.entityId)
+            ? toTransactionResponse(transactions.get(change.entityId)!)
+            : null,
       })),
   }))
 }
