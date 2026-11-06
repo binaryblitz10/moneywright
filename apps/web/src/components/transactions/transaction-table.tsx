@@ -20,6 +20,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react'
 import { CategoryPicker } from './category-picker'
+import { InlineNote } from './inline-note'
 import { useConstants, useUpdateTransaction, useOfferSimilarChange } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { getAccountShortLabel } from '@/lib/statement-display'
@@ -118,17 +119,6 @@ const colorStyles: Record<string, string> = {
   teal: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20',
   rose: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20',
   zinc: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/10 dark:text-zinc-400 dark:border-zinc-500/20',
-}
-
-/** First letter of a transaction's name, uppercased; "?" when there is none */
-const NOTE_PREVIEW_LENGTH = 30
-
-/** First line of a note, cut to a short preview */
-function truncateNote(note: string): string {
-  const line = (note.split('\n')[0] ?? '').trim()
-  return line.length > NOTE_PREVIEW_LENGTH
-    ? `${line.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`
-    : line
 }
 
 /**
@@ -320,18 +310,15 @@ export function TransactionTable({
         }
         profileName={showProfileBadge && profiles ? getProfileName(txn.profileId, profiles) : null}
       />
-      {txn.notes && (
-        <>
-          <span className="text-muted-foreground">·</span>
-          <p className="shrink-0 text-xs italic text-muted-foreground">{truncateNote(txn.notes)}</p>
-        </>
-      )}
       {txn.summary && txn.summary !== txn.originalDescription && (
         <>
           <span className="text-muted-foreground">·</span>
           <p className="truncate text-xs text-muted-foreground">{txn.originalDescription}</p>
         </>
       )}
+      {/* Last on the line; with no note yet it's a chip that only shows while the row is hovered */}
+      {txn.notes && <span className="text-muted-foreground">·</span>}
+      <InlineNote transaction={txn} editable={isEditable?.(txn) ?? true} />
     </div>
   )
 
