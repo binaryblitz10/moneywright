@@ -3310,16 +3310,6 @@ export interface ReportAccountFlowRow {
   previous: ReportAccountFlow | null
 }
 
-export interface ReportSavingsBreakdown {
-  status: 'ok' | 'insufficient'
-  surplus: number
-  invested: number
-  bankChange: number | null
-  cardDuesReduced: number | null
-  unexplained: number | null
-  missingAccounts: Array<{ accountId: string; accountName: string }>
-}
-
 export interface ReportWarning {
   kind:
     | 'missing_statements'
@@ -3347,7 +3337,6 @@ export interface PeriodReport {
   investmentCategories: ReportComparedRow[]
   merchants: ReportComparedRow[]
   accounts: ReportAccountFlowRow[]
-  savings: ReportSavingsBreakdown
   warnings: { count: number; items: ReportWarning[] }
   currency: string
 }

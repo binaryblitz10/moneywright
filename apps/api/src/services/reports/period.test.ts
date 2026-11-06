@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { AccountCoverage, CashBridge, DataHealthReport } from '../data-health'
-import { buildSavingsBreakdown, collectPeriodWarnings, computePeriodReport } from './period'
+import type { AccountCoverage, DataHealthReport } from '../data-health'
+import { collectPeriodWarnings, computePeriodReport } from './period'
 import type { ReportAccount, ReportTransaction } from './shared'
 
 function txn(
@@ -103,67 +103,6 @@ describe('computePeriodReport', () => {
       true
     )
     expect(solo.accounts.every((a) => a.previous === null)).toBe(true)
-  })
-})
-
-describe('buildSavingsBreakdown', () => {
-  const bridge = (overrides: Partial<CashBridge>): CashBridge => ({
-    status: 'ok',
-    startDate: '2026-09-01',
-    endDate: '2026-09-30',
-    accounts: [
-      {
-        accountId: 'bank',
-        accountName: 'Bank',
-        kind: 'bank',
-        balanceBefore: 0,
-        balanceAfter: 60000,
-        delta: 60000,
-      },
-      {
-        accountId: 'card',
-        accountName: 'Card',
-        kind: 'card',
-        balanceBefore: 5000,
-        balanceAfter: 3000,
-        delta: -2000,
-      },
-    ],
-    missingAccounts: [],
-    netChange: 62000,
-    income: 100000,
-    expenses: 27000,
-    invested: 10000,
-    explained: 63000,
-    residual: -1000,
-    ...overrides,
-  })
-
-  test('invested + banks + card paydown + unexplained adds up to the surplus', () => {
-    const result = buildSavingsBreakdown(73000, bridge({}))
-    expect(result).toMatchObject({
-      status: 'ok',
-      invested: 10000,
-      bankChange: 60000,
-      cardDuesReduced: 2000,
-      unexplained: 1000,
-    })
-    expect(10000 + 60000 + 2000 + 1000).toBe(73000)
-  })
-
-  test('says which accounts are missing balances when insufficient', () => {
-    const result = buildSavingsBreakdown(
-      73000,
-      bridge({
-        status: 'insufficient',
-        netChange: null,
-        residual: null,
-        missingAccounts: [{ accountId: 'card', accountName: 'Card' }],
-      })
-    )
-    expect(result.status).toBe('insufficient')
-    expect(result.bankChange).toBeNull()
-    expect(result.missingAccounts).toEqual([{ accountId: 'card', accountName: 'Card' }])
   })
 })
 

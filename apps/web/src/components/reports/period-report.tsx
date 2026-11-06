@@ -3,7 +3,7 @@
  * against the same number of months just before
  */
 
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   AlertTriangle,
@@ -30,12 +30,7 @@ import {
 import { formatCurrency } from '@/components/dashboard/utils'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
-import type {
-  PeriodReport,
-  ReportAccountFlow,
-  ReportComparedRow,
-  ReportSavingsBreakdown,
-} from '@/lib/api'
+import type { PeriodReport, ReportAccountFlow, ReportComparedRow } from '@/lib/api'
 import { ChangeAmount, ChangeLine, ChangePct, type GoodWhen } from './change-indicator'
 import { NUM_CLASS, ReportCard, TH_CLASS } from './report-card'
 import { formatRange } from './report-utils'
@@ -123,8 +118,6 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
         {statCard('Surplus', 'surplus', PiggyBank, 'up')}
       </StatCardGrid>
 
-      <SavingsBreakdownCard savings={report.savings} currency={currency} />
-
       <CategoryTable
         title="Spending by category"
         rows={report.expenseCategories}
@@ -167,71 +160,6 @@ function SavingsRateChange({ points }: { points: number | null }) {
       {points > 0 ? '▲ ' : points < 0 ? '▼ ' : ''}
       {Math.abs(points)}%
     </span>
-  )
-}
-
-function Row({
-  label,
-  hint,
-  value,
-  strong,
-}: {
-  label: string
-  hint?: string
-  value: ReactNode
-  strong?: boolean
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border-subtle last:border-0">
-      <div className="min-w-0">
-        <p className={cn('text-sm', strong ? 'font-semibold text-foreground' : 'text-foreground')}>
-          {label}
-        </p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </div>
-      <p className={cn('text-sm tabular-nums shrink-0', strong && 'font-semibold')}>{value}</p>
-    </div>
-  )
-}
-
-function SavingsBreakdownCard({
-  savings,
-  currency,
-}: {
-  savings: ReportSavingsBreakdown
-  currency: string
-}) {
-  const signed = (amount: number | null) => {
-    if (amount === null) return '–'
-    const rounded = Math.round(amount)
-    return `${rounded < 0 ? '-' : ''}${formatCurrency(Math.abs(rounded), currency)}`
-  }
-
-  return (
-    <ReportCard title="Where your savings went">
-      <div className="px-2 sm:px-2">
-        <Row label="Surplus" value={signed(savings.surplus)} strong />
-        <Row label="Invested" value={signed(savings.invested)} />
-        <Row label="Added to bank accounts" value={signed(savings.bankChange)} />
-        <Row
-          label="Card dues paid down"
-          hint="Negative when card balances grew"
-          value={signed(savings.cardDuesReduced)}
-        />
-        <Row
-          label="Not explained"
-          hint="What the balances don't account for, such as cash or missing transactions"
-          value={signed(savings.unexplained)}
-        />
-      </div>
-      {savings.status === 'insufficient' && (
-        <p className="mt-3 px-2 text-xs text-muted-foreground">
-          {savings.missingAccounts.length > 0
-            ? `Balances are missing for ${savings.missingAccounts.map((a) => a.accountName).join(', ')}. Upload statements covering the start and end of this period to see the rest.`
-            : 'There are no bank or card balances for this period.'}
-        </p>
-      )}
-    </ReportCard>
   )
 }
 

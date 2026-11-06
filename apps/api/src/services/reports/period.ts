@@ -3,7 +3,7 @@ import { getAccountsByUserId } from '../accounts'
 import { getCategoryKind } from '../../lib/constants'
 import { categoryLabel } from '../spending-changes'
 import { computeTotals, type TotalsGroup } from '../transaction-totals'
-import { getDataHealth, type CashBridge, type DataHealthReport } from '../data-health'
+import { getDataHealth, type DataHealthReport } from '../data-health'
 import {
   changeBetween,
   compareGroups,
@@ -22,7 +22,7 @@ import {
 /**
  * Period report
  * One month, or consecutive months, against the same number of months just before:
- * totals, every category and merchant, per-account flows, where the savings went and
+ * totals, every category and merchant, per-account flows and
  * the data problems that touch the period.
  */
 
@@ -54,20 +54,6 @@ export interface AccountFlow {
 export interface AccountFlowRow extends ReportAccount {
   current: AccountFlow
   previous: AccountFlow | null
-}
-
-export interface SavingsBreakdown {
-  /** 'insufficient' when some account's balance is unknown at the period's edges */
-  status: 'ok' | 'insufficient'
-  surplus: number
-  invested: number
-  /** Change in bank balances; null when insufficient */
-  bankChange: number | null
-  /** Card dues paid down (positive) or grown (negative); null when insufficient */
-  cardDuesReduced: number | null
-  /** Part of the surplus the balances don't explain: invested + banks + cards + unexplained = surplus */
-  unexplained: number | null
-  missingAccounts: Array<{ accountId: string; accountName: string }>
 }
 
 export type WarningKind =
@@ -102,7 +88,6 @@ export interface PeriodReportData {
 
 export interface PeriodReportResponse extends PeriodReportData {
   period: ReportPeriod
-  savings: SavingsBreakdown
   warnings: PeriodWarnings
   currency: string
 }
@@ -236,32 +221,6 @@ export function computePeriodReport(input: {
 }
 
 /**
- * Where the surplus went, from the cash bridge. Surplus = invested + bank balance change
- * + card dues paid down + whatever the balances don't explain.
- */
-export function buildSavingsBreakdown(surplus: number, bridge: CashBridge): SavingsBreakdown {
-  const base = { surplus, invested: bridge.invested, missingAccounts: bridge.missingAccounts }
-  if (bridge.status === 'insufficient') {
-    return {
-      ...base,
-      status: 'insufficient',
-      bankChange: null,
-      cardDuesReduced: null,
-      unexplained: null,
-    }
-  }
-  const sumDelta = (kind: 'bank' | 'card') =>
-    bridge.accounts.filter((a) => a.kind === kind).reduce((sum, a) => sum + (a.delta ?? 0), 0)
-  return {
-    ...base,
-    status: 'ok',
-    bankChange: sumDelta('bank'),
-    cardDuesReduced: -sumDelta('card'),
-    unexplained: bridge.residual === null ? null : -bridge.residual,
-  }
-}
-
-/**
  * Pure calculation - no DB access (unit tested)
  * The data-health findings that touch the period: statement gaps and overlaps, accounts
  * whose statements don't cover it, broken balance chains, mismatching statements and
@@ -366,7 +325,6 @@ export async function getPeriodReport(
   return {
     ...report,
     period,
-    savings: buildSavingsBreakdown(report.totals.current.surplus, health.bridge),
     warnings: collectPeriodWarnings(health, period.startDate, period.endDate),
     currency: loaded.currency,
   }
