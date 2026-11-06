@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { InlineEmptyState } from '@/components/ui/empty-state'
 import { useSpendingChanges } from '@/hooks/useSpendingChanges'
 import { cn } from '@/lib/utils'
+import { getCategoryColorClasses } from '@/lib/category-colors'
 import { formatCurrency } from './utils'
 import type {
   SpendingCategoryChange,
@@ -29,6 +30,7 @@ interface WhatChangedCardProps {
   profileId: string | undefined
   enabled: boolean
   getCategoryLabel: (code: string) => string
+  getCategoryColor: (code: string) => string
 }
 
 function shiftMonth(month: string, delta: number): string {
@@ -57,7 +59,12 @@ type Item =
   | { kind: 'category'; change: SpendingCategoryChange }
   | { kind: 'large'; txn: SpendingLargeTransaction }
 
-export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatChangedCardProps) {
+export function WhatChangedCard({
+  profileId,
+  enabled,
+  getCategoryLabel,
+  getCategoryColor,
+}: WhatChangedCardProps) {
   // Undefined until the user navigates; the API then picks the latest complete month
   const [month, setMonth] = useState<string | undefined>(undefined)
   const { data, isLoading, isPlaceholderData } = useSpendingChanges(
@@ -115,7 +122,11 @@ export function WhatChangedCard({ profileId, enabled, getCategoryLabel }: WhatCh
             isPlaceholderData && 'opacity-60'
           )}
         >
-          <WhatChangedBody data={data} getCategoryLabel={getCategoryLabel} />
+          <WhatChangedBody
+            data={data}
+            getCategoryLabel={getCategoryLabel}
+            getCategoryColor={getCategoryColor}
+          />
         </div>
       )}
     </SectionCard>
@@ -132,9 +143,11 @@ function getSubtitle(data: SpendingChangesResponse): string {
 function WhatChangedBody({
   data,
   getCategoryLabel,
+  getCategoryColor,
 }: {
   data: SpendingChangesResponse
   getCategoryLabel: (code: string) => string
+  getCategoryColor: (code: string) => string
 }) {
   if (data.status === 'insufficient_history') {
     return (
@@ -176,6 +189,7 @@ function WhatChangedBody({
             currency={data.currency}
             range={range}
             label={getCategoryLabel(item.change.category)}
+            color={getCategoryColor(item.change.category)}
           />
         ) : (
           <LargeTransactionRow
@@ -184,6 +198,7 @@ function WhatChangedBody({
             currency={data.currency}
             range={range}
             label={getCategoryLabel(item.txn.category)}
+            color={getCategoryColor(item.txn.category)}
           />
         )
       )}
@@ -195,6 +210,8 @@ interface RowProps {
   currency: string
   range: { startDate: string; endDate: string }
   label: string
+  /** Category color name */
+  color: string
 }
 
 const ROW_CLASS =
@@ -205,15 +222,17 @@ function CategoryChangeRow({
   currency,
   range,
   label,
+  color,
 }: RowProps & { change: SpendingCategoryChange }) {
   const isUp = change.direction === 'up'
   const Icon = isUp ? ArrowUpRight : ArrowDownRight
+  const colors = getCategoryColorClasses(color)
 
   return (
     <Link to="/transactions" search={{ category: change.category, ...range }} className={ROW_CLASS}>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <CategoryIcon code={change.category} className="text-muted-foreground" />
+          <CategoryIcon code={change.category} className={colors.text} />
           <span className="truncate">{label}</span>
         </p>
         <p className="text-xs text-muted-foreground truncate">
@@ -242,13 +261,18 @@ function LargeTransactionRow({
   currency,
   range,
   label,
+  color,
 }: RowProps & { txn: SpendingLargeTransaction }) {
+  const colors = getCategoryColorClasses(color)
   return (
     <Link to="/transactions" search={{ category: txn.category, ...range }} className={ROW_CLASS}>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">{txn.summary}</p>
         <p className="text-xs text-muted-foreground truncate">
-          <CategoryIcon code={txn.category} className="mr-1 inline h-3 w-3 align-[-1px]" />
+          <CategoryIcon
+            code={txn.category}
+            className={cn('mr-1 inline h-3 w-3 align-[-1px]', colors.text)}
+          />
           {label} · {txn.reason === 'new_merchant' ? 'New merchant' : 'Larger than usual'}
         </p>
       </div>

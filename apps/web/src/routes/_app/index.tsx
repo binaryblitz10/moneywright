@@ -435,6 +435,7 @@ function DashboardPage() {
         profileId={profileId}
         enabled={queryEnabled}
         getCategoryLabel={getCategoryLabel}
+        getCategoryColor={getCategoryColor}
       />
     ),
     budgets: (
