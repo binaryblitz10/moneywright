@@ -77,9 +77,16 @@ function ReportsPage() {
   const trends = useTrendsReport(params, tab === 'trends')
   const investments = useInvestmentsReport(params, tab === 'investments')
 
-  const setRange = (next: MonthRange) => navigate({ search: { tab, ...next }, replace: true })
+  // The router cross-fades pages with a view transition, which freezes the page for a moment.
+  // Changing the months or tab stays on the same page, so it skips that.
+  const setRange = (next: MonthRange) =>
+    navigate({ search: { tab, ...next }, replace: true, viewTransition: false })
   const setTab = (next: string) =>
-    navigate({ search: { tab: next as ReportTab, from, to }, replace: true })
+    navigate({
+      search: { tab: next as ReportTab, from, to },
+      replace: true,
+      viewTransition: false,
+    })
 
   const description = range
     ? tab === 'trends'

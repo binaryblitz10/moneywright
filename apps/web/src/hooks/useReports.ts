@@ -25,6 +25,15 @@ export const reportKeys = {
     ] as const,
 }
 
+/**
+ * Keep the previous months on screen while the next ones load, but never another profile's report
+ * (the profile sits third in every report key)
+ */
+function keepMonthsOfSameProfile<T>(profileId: string | undefined) {
+  return (previous: T | undefined, previousQuery: { queryKey: readonly unknown[] } | undefined) =>
+    previousQuery?.queryKey[2] === (profileId ?? 'family') ? keepPreviousData(previous) : undefined
+}
+
 /** The months a report can cover; undefined profileId is family view */
 export function useReportBounds(profileId: string | undefined, enabled = true) {
   return useQuery({
@@ -40,8 +49,7 @@ export function usePeriodReport(params: ReportRangeParams | undefined, enabled =
     queryKey: reportKeys.period(params ?? { from: '', to: '' }),
     queryFn: () => getPeriodReport(params!),
     enabled: enabled && !!params,
-    // Keep the previous months on screen while the next ones load
-    placeholderData: keepPreviousData,
+    placeholderData: keepMonthsOfSameProfile(params?.profileId),
   })
 }
 
@@ -50,7 +58,7 @@ export function useTrendsReport(params: ReportRangeParams | undefined, enabled =
     queryKey: reportKeys.trends(params ?? { from: '', to: '' }),
     queryFn: () => getTrendsReport(params!),
     enabled: enabled && !!params,
-    placeholderData: keepPreviousData,
+    placeholderData: keepMonthsOfSameProfile(params?.profileId),
   })
 }
 
@@ -59,6 +67,6 @@ export function useInvestmentsReport(params: ReportRangeParams | undefined, enab
     queryKey: reportKeys.investments(params ?? { from: '', to: '' }),
     queryFn: () => getInvestmentsReport(params!),
     enabled: enabled && !!params,
-    placeholderData: keepPreviousData,
+    placeholderData: keepMonthsOfSameProfile(params?.profileId),
   })
 }
