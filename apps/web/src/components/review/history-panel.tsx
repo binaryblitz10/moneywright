@@ -29,7 +29,8 @@ import {
 } from '@/hooks'
 import { AccountAvatar } from '@/components/transactions/transaction-table'
 import { CategoryIcon } from '@/components/ui/category-icon'
-import { getAccountShortLabel } from '@/lib/statement-display'
+import { formatFileSize, formatPeriod, getAccountShortLabel } from '@/lib/statement-display'
+import { StatementCard } from '@/components/statements/statement-card'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import type { Account, Category } from '@/lib/api'
 import { useHistoryUiState } from './history-state'
@@ -232,16 +233,18 @@ function FeedRow({
   // Built on first open (then kept mounted so closing animates): most rows are never opened
   const [opened, setOpened] = useState(open)
   const Icon = item.icon
+  const toggle = (next: boolean) => {
+    onOpenChange(next)
+    if (next) setOpened(true)
+  }
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next)
-        if (next) setOpened(true)
-      }}
-    >
-      <div className="flex items-center gap-3 p-4">
-        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
+    <Collapsible open={open} onOpenChange={toggle}>
+      {/* The whole row toggles; the trigger stays a real button for the keyboard */}
+      <div className="flex cursor-pointer items-center gap-3 p-4" onClick={() => toggle(!open)}>
+        <CollapsibleTrigger
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          onClick={(event) => event.stopPropagation()}
+        >
           <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 space-y-0.5">
             <div className="flex min-w-0 items-center gap-2">
@@ -257,7 +260,9 @@ function FeedRow({
             )}
           />
         </CollapsibleTrigger>
-        {item.action}
+        <div className="cursor-default" onClick={(event) => event.stopPropagation()}>
+          {item.action}
+        </div>
       </div>
       <CollapsibleContent className="px-4 pb-4 pl-11">{opened && item.expanded}</CollapsibleContent>
     </Collapsible>
@@ -445,6 +450,9 @@ export function HistoryPanel({
         )
 
         if (change.entityType === 'statement') {
+          const statement = change.statement
+          if (!statement) continue
+          const account = accounts.find((a) => a.id === statement.accountId)
           const period = change.after as { periodStart?: string; periodEnd?: string } | null
           feed.push({
             id: `fix-${change.id}`,
@@ -459,12 +467,21 @@ export function HistoryPanel({
             action: undoFor([change.id]),
             expanded: (
               <ExpandedPanel>
-                <p className="text-sm text-muted-foreground">
-                  The statement had no dates
-                  {period?.periodStart && period.periodEnd
-                    ? `, so they were taken from its transactions: ${formatShortDate(period.periodStart)} to ${formatShortDate(period.periodEnd)}.`
-                    : ', so they were taken from its transactions.'}
-                </p>
+                {/* Same width as the transaction cards */}
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <StatementCard
+                    statement={statement}
+                    account={account}
+                    source={undefined}
+                    logoPath={
+                      account?.institution
+                        ? `/institutions/${countryCode}/${account.institution}.svg`
+                        : null
+                    }
+                    formatFileSize={formatFileSize}
+                    formatPeriod={formatPeriod}
+                  />
+                </div>
               </ExpandedPanel>
             ),
           })

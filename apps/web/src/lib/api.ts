@@ -3867,6 +3867,8 @@ export interface AutoFixChange {
   after: Record<string, unknown> | null
   /** The transaction as it is now, for transaction changes (null once it no longer exists) */
   transaction: Transaction | null
+  /** The statement as it is now, for statement changes (null once it no longer exists) */
+  statement: Statement | null
 }
 
 export interface AutoFixBatch {

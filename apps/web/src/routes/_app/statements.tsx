@@ -40,6 +40,7 @@ import {
 import type { Statement } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { isStatementOverdue } from '@/lib/statement-overdue'
+import { formatFileSize, formatPeriod } from '@/lib/statement-display'
 
 // Search params validation
 type StatementsSearchParams = {
@@ -324,22 +325,6 @@ function StatementsPage() {
     }
     statusesRef.current = new Map(statements.map((s) => [s.id, s.status]))
   }, [statements])
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return ''
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  const formatPeriod = (start: string | null, end: string | null) => {
-    if (!start && !end) return null
-    const formatFull = (d: string) =>
-      new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    if (start && end) return `${formatFull(start)} – ${formatFull(end)}`
-    if (end) return formatFull(end)
-    return formatFull(start!)
-  }
 
   return (
     <div className="space-y-6">

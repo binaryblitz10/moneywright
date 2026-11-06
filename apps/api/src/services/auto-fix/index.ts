@@ -7,6 +7,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { db, dbType, tables } from '../../db'
 import { logger } from '../../lib/logger'
 import { invalidateDuplicateCache } from '../duplicates'
+import { getStatementById, type StatementResponse } from '../statements'
 import { toTransactionResponse, type TransactionResponse } from '../transactions'
 import { bankMessageRef } from './bank-message-ref'
 import { brokenLinks, cardPaymentUnique, transferPairs } from './card-links'
@@ -363,6 +364,8 @@ export interface BatchResponse {
     after: Record<string, unknown> | null
     /** The transaction as it is now, for transaction changes (null when it no longer exists) */
     transaction: TransactionResponse | null
+    /** The statement as it is now, for statement changes (null when it no longer exists) */
+    statement: StatementResponse | null
   }>
 }
 
@@ -405,6 +408,14 @@ export async function listBatches(
     changes.filter((change) => change.entityType === 'transaction').map((change) => change.entityId)
   )
 
+  const statements = new Map<string, StatementResponse>()
+  for (const id of new Set(
+    changes.filter((change) => change.entityType === 'statement').map((change) => change.entityId)
+  )) {
+    const statement = await getStatementById(id, userId)
+    if (statement) statements.set(id, statement)
+  }
+
   return batches.map((batch) => ({
     id: batch.id,
     profileId: batch.profileId,
@@ -428,6 +439,8 @@ export async function listBatches(
           change.entityType === 'transaction' && transactions.has(change.entityId)
             ? toTransactionResponse(transactions.get(change.entityId)!)
             : null,
+        statement:
+          change.entityType === 'statement' ? (statements.get(change.entityId) ?? null) : null,
       })),
   }))
 }

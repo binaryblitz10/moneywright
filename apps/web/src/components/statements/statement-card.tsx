@@ -44,7 +44,8 @@ interface StatementCardProps {
   logoPath: string | null
   formatFileSize: (bytes: number | null) => string
   formatPeriod: (start: string | null, end: string | null) => string | null
-  onDelete: () => void
+  /** Omit to show the card read-only, with no menu */
+  onDelete?: () => void
   selected?: boolean
   onSelectedChange?: (selected: boolean) => void
   onEdit?: () => void
@@ -208,41 +209,43 @@ export function StatementCard({
             </div>
 
             {/* Three-dot Menu */}
-            <div onClick={(e) => e.stopPropagation()}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground/50 hover:text-muted-foreground hover:bg-surface-elevated transition-colors">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  {/* Only show edit and recategorize for bank/credit card statements that are completed */}
-                  {!isInvestment && isCompleted && (onEdit || onRecategorize) && (
-                    <>
-                      {onEdit && (
-                        <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                      )}
-                      {onRecategorize && (
-                        <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Recategorize
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive focus:text-destructive cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {onDelete && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground/50 hover:text-muted-foreground hover:bg-surface-elevated transition-colors">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    {/* Only show edit and recategorize for bank/credit card statements that are completed */}
+                    {!isInvestment && isCompleted && (onEdit || onRecategorize) && (
+                      <>
+                        {onEdit && (
+                          <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
+                        {onRecategorize && (
+                          <DropdownMenuItem onClick={onRecategorize} className="cursor-pointer">
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Recategorize
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
 
           {/* Stats Row */}
@@ -343,27 +346,29 @@ export function StatementCard({
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Statement?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {isInvestment
-                ? 'This will delete the statement. Holdings from this statement will be removed. This action cannot be undone.'
-                : 'This will delete the statement and all its transactions. This action cannot be undone.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={onDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {onDelete && (
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Statement?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {isInvestment
+                  ? 'This will delete the statement. Holdings from this statement will be removed. This action cannot be undone.'
+                  : 'This will delete the statement and all its transactions. This action cannot be undone.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={onDelete}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   )
 }

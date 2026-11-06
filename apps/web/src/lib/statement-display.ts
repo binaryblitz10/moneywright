@@ -44,3 +44,19 @@ export function getAccountShortLabel(account: Account, institutionName?: string)
 export function stripExtension(filename: string): string {
   return filename.replace(/\.[^/.]+$/, '')
 }
+
+export function formatFileSize(bytes: number | null): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export function formatPeriod(start: string | null, end: string | null): string | null {
+  if (!start && !end) return null
+  const formatFull = (d: string) =>
+    new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (start && end) return `${formatFull(start)} – ${formatFull(end)}`
+  if (end) return formatFull(end)
+  return formatFull(start!)
+}
