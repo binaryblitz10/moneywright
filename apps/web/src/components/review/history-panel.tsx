@@ -202,6 +202,11 @@ const FIX_KINDS: Record<string, { verb: string; icon: LucideIcon }> = {
   'broken-links': { verb: 'Repaired link on', icon: Link2 },
 }
 
+/** Sort for a pair of linked transactions: the money-out side first */
+function debitFirst(a: { type: string }, b: { type: string }): number {
+  return a.type === b.type ? 0 : a.type === 'debit' ? -1 : 1
+}
+
 function AutoFixedChip() {
   return (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
@@ -409,17 +414,30 @@ export function HistoryPanel({
       if (autoMergedIds.has(item.id.replace(/^merged-/, ''))) item.chip = <AutoFixedChip />
     }
 
+    const handled = new Set<string>()
     for (const batch of batches) {
       for (const change of batch.changes) {
-        if (change.undoneAt || MERGE_FIXERS.has(change.fixer)) continue
+        if (handled.has(change.id) || change.undoneAt || MERGE_FIXERS.has(change.fixer)) continue
         const kind = FIX_KINDS[change.fixer]
-        const undo = (
+        const undoFor = (ids: string[]) => (
           <Button
             size="sm"
             variant="outline"
             className="h-7"
             disabled={undoChange.isPending}
-            onClick={() => undoChange.mutate(change.id, { onSuccess: onResult, onError })}
+            onClick={async () => {
+              const total = { undone: 0, skipped: 0 }
+              try {
+                for (const id of ids) {
+                  const result = await undoChange.mutateAsync(id)
+                  total.undone += result.undone
+                  total.skipped += result.skipped
+                }
+                onResult(total)
+              } catch {
+                onError()
+              }
+            }}
           >
             <Undo2 className="mr-2 h-3.5 w-3.5" />
             Undo
@@ -438,7 +456,7 @@ export function HistoryPanel({
               period?.periodStart && period.periodEnd
                 ? `${/^Set the dates of (.+?) to /.exec(change.description)?.[1] ?? 'Statement'} · ${formatShortDate(period.periodStart)} to ${formatShortDate(period.periodEnd)}`
                 : change.description,
-            action: undo,
+            action: undoFor([change.id]),
             expanded: (
               <ExpandedPanel>
                 <p className="text-sm text-muted-foreground">
@@ -455,35 +473,56 @@ export function HistoryPanel({
 
         const txn = change.transaction
         if (change.entityType !== 'transaction' || !txn || !kind) continue
+        // A link changes both sides: show the two transactions together in one row
+        const partner = batch.changes.find(
+          (other) =>
+            other.id !== change.id &&
+            other.fixer === change.fixer &&
+            !other.undoneAt &&
+            !handled.has(other.id) &&
+            other.entityId === txn.linkedEntityId &&
+            other.transaction
+        )
+        if (partner) handled.add(partner.id)
+        const cards = [txn, partner?.transaction].filter((t) => !!t).sort(debitFirst)
         const name = txn.summary || txn.originalDescription
         feed.push({
           id: `fix-${change.id}`,
           at: batch.createdAt,
           icon: kind.icon,
           chip: <AutoFixedChip />,
-          title: (
+          title: partner ? (
+            <>
+              {kind.verb} <strong>{formatAmount(txn.amount, txn.currency)}</strong>
+            </>
+          ) : (
             <>
               {kind.verb} <strong>{name}</strong>
             </>
           ),
-          detail: `${formatShortDate(txn.date)} · ${formatAmount(txn.amount, txn.currency)}`,
-          action: undo,
+          detail: partner
+            ? `${formatShortDate(txn.date)} · ${cards.map((t) => t.summary || t.originalDescription).join(' and ')}`
+            : `${formatShortDate(txn.date)} · ${formatAmount(txn.amount, txn.currency)}`,
+          action: undoFor(partner ? [change.id, partner.id] : [change.id]),
           expanded: (
             <ExpandedPanel>
               {/* Same width as the cards in a pair */}
               <div className="grid gap-5 sm:grid-cols-2">
-                <TxnCard
-                  {...cardContext}
-                  accountId={txn.accountId}
-                  date={txn.date}
-                  name={name}
-                  description={txn.originalDescription}
-                  amount={formatAmount(txn.amount, txn.currency)}
-                  type={txn.type}
-                  category={txn.category}
-                  smsSource={txn.smsSource}
-                  onOpen={() => onEditTransaction(txn)}
-                />
+                {cards.map((t) => (
+                  <TxnCard
+                    key={t.id}
+                    {...cardContext}
+                    accountId={t.accountId}
+                    date={t.date}
+                    name={t.summary || t.originalDescription}
+                    description={t.originalDescription}
+                    amount={formatAmount(t.amount, t.currency)}
+                    type={t.type}
+                    category={t.category}
+                    smsSource={t.smsSource}
+                    onOpen={() => onEditTransaction(t)}
+                  />
+                ))}
               </div>
             </ExpandedPanel>
           ),
