@@ -28,7 +28,7 @@ export function InlineNote({ transaction, editable = true }: InlineNoteProps) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const finishedRef = useRef(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const fieldRef = useRef<HTMLLabelElement>(null)
   const note = transaction.notes ?? ''
 
   // Keep clicks from reaching the row (which opens the edit dialog or toggles selection)
@@ -45,7 +45,7 @@ export function InlineNote({ transaction, editable = true }: InlineNoteProps) {
   useEffect(() => {
     if (!editing) return
     const onPointerDown = (e: PointerEvent) => {
-      if (e.target === inputRef.current) return
+      if (e.target instanceof Node && fieldRef.current?.contains(e.target)) return
       const swallow = (click: Event) => click.stopPropagation()
       window.addEventListener('click', swallow, { capture: true, once: true })
       // No click follows a drag or a cancelled press, so don't leave the listener armed
@@ -73,19 +73,24 @@ export function InlineNote({ transaction, editable = true }: InlineNoteProps) {
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        autoFocus
-        value={value}
-        maxLength={500}
-        placeholder="Add a note"
-        aria-label="Transaction note"
-        className="h-4 w-40 border-0 border-b border-dashed border-foreground/40 bg-transparent p-0 text-xs italic leading-4 text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-foreground/70"
+      <label
+        ref={fieldRef}
         onClick={stop}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => finish(true)}
-      />
+        className="flex h-[18px] min-w-28 max-w-72 shrink-0 animate-in items-center gap-1 rounded-full border border-border bg-surface-elevated px-1.5 fade-in-0 zoom-in-95 duration-150 focus-within:border-foreground/40"
+      >
+        <Plus className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+        <input
+          autoFocus
+          value={value}
+          maxLength={500}
+          placeholder="Add a note"
+          aria-label="Transaction note"
+          className="field-sizing-content min-w-16 max-w-56 border-0 bg-transparent p-0 text-xs leading-4 text-foreground outline-none placeholder:text-muted-foreground/60"
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => finish(true)}
+        />
+      </label>
     )
   }
 
