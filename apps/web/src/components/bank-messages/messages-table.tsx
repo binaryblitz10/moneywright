@@ -3,25 +3,13 @@
  */
 
 import { useState } from 'react'
-import { AlertTriangle, Loader2, MessageSquareText, Undo2 } from 'lucide-react'
+import { AlertTriangle, MessageSquareText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { ReviewIssuesDialog } from '@/components/bank-messages/review-issues-dialog'
 import { EditTransactionDialog, TransactionTable } from '@/components/transactions'
-import { useRestoreDismissedSms } from '@/hooks'
 import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
-
-const OUTCOME_BADGES: Partial<Record<SyncedSms['status'], string>> = {
-  dismissed: 'Dismissed',
-}
 
 /** How long a freshly imported transaction is marked New */
 const NEW_FOR_MS = 24 * 60 * 60 * 1000
@@ -42,49 +30,6 @@ function groupLabel(iso: string, now: Date): string {
     return 'This month'
   }
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-}
-
-function toDateString(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number): string => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-/** A message with no transaction (waiting for review, or dismissed) shown as a table row */
-function toPlaceholderTransaction(
-  message: SyncedSms,
-  date: string | null,
-  fallbackCurrency: string
-): Transaction {
-  return {
-    id: message.id,
-    accountId: message.accountId ?? '',
-    statementId: '',
-    profileId: '',
-    userId: '',
-    date: date ?? toDateString(message.receivedAt),
-    type: message.type ?? 'debit',
-    amount: message.amount ?? 0,
-    // A message that could not be fully read has no currency, which cannot be formatted blank
-    currency: message.currency ?? fallbackCurrency,
-    originalDescription: message.merchant ?? '—',
-    summary: null,
-    category: 'other',
-    categoryConfidence: null,
-    isSubscription: false,
-    linkedEntityId: null,
-    linkedEntityType: null,
-    isManuallyCategorized: false,
-    isHidden: false,
-    notes: null,
-    smsSource: false,
-    smsVerified: false,
-    merchantFingerprint: null,
-    categorySource: null,
-    nameSource: null,
-    createdAt: message.receivedAt,
-    updatedAt: message.receivedAt,
-  }
 }
 
 interface MessagesTableProps {
@@ -109,8 +54,6 @@ export function MessagesTable({
   lastSyncAt,
 }: MessagesTableProps) {
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [restoring, setRestoring] = useState<SyncedSms | null>(null)
-  const restoreMutation = useRestoreDismissedSms()
   const [editing, setEditing] = useState<Transaction | null>(null)
   // Older months shown beyond Today / This week / This month
   const [extraMonths, setExtraMonths] = useState(0)
@@ -119,8 +62,9 @@ export function MessagesTable({
   const importedAtByTxn = new Map(
     messages.flatMap((m) => (m.transactionId ? [[m.transactionId, m.importedAt] as const] : []))
   )
-  // Messages waiting for review are handled in the review dialog, not listed in the table
-  const listed = messages.filter((m) => m.status !== 'needs_review')
+  // Only messages that became a transaction are listed: those waiting for review are in the
+  // review dialog, and dismissed ones are left out
+  const listed = messages.filter((m) => m.status !== 'needs_review' && m.status !== 'dismissed')
   const matching = listed
   const now = new Date()
   const labelById = new Map(matching.map((m) => [m.id, groupLabel(m.receivedAt, now)] as const))
@@ -134,30 +78,14 @@ export function MessagesTable({
     return ALWAYS_SHOWN.includes(label) || shownMonths.has(label)
   })
   const hiddenMonths = olderMonths.length - shownMonths.size
-  // Rows without a transaction of their own are keyed by message id
-  const statusById = new Map(
-    visible.filter((m) => !m.transaction).map((m) => [m.id, m.status] as const)
-  )
-  const accountById = new Map(accounts.map((a) => [a.id, a]))
-  const rows = visible.map(
-    (m) =>
-      m.transaction ??
-      toPlaceholderTransaction(
-        m,
-        null,
-        (m.accountId ? accountById.get(m.accountId)?.currency : undefined) ??
-          accounts[0]?.currency ??
-          'USD'
-      )
-  )
-
   // Rows in groups, newest first; a group is one label's run of rows
   const groups: { label: string; rows: Transaction[] }[] = []
-  visible.forEach((m, i) => {
+  visible.forEach((m) => {
+    if (!m.transaction) return
     const label = labelById.get(m.id)!
     const last = groups[groups.length - 1]
-    if (last?.label === label) last.rows.push(rows[i]!)
-    else groups.push({ label, rows: [rows[i]!] })
+    if (last?.label === label) last.rows.push(m.transaction)
+    else groups.push({ label, rows: [m.transaction] })
   })
 
   return (
@@ -207,22 +135,8 @@ export function MessagesTable({
               countryCode={countryCode}
               getCategoryLabel={getCategoryLabel}
               formatAmount={formatAmount}
-              onEditTransaction={(txn) => {
-                const dismissed = visible.find((m) => m.id === txn.id && m.status === 'dismissed')
-                if (dismissed) setRestoring(dismissed)
-                else setEditing(txn)
-              }}
-              isCategoryEditable={(txn) => !statusById.has(txn.id)}
+              onEditTransaction={setEditing}
               renderBadge={(txn) => {
-                const status = statusById.get(txn.id)
-                if (status) {
-                  const label = OUTCOME_BADGES[status]
-                  return label ? (
-                    <span className={cn(BADGE_CLASS, 'border-border-subtle text-muted-foreground')}>
-                      {label}
-                    </span>
-                  ) : null
-                }
                 const importedAt = importedAtByTxn.get(txn.id)
                 const isNew =
                   !!importedAt && Date.now() - new Date(importedAt).getTime() < NEW_FOR_MS
@@ -252,39 +166,6 @@ export function MessagesTable({
         accounts={accounts}
         formatAmount={formatAmount}
       />
-
-      <Dialog open={!!restoring} onOpenChange={(open) => !open && setRestoring(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Dismissed message</DialogTitle>
-            <DialogDescription>
-              {restoring?.sender} ·{' '}
-              {restoring && new Date(restoring.receivedAt).toLocaleString('en-GB')}
-              <br />
-              Restore it to review it again and add it as a transaction.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setRestoring(null)}>
-              Close
-            </Button>
-            <Button
-              disabled={restoreMutation.isPending}
-              onClick={() =>
-                restoring &&
-                restoreMutation.mutate(restoring.id, { onSuccess: () => setRestoring(null) })
-              }
-            >
-              {restoreMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Undo2 className="mr-2 h-4 w-4" />
-              )}
-              Restore
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <EditTransactionDialog
         transaction={editing}
