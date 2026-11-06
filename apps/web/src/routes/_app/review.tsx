@@ -45,6 +45,8 @@ function ReviewPage() {
   const countryCode = user?.country?.toLowerCase() || 'in'
 
   const [fixOpen, setFixOpen] = useState(false)
+  // Lives here, not in HistoryPanel, so Show more survives switching tabs but resets on leaving Review
+  const [historyMonths, setHistoryMonths] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
   const queryEnabled = !!activeProfileId || showFamilyView
@@ -131,7 +133,11 @@ function ReviewPage() {
       {activeTab === 'duplicates' ? (
         <DuplicatesPanel {...panelProps} />
       ) : activeTab === 'history' ? (
-        <HistoryPanel {...panelProps} />
+        <HistoryPanel
+          {...panelProps}
+          extraMonths={historyMonths}
+          onShowMore={() => setHistoryMonths((n) => n + 1)}
+        />
       ) : (
         <CategorizationPanel {...panelProps} />
       )}
