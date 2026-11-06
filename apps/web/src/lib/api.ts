@@ -1206,18 +1206,10 @@ export interface DuplicateGroup {
   provisionalId: string | null
 }
 
-/** A copy that was merged into another transaction, with a summary of what it was merged into */
+/** A copy that was merged into another transaction, with the transaction it was merged into */
 export interface MergedDuplicate {
   transaction: Transaction
-  keeper: {
-    id: string
-    summary: string
-    originalDescription: string | null
-    date: string
-    amount: number
-    accountId: string
-    smsSource: boolean
-  } | null
+  keeper: Transaction | null
 }
 
 /**

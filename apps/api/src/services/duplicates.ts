@@ -472,16 +472,7 @@ export async function unmergeDuplicate(userId: string, id: string): Promise<bool
 export interface MergedDuplicate {
   transaction: TransactionResponse
   /** The transaction it was merged into; null if that one has since been deleted */
-  keeper: {
-    id: string
-    summary: string | null
-    originalDescription: string
-    date: string
-    amount: number
-    accountId: string
-    /** True when it came from a bank message rather than a statement */
-    smsSource: boolean
-  } | null
+  keeper: TransactionResponse | null
 }
 
 /** Merged copies with the transaction each was merged into, newest transactions first */
@@ -513,16 +504,7 @@ export async function listMerged(userId: string, profileId?: string): Promise<Me
         )
       )
     for (const row of rows) {
-      const keeper = toTransactionResponse(row)
-      keepers.set(row.id, {
-        id: keeper.id,
-        summary: keeper.summary,
-        originalDescription: keeper.originalDescription,
-        date: keeper.date,
-        amount: keeper.amount,
-        accountId: keeper.accountId,
-        smsSource: keeper.smsSource,
-      })
+      keepers.set(row.id, toTransactionResponse(row))
     }
   }
 
