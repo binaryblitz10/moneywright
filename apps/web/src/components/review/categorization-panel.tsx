@@ -67,11 +67,10 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
     return (
       <EmptyState
         icon={CheckCheck}
-        title="All clear"
-        description="Every transaction has a confident category."
+        title="No Pending Transactions"
         size="sm"
         glow
-        className={cn(DECK_HEIGHT, 'flex flex-col items-center justify-center')}
+        className="flex min-h-[18.5rem] flex-col items-center justify-center"
       />
     )
   }

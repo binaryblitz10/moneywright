@@ -101,8 +101,10 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
       <div className="space-y-4">
         <EmptyState
           icon={CheckCheck}
-          title="No duplicates found"
-          description="No transactions share the same account, date and amount, and no bank messages are waiting for a match."
+          title="No Duplicate Transactions"
+          size="sm"
+          glow
+          className="flex min-h-[18.5rem] flex-col items-center justify-center"
         />
       </div>
     )

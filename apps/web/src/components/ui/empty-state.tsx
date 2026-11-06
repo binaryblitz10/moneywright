@@ -12,7 +12,7 @@ export interface EmptyStateProps {
   /** Main title */
   title: string
   /** Description text */
-  description: string
+  description?: string
   /** Primary action button */
   action?: {
     label: string
@@ -94,7 +94,9 @@ export function EmptyState({
         </div>
       </div>
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto px-4">{description}</p>
+      {description && (
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto px-4">{description}</p>
+      )}
       {(action || secondaryAction) && (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           {action &&
