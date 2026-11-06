@@ -572,12 +572,17 @@ export function HistoryPanel({
   ])
 
   if (groups.length === 0) {
+    // In the same outer box the other two tabs sit in
     return (
-      <EmptyState
-        icon={History}
-        title="Nothing here yet"
-        description="Merges, kept duplicates and automatic fixes show up here, and you can undo any of them."
-      />
+      <div className="rounded-2xl border border-border-subtle bg-card p-4 sm:p-6">
+        <EmptyState
+          icon={History}
+          title="No History"
+          size="sm"
+          glow
+          className="flex min-h-[18.5rem] flex-col items-center justify-center"
+        />
+      </div>
     )
   }
 
