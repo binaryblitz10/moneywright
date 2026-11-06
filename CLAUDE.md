@@ -75,6 +75,8 @@ DATA_DIR="$COPY" bun run dev:api &          # api :17778
 
 Verify the API log shows no `decrypt` / `no such table` errors. Never print the secret values.
 
+The API runs pending migrations on every startup, in dev too (the old data copy is usually a few migrations behind). Don't use `db:push` against a dev database: it creates tables and columns outside the migration history, so the next startup migration can fail with "already exists" and the server exits. If that happens, take a fresh copy of the app data instead of repairing the database by hand.
+
 ---
 
 ## Build Commands
