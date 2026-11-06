@@ -583,8 +583,10 @@ export function HistoryPanel({
 
   const recent = groups.filter((g) => g.label === 'This week' || g.label === 'This month')
   const months = groups.filter((g) => g.label !== 'This week' && g.label !== 'This month')
-  const visible = [...recent, ...months.slice(0, extraMonths)]
-  const hidden = months.length - extraMonths
+  // With nothing recent, the newest older month shows by default so the tab is never blank
+  const shownMonths = (recent.length === 0 ? 1 : 0) + extraMonths
+  const visible = [...recent, ...months.slice(0, shownMonths)]
+  const hidden = months.length - shownMonths
 
   return (
     <div className="space-y-6">
