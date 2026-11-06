@@ -121,7 +121,7 @@ export function InvestmentsReportView({ report }: InvestmentsReportViewProps) {
         <StatCard
           label="Current value"
           formatValue={formatCurrency}
-          value={overall.currentValue}
+          value={latestAsOf ? overall.currentValue : undefined}
           currency={currency}
           icon={Wallet}
           subtitle={latestAsOf ? `As of ${formatAsOf(latestAsOf)}` : 'No holdings recorded'}
