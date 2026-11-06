@@ -78,6 +78,8 @@ interface TxnCardProps {
   type: string
   category: string
   smsSource: boolean
+  /** Opens the transaction popup */
+  onOpen: () => void
   /** 'keep' rings the card like the kept transaction in Duplicates; 'merged' marks the merged copy */
   badge?: 'keep' | 'merged'
 }
@@ -95,6 +97,7 @@ function TxnCard({
   type,
   category,
   smsSource,
+  onOpen,
   badge,
 }: TxnCardProps) {
   const account = accounts.find((a) => a.id === accountId)
@@ -106,8 +109,17 @@ function TxnCard({
     categoryInfo?.label ?? fallbackLabel.charAt(0).toUpperCase() + fallbackLabel.slice(1)
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
       className={cn(
-        'min-w-0 space-y-3 rounded-xl border p-4',
+        'min-w-0 cursor-pointer space-y-3 rounded-xl border p-4 transition-colors hover:border-foreground/30',
         badge === 'keep'
           ? 'border-primary/60 bg-primary/[0.04]'
           : 'border-border-subtle bg-surface-elevated'
@@ -253,6 +265,7 @@ export function HistoryPanel({
   categories,
   countryCode,
   formatAmount,
+  onEditTransaction,
 }: ReviewPanelProps) {
   const { extraMonths, openIds, showMore, setOpen } = useHistoryUiState()
   const { data: dismissedGroups = [] } = useDuplicateGroups({ ...filters, dismissed: true })
@@ -289,7 +302,7 @@ export function HistoryPanel({
             onClick={() => unmergeMutation.mutate(copy.id)}
           >
             <Undo2 className="mr-2 h-3.5 w-3.5" />
-            Unmerge
+            Undo
           </Button>
         ),
         expanded: (
@@ -306,6 +319,7 @@ export function HistoryPanel({
                 type={copy.type}
                 category={copy.category}
                 smsSource={copy.smsSource}
+                onOpen={() => onEditTransaction(copy)}
               />
               <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-muted-foreground sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rotate-0" />
               {keeper ? (
@@ -316,10 +330,11 @@ export function HistoryPanel({
                   date={keeper.date}
                   name={keeper.summary || keeper.originalDescription || 'Transaction'}
                   description={keeper.originalDescription}
-                  amount={formatAmount(keeper.amount, copy.currency)}
-                  type={copy.type}
-                  category={copy.category}
+                  amount={formatAmount(keeper.amount, keeper.currency)}
+                  type={keeper.type}
+                  category={keeper.category}
                   smsSource={keeper.smsSource}
+                  onOpen={() => onEditTransaction(keeper)}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -356,7 +371,7 @@ export function HistoryPanel({
             }
           >
             <Undo2 className="mr-2 h-3.5 w-3.5" />
-            Review again
+            Undo
           </Button>
         ),
         expanded: (
@@ -374,6 +389,7 @@ export function HistoryPanel({
                   type={t.type}
                   category={t.category}
                   smsSource={t.smsSource}
+                  onOpen={() => onEditTransaction(t)}
                 />
               ))}
             </div>
@@ -418,7 +434,10 @@ export function HistoryPanel({
             icon: CalendarCheck,
             chip: <AutoFixedChip />,
             title: <>Filled in statement dates</>,
-            detail: change.description.replace(/^Set the dates of /, ''),
+            detail:
+              period?.periodStart && period.periodEnd
+                ? `${/^Set the dates of (.+?) to /.exec(change.description)?.[1] ?? 'Statement'} · ${formatShortDate(period.periodStart)} to ${formatShortDate(period.periodEnd)}`
+                : change.description,
             action: undo,
             expanded: (
               <ExpandedPanel>
@@ -463,6 +482,7 @@ export function HistoryPanel({
                   type={txn.type}
                   category={txn.category}
                   smsSource={txn.smsSource}
+                  onOpen={() => onEditTransaction(txn)}
                 />
               </div>
             </ExpandedPanel>
@@ -489,6 +509,7 @@ export function HistoryPanel({
     categories,
     countryCode,
     formatAmount,
+    onEditTransaction,
     unmergeMutation,
     dismissMutation,
     undoChange,
