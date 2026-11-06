@@ -8,6 +8,8 @@ interface RangeCalendarProps {
   /** First day of the first month shown; the next month is shown beside it */
   month: Date
   onMonthChange: (month: Date) => void
+  /** Months shown side by side; one month on narrow screens either way */
+  months?: 1 | 2
   startDate?: string
   endDate?: string
   /** While the end date is being picked, the day under the pointer previews the range */
@@ -19,7 +21,7 @@ interface RangeCalendarProps {
   maxDate?: string
 }
 
-interface MonthGridProps extends Omit<RangeCalendarProps, 'month' | 'onMonthChange'> {
+interface MonthGridProps extends Omit<RangeCalendarProps, 'month' | 'onMonthChange' | 'months'> {
   month: Date
   /** Which arrows this month carries */
   prev?: () => void
@@ -139,8 +141,8 @@ function MonthGrid({
   )
 }
 
-/** Two months side by side, picking a range with two clicks (one month on narrow screens) */
-export function RangeCalendar({ month, onMonthChange, ...props }: RangeCalendarProps) {
+/** Two months side by side (or one), picking a range with two clicks */
+export function RangeCalendar({ month, onMonthChange, months = 2, ...props }: RangeCalendarProps) {
   const shift = (delta: number) =>
     onMonthChange(new Date(month.getFullYear(), month.getMonth() + delta, 1))
 
@@ -150,15 +152,17 @@ export function RangeCalendar({ month, onMonthChange, ...props }: RangeCalendarP
         month={month}
         prev={() => shift(-1)}
         next={() => shift(1)}
-        nextClassName="md:hidden"
+        nextClassName={months === 2 ? 'md:hidden' : undefined}
         {...props}
       />
-      <MonthGrid
-        month={new Date(month.getFullYear(), month.getMonth() + 1, 1)}
-        next={() => shift(1)}
-        className="max-md:hidden"
-        {...props}
-      />
+      {months === 2 && (
+        <MonthGrid
+          month={new Date(month.getFullYear(), month.getMonth() + 1, 1)}
+          next={() => shift(1)}
+          className="max-md:hidden"
+          {...props}
+        />
+      )}
     </div>
   )
 }

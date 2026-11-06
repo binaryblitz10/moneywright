@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { DeleteSmsTransactionsButton } from './delete-sms-transactions-button'
@@ -29,6 +28,7 @@ import {
   useUpdateSmsImportSettings,
 } from '@/hooks'
 import type { SmsImportStatus } from '@/lib/api'
+import { DatePicker } from '@/components/ui/date-picker'
 
 const DEFAULT_DAYS_BACK = 7
 
@@ -168,12 +168,11 @@ function SettingsCard({ status }: { status: SmsImportStatus }) {
                 <Label htmlFor="sms-sync-since" className="text-sm font-medium">
                   Since
                 </Label>
-                <Input
+                <DatePicker
                   id="sms-sync-since"
-                  type="date"
-                  max={toDateInput(new Date())}
+                  maxDate={toDateInput(new Date())}
                   value={since}
-                  onChange={(e) => setSince(e.target.value)}
+                  onChange={setSince}
                 />
               </div>
               <DialogFooter>

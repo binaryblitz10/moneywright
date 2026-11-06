@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
@@ -46,10 +47,6 @@ export function StatementEditDialog({
   const [periodStart, setPeriodStart] = useState(statement.periodStart ?? '')
   const [periodEnd, setPeriodEnd] = useState(statement.periodEnd ?? '')
   const [periodError, setPeriodError] = useState<string | null>(null)
-  // Safari's date fields can show a typed date without firing a change event, so the
-  // dates are read from the fields themselves when saving
-  const periodStartRef = useRef<HTMLInputElement>(null)
-  const periodEndRef = useRef<HTMLInputElement>(null)
   const [totalDue, setTotalDue] = useState(
     toInputValue(summaryTotalDue ?? statement.closingBalance)
   )
@@ -65,15 +62,8 @@ export function StatementEditDialog({
   const canSave = !hasInvalidAmount && !hasInvalidPeriod && !updateMutation.isPending
 
   const handleSave = () => {
-    const startInput = periodStartRef.current
-    const endInput = periodEndRef.current
-    // badInput: something was typed that isn't a complete date, which would otherwise save as empty
-    if (startInput?.validity.badInput || endInput?.validity.badInput) {
-      setPeriodError('Enter complete dates, or clear the field.')
-      return
-    }
-    const start = startInput?.value ?? periodStart
-    const end = endInput?.value ?? periodEnd
+    const start = periodStart
+    const end = periodEnd
     if (start && end && start > end) {
       setPeriodError('Period start must be on or before period end.')
       return
@@ -110,26 +100,22 @@ export function StatementEditDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="periodStart">Period start</Label>
-              <Input
+              <DatePicker
                 id="periodStart"
-                ref={periodStartRef}
-                type="date"
                 value={periodStart}
                 className={INPUT_CLASS}
-                onChange={(e) => setPeriodStart(e.target.value)}
-                onBlur={(e) => setPeriodStart(e.target.value)}
+                onChange={setPeriodStart}
+                clearable
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="periodEnd">Period end</Label>
-              <Input
+              <DatePicker
                 id="periodEnd"
-                ref={periodEndRef}
-                type="date"
                 value={periodEnd}
                 className={INPUT_CLASS}
-                onChange={(e) => setPeriodEnd(e.target.value)}
-                onBlur={(e) => setPeriodEnd(e.target.value)}
+                onChange={setPeriodEnd}
+                clearable
               />
             </div>
           </div>

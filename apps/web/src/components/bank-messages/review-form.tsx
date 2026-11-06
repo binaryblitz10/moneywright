@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -117,12 +118,7 @@ export function ReviewForm({ message, accounts, onDone, onCancel }: ReviewFormPr
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="min-w-0 space-y-2">
             <Label htmlFor="review-date">Date</Label>
-            <Input
-              id="review-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <DatePicker id="review-date" value={date} onChange={setDate} />
           </div>
           <div className="min-w-0 space-y-2">
             <Label htmlFor="review-type">Type</Label>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -280,11 +281,10 @@ export function HoldingForm({
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="asOfDate">As of Date *</Label>
-          <Input
+          <DatePicker
             id="asOfDate"
-            type="date"
-            value={asOfDate}
-            onChange={(e) => setAsOfDate(e.target.value)}
+            value={asOfDate ?? ''}
+            onChange={setAsOfDate}
             className="h-11"
           />
         </div>
@@ -317,11 +317,11 @@ export function HoldingForm({
       {maturityDate !== undefined && (
         <div className="space-y-2">
           <Label htmlFor="maturityDate">Maturity Date</Label>
-          <Input
+          <DatePicker
             id="maturityDate"
-            type="date"
             value={maturityDate}
-            onChange={(e) => setMaturityDate(e.target.value)}
+            onChange={setMaturityDate}
+            clearable
             className="h-11"
           />
         </div>

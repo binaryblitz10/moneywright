@@ -1,3 +1,4 @@
+import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -25,11 +26,10 @@ export function TransactionMoneyFields({
     <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="min-w-0 space-y-2">
         <Label htmlFor={`${idPrefix}-date`}>Date</Label>
-        <Input
+        <DatePicker
           id={`${idPrefix}-date`}
-          type="date"
           value={values.date}
-          onChange={(e) => onChange({ ...values, date: e.target.value })}
+          onChange={(date) => onChange({ ...values, date })}
         />
       </div>
       <div className="min-w-0 space-y-2">
