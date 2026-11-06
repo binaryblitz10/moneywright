@@ -22,6 +22,8 @@ interface GlanceTrendChartProps {
 /** How long the tooltip stays on a point before it may move to another one */
 const TOOLTIP_HOLD_MS = 200
 const TOOLTIP_OFFSET = 16
+/** Days past the middle of the month the cursor must go before the tooltip changes side */
+const SIDE_GAP_DAYS = 2
 
 interface Hover {
   index: number
@@ -58,10 +60,8 @@ export function GlanceTrendChart({ stats, month }: GlanceTrendChartProps) {
     }
   })
 
-  const { shown, onHover, onLeave } = useDwellingHover()
+  const { shown, onRight, onHover, onLeave } = useDwellingHover(daysInMonth)
   const shownPoint = shown === null ? undefined : data[shown.index]
-  // Sit beside the vertical line, on whichever side has room
-  const onRight = shown !== null && shown.index < daysInMonth / 2
 
   return (
     <div className="relative -mx-2 h-60 lg:h-full">
@@ -163,7 +163,7 @@ export function GlanceTrendChart({ stats, month }: GlanceTrendChartProps) {
           style={{ left: shown.x }}
         >
           <div
-            className="w-max"
+            className="w-max transition-transform duration-[400ms] ease-out"
             style={{
               transform: onRight
                 ? `translateX(${TOOLTIP_OFFSET}px)`
@@ -187,12 +187,15 @@ interface ChartMouseState {
  * Tracks the hovered point, but keeps the tooltip on its current point for at least
  * TOOLTIP_HOLD_MS before switching, so sweeping across neighbouring days doesn't make it flicker
  */
-function useDwellingHover(): {
+function useDwellingHover(daysInMonth: number): {
   shown: Hover | null
+  /** Whether the tooltip sits right of the vertical line, rather than left */
+  onRight: boolean
   onHover: (state: ChartMouseState) => void
   onLeave: () => void
 } {
   const [shown, setShown] = useState<Hover | null>(null)
+  const [onRight, setOnRight] = useState(true)
   const latest = useRef<Hover | null>(null)
   const shownAt = useRef(0)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -206,6 +209,13 @@ function useDwellingHover(): {
     clearTimer()
     shownAt.current = Date.now()
     setShown(hover)
+    // The side only changes once the cursor is clearly past the middle, so hovering around it
+    // doesn't make the tooltip flip back and forth
+    setOnRight((right) =>
+      right
+        ? hover.index <= daysInMonth / 2 + SIDE_GAP_DAYS
+        : hover.index < daysInMonth / 2 - SIDE_GAP_DAYS
+    )
   }
 
   useEffect(() => clearTimer, [])
@@ -234,7 +244,7 @@ function useDwellingHover(): {
     setShown(null)
   }
 
-  return { shown, onHover, onLeave }
+  return { shown, onRight, onHover, onLeave }
 }
 
 /** Key to the chart's lines */
