@@ -3,6 +3,7 @@
  */
 
 import {
+  focusDialogOnOpen,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -40,13 +41,17 @@ export function CategoryBreakdownDialog({
 }: CategoryBreakdownDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onOpenAutoFocus={focusDialogOnOpen}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>Click a category to see its transactions</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[60vh] pr-3">
-          <CategoryBreakdown {...breakdownProps} limit={Infinity} />
+        {/* The rows bleed 8px past their column for the hover highlight, which the scroll area
+            would clip, so it gets that room back as padding */}
+        <ScrollArea className="-mx-2 max-h-[60vh]">
+          <div className="px-2 pr-5">
+            <CategoryBreakdown {...breakdownProps} limit={Infinity} />
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   comparePeriodTotals,
   computeTotals,
+  dailyCategoryTotals,
   dailyTotals,
   daysInRange,
   signedForKind,
@@ -144,5 +145,30 @@ describe('dailyTotals', () => {
       { startDate: '2026-09-01', endDate: '2026-09-05' }
     )
     expect(days).toEqual([700, 0, 1600, 0, 0])
+  })
+})
+
+describe('dailyCategoryTotals', () => {
+  test('splits each day by category, biggest first, netting refunds and dropping categories that net to nothing', () => {
+    const days = dailyCategoryTotals(
+      [
+        txn('2026-09-01', 500, 'Swiggy'),
+        txn('2026-09-01', 2000, 'Amazon order', 'shopping'),
+        txn('2026-09-01', 300, 'Zomato'),
+        txn('2026-09-03', 400, 'Amazon order', 'shopping'),
+        txn('2026-09-03', 400, 'Amazon refund', 'shopping', 'credit'),
+        txn('2026-08-31', 999, 'Last month'),
+      ],
+      'expense',
+      { startDate: '2026-09-01', endDate: '2026-09-03' }
+    )
+    expect(days).toEqual([
+      [
+        { category: 'shopping', amount: 2000, count: 1 },
+        { category: 'food_dining', amount: 800, count: 2 },
+      ],
+      [],
+      [],
+    ])
   })
 })

@@ -22,6 +22,8 @@ export interface GlanceStats {
   daysElapsed: number
   /** Spending on each day of the month, the 1st first */
   daily: number[]
+  /** Each of those days split by category, biggest first */
+  dailyCategories: BudgetSummary['dailyCategories']
   /** Running total of spending for each day so far */
   cumulative: number[]
   /** Running total of last month's spending for each of its days */
@@ -79,6 +81,7 @@ export function getGlanceStats(summary: BudgetSummary, pace: MonthPace): GlanceS
     daysInMonth,
     daysElapsed,
     daily,
+    dailyCategories: summary.dailyCategories,
     cumulative: runningTotal(soFar),
     previousCumulative,
     expected: (available * pace.percentElapsed) / 100,

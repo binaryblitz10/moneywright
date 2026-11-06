@@ -3689,6 +3689,10 @@ export interface BudgetSummary {
   totalSpent: number
   /** Spending in the budgeted categories on each day of the month, the 1st first */
   daily: number[]
+  /** Each of those days split by category, biggest first */
+  dailyCategories: Array<
+    Array<{ category: string; categoryLabel: string; amount: number; count: number }>
+  >
   /** The same for the month before */
   previousDaily: number[]
 }

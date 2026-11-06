@@ -1,6 +1,7 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 import { formatBudgetAmount } from '../format'
+import { DaySpendingDialog } from './day-spending-dialog'
 import { dayLabel, plural, type GlanceStats } from './glance-stats'
 
 interface GlanceCalendarProps {
@@ -16,6 +17,8 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
 /** Every day of the month as a tile, shaded by how it compares with an even daily budget */
 export function GlanceCalendar({ stats, month, isCurrent }: GlanceCalendarProps) {
   const { currency, daily, dailyBudget, daysElapsed } = stats
+  const [selectedDay, setSelectedDay] = useState(1)
+  const [dayOpen, setDayOpen] = useState(false)
   const money = (amount: number) => formatBudgetAmount(amount, currency)
   const [year, monthNum] = month.split('-').map(Number)
   // Monday-first offset of the 1st
@@ -67,16 +70,23 @@ export function GlanceCalendar({ stats, month, isCurrent }: GlanceCalendarProps)
             const future = day > daysElapsed
             const today = isCurrent && day === daysElapsed
             return (
-              <div
+              <button
                 key={day}
+                type="button"
+                disabled={future}
+                onClick={() => {
+                  setSelectedDay(day)
+                  setDayOpen(true)
+                }}
                 title={future ? dayLabel(month, day) : `${dayLabel(month, day)} · ${money(amount)}`}
                 className={cn(
-                  'flex aspect-[1.35] flex-col justify-between rounded-lg p-1.5 text-[10px] leading-none lg:aspect-auto',
+                  'flex aspect-[1.35] flex-col justify-between rounded-lg p-1.5 text-left text-[10px] leading-none outline-none lg:aspect-auto',
                   future
                     ? 'border border-dashed border-border-subtle text-muted-foreground/60'
-                    : amount <= 0
-                      ? 'bg-muted text-muted-foreground'
-                      : 'text-foreground',
+                    : cn(
+                        'cursor-pointer transition-[filter] hover:brightness-125 focus-visible:ring-2 focus-visible:ring-foreground/50',
+                        amount <= 0 ? 'bg-muted text-muted-foreground' : 'text-foreground'
+                      ),
                   today && 'ring-2 ring-foreground/70 ring-offset-1 ring-offset-card'
                 )}
                 style={future ? undefined : tileStyle(amount)}
@@ -87,7 +97,7 @@ export function GlanceCalendar({ stats, month, isCurrent }: GlanceCalendarProps)
                     {formatShort(amount)}
                   </span>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
@@ -130,6 +140,14 @@ export function GlanceCalendar({ stats, month, isCurrent }: GlanceCalendarProps)
           note={busiest.average > 0 ? `${money(busiest.average)} on average` : 'No spending yet'}
         />
       </dl>
+
+      <DaySpendingDialog
+        stats={stats}
+        month={month}
+        day={selectedDay}
+        open={dayOpen}
+        onOpenChange={setDayOpen}
+      />
     </div>
   )
 }

@@ -279,6 +279,38 @@ export function dailyTotals(
   return days
 }
 
+/**
+ * Pure calculation - no DB access
+ * Each day of `range`'s total split by category, first day first, biggest category first
+ */
+export function dailyCategoryTotals(
+  transactions: TotalsTransaction[],
+  kind: CategoryKind,
+  range: DateRange
+): Array<Array<{ category: string; amount: number; count: number }>> {
+  const days = Array.from(
+    { length: daysInRange(range) },
+    () => new Map<string, { amount: number; count: number }>()
+  )
+  const start = Date.parse(range.startDate)
+  for (const txn of transactions) {
+    const index = Math.round((Date.parse(txn.date) - start) / 86_400_000)
+    const day = days[index]
+    if (!day) continue
+    const entry = day.get(txn.category) ?? { amount: 0, count: 0 }
+    entry.amount += signedForKind(kind, txn.type, txn.amount)
+    entry.count += 1
+    day.set(txn.category, entry)
+  }
+  return days.map((day) =>
+    [...day]
+      .map(([category, { amount, count }]) => ({ category, amount, count }))
+      // A category whose refunds cancel its spending has nothing to show; net refunds stay
+      .filter((entry) => entry.amount !== 0)
+      .sort((a, b) => b.amount - a.amount)
+  )
+}
+
 /** Compare two periods' totals, grouped by category, merchant or account */
 export async function comparePeriods(
   userId: string,

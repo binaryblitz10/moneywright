@@ -18,6 +18,7 @@ import {
 import { categoryLabel } from './spending-changes'
 import {
   computeTotals,
+  dailyCategoryTotals,
   dailyTotals,
   loadTotalsTransactions,
   type TotalsResult,
@@ -63,6 +64,10 @@ export interface BudgetSummary {
   totalSpent: number
   /** Spending on each day (budgeted categories only, unless there is an overall budget) of the month, the 1st first */
   daily: number[]
+  /** The same days split by category, biggest first, counting the same spending as `daily` */
+  dailyCategories: Array<
+    Array<{ category: string; categoryLabel: string; amount: number; count: number }>
+  >
   /** The same for the month before, to compare against */
   previousDaily: number[]
 }
@@ -181,13 +186,11 @@ export async function getBudgetSummary(
     computeTotals(transactions, { kind: 'expense', groupBy: 'category' })
   const currentTotals = byCategory(current.transactions)
   const lastTotals = byCategory(last.transactions)
+  // With an overall budget, every day's spending counts, not just the budgeted categories
+  const counted = (transactions: TotalsTransaction[]) =>
+    totalBudget ? transactions : transactions.filter((t) => budgeted.has(t.category))
   const dailyFor = (transactions: TotalsTransaction[], m: Month) =>
-    dailyTotals(
-      // With an overall budget, every day's spending counts, not just the budgeted categories
-      totalBudget ? transactions : transactions.filter((t) => budgeted.has(t.category)),
-      'expense',
-      monthRange(m)
-    )
+    dailyTotals(counted(transactions), 'expense', monthRange(m))
 
   const spentIn = (result: TotalsResult, category: string): number =>
     result.groups.find((g) => g.key === category)?.total ?? 0
@@ -226,6 +229,13 @@ export async function getBudgetSummary(
       totalBudgetProgress?.available ?? withProgress.reduce((sum, b) => sum + b.available, 0),
     totalSpent: totalBudgetProgress?.spent ?? withProgress.reduce((sum, b) => sum + b.spent, 0),
     daily: dailyFor(current.transactions, month),
+    dailyCategories: dailyCategoryTotals(
+      counted(current.transactions),
+      'expense',
+      monthRange(month)
+    ).map((day) =>
+      day.map((entry) => ({ ...entry, categoryLabel: categoryLabel(entry.category) }))
+    ),
     previousDaily: dailyFor(last.transactions, previous),
   }
 }
