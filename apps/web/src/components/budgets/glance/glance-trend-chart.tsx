@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   Area,
   CartesianGrid,
@@ -17,6 +17,16 @@ import { dayLabel, STATUS_COLOR, type GlanceStats } from './glance-stats'
 interface GlanceTrendChartProps {
   stats: GlanceStats
   month: string
+}
+
+/** How long the tooltip stays on a point before it may move to another one */
+const TOOLTIP_HOLD_MS = 200
+const TOOLTIP_OFFSET = 16
+
+interface Hover {
+  index: number
+  /** Horizontal position of the point, which the tooltip stays level with */
+  x: number
 }
 
 interface ChartPoint {
@@ -48,10 +58,20 @@ export function GlanceTrendChart({ stats, month }: GlanceTrendChartProps) {
     }
   })
 
+  const { shown, onHover, onLeave } = useDwellingHover()
+  const shownPoint = shown === null ? undefined : data[shown.index]
+  // Sit beside the vertical line, on whichever side has room
+  const onRight = shown !== null && shown.index < daysInMonth / 2
+
   return (
-    <div className="-mx-2 h-60 lg:h-full">
+    <div className="relative -mx-2 h-60 lg:h-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 12, right: 8, left: -8, bottom: 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 12, right: 8, left: -8, bottom: 0 }}
+          onMouseMove={onHover}
+          onMouseLeave={onLeave}
+        >
           <defs>
             <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.25} />
@@ -80,10 +100,7 @@ export function GlanceTrendChart({ stats, month }: GlanceTrendChartProps) {
             tickFormatter={(value: number) => formatAxisAmount(value, currency)}
             width={60}
           />
-          <Tooltip
-            content={<TrendTooltip currency={currency} month={month} />}
-            cursor={{ stroke: 'var(--border-hover)' }}
-          />
+          <Tooltip content={() => null} cursor={{ stroke: 'var(--border-hover)' }} />
           <ReferenceLine
             y={available}
             stroke="var(--foreground)"
@@ -140,8 +157,84 @@ export function GlanceTrendChart({ stats, month }: GlanceTrendChartProps) {
           )}
         </ComposedChart>
       </ResponsiveContainer>
+      {shown && shownPoint && (
+        <div
+          className="pointer-events-none absolute top-3 transition-[left] duration-[400ms] ease-out"
+          style={{ left: shown.x }}
+        >
+          <div
+            className="w-max"
+            style={{
+              transform: onRight
+                ? `translateX(${TOOLTIP_OFFSET}px)`
+                : `translateX(calc(-100% - ${TOOLTIP_OFFSET}px))`,
+            }}
+          >
+            <TrendTooltip point={shownPoint} currency={currency} month={month} />
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+interface ChartMouseState {
+  activeTooltipIndex?: number | string | null
+  activeCoordinate?: { x: number; y: number }
+}
+
+/**
+ * Tracks the hovered point, but keeps the tooltip on its current point for at least
+ * TOOLTIP_HOLD_MS before switching, so sweeping across neighbouring days doesn't make it flicker
+ */
+function useDwellingHover(): {
+  shown: Hover | null
+  onHover: (state: ChartMouseState) => void
+  onLeave: () => void
+} {
+  const [shown, setShown] = useState<Hover | null>(null)
+  const latest = useRef<Hover | null>(null)
+  const shownAt = useRef(0)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+  }
+
+  const show = (hover: Hover) => {
+    clearTimer()
+    shownAt.current = Date.now()
+    setShown(hover)
+  }
+
+  useEffect(() => clearTimer, [])
+
+  const onHover = (state: ChartMouseState) => {
+    const index = Number(state.activeTooltipIndex)
+    const coordinate = state.activeCoordinate
+    if (state.activeTooltipIndex == null || Number.isNaN(index) || !coordinate) return
+    const hover = { index, x: coordinate.x }
+    latest.current = hover
+    if (shown === null) return show(hover)
+    if (index === shown.index) return clearTimer()
+    const wait = TOOLTIP_HOLD_MS - (Date.now() - shownAt.current)
+    if (wait <= 0) return show(hover)
+    if (!timer.current) {
+      timer.current = setTimeout(() => {
+        timer.current = null
+        if (latest.current) show(latest.current)
+      }, wait)
+    }
+  }
+
+  const onLeave = () => {
+    clearTimer()
+    latest.current = null
+    setShown(null)
+  }
+
+  return { shown, onHover, onLeave }
 }
 
 /** Key to the chart's lines */
@@ -171,18 +264,14 @@ function LegendItem({ color, label, dashed }: { color: string; label: string; da
 }
 
 function TrendTooltip({
-  active,
-  payload,
+  point,
   currency,
   month,
 }: {
-  active?: boolean
-  payload?: Array<{ payload: ChartPoint }>
+  point: ChartPoint
   currency: string
   month: string
 }) {
-  if (!active || !payload?.length) return null
-  const point = payload[0]!.payload
   const rows: Array<[string, number | undefined]> = [
     ['Total Spent', point.spent],
     ['Projected', point.spent === undefined ? point.projected : undefined],
@@ -199,7 +288,7 @@ function TrendTooltip({
           ([label, value]) =>
             value !== undefined && (
               <div key={label} className="flex justify-between gap-8">
-                <span className="text-muted-foreground">{label}</span>
+                <span className="whitespace-nowrap text-muted-foreground">{label}</span>
                 <span className="font-semibold tabular-nums">
                   {formatBudgetAmount(value, currency)}
                 </span>
