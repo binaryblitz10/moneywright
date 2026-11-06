@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { CornerUpLeft, ChevronLeft, ChevronRight, PiggyBank, Plus, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
 import { QueryError } from '@/components/ui/query-error'
 import { CardSkeleton, StatCardGridSkeleton } from '@/components/ui/skeleton'
@@ -60,7 +61,10 @@ function BudgetsPage() {
   const [editing, setEditing] = useState<Budget | null>(null)
   const [deleting, setDeleting] = useState<Budget | null>(null)
 
-  const { data, isLoading, isError, error, refetch } = useBudgets(activeProfileId, month)
+  const { data, isLoading, isError, error, refetch, isPlaceholderData } = useBudgets(
+    activeProfileId,
+    month
+  )
   const { data: categoryData } = useCategories()
   const createMutation = useCreateBudget(activeProfileId)
   const updateMutation = useUpdateBudget()
@@ -72,7 +76,9 @@ function BudgetsPage() {
   const categorySum = budgets.reduce((sum, b) => sum + b.monthlyAmount, 0)
   const currency = data?.currency ?? 'INR'
   const isCurrentMonth = month === currentMonth()
-  const pace = getMonthPace(month)
+  // While the next month loads the last one stays up, so everything shown follows its data
+  const shownMonth = data?.month ?? month
+  const pace = getMonthPace(shownMonth)
   const colorOf = (code: string) =>
     categoryData?.categories.find((c) => c.code === code)?.color ?? 'zinc'
 
@@ -180,15 +186,20 @@ function BudgetsPage() {
               />
             ) : (
               data && (
-                <div className="space-y-6">
-                  <BudgetGlance summary={data} pace={pace} month={month} />
+                <div
+                  className={cn(
+                    'space-y-6 transition-opacity duration-200',
+                    isPlaceholderData && 'opacity-60'
+                  )}
+                >
+                  <BudgetGlance summary={data} pace={pace} month={shownMonth} />
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {totalBudget && (
                       <BudgetCard
                         budget={totalBudget}
                         color="emerald"
                         currency={currency}
-                        month={month}
+                        month={shownMonth}
                         pace={pace}
                         onEdit={() => setEditing(totalBudget)}
                         onDelete={() => setDeleting(totalBudget)}
@@ -200,7 +211,7 @@ function BudgetsPage() {
                         budget={budget}
                         color={colorOf(budget.category)}
                         currency={currency}
-                        month={month}
+                        month={shownMonth}
                         pace={pace}
                         onEdit={() => setEditing(budget)}
                         onDelete={() => setDeleting(budget)}

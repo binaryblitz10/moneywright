@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 import {
@@ -27,6 +27,10 @@ export function useBudgets(profileId: string | undefined, month: string) {
     queryKey: budgetKeys.list(profileId, month),
     queryFn: () => getBudgets(profileId!, month),
     enabled: !!profileId,
+    // Stepping between months keeps the last one on screen until the next arrives, but never
+    // another profile's budgets
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === profileId ? keepPreviousData(previous) : undefined,
   })
 }
 
