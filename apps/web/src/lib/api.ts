@@ -1215,6 +1215,8 @@ export interface MergedDuplicate {
     originalDescription: string | null
     date: string
     amount: number
+    accountId: string
+    smsSource: boolean
   } | null
 }
 

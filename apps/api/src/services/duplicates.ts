@@ -478,6 +478,9 @@ export interface MergedDuplicate {
     originalDescription: string
     date: string
     amount: number
+    accountId: string
+    /** True when it came from a bank message rather than a statement */
+    smsSource: boolean
   } | null
 }
 
@@ -517,6 +520,8 @@ export async function listMerged(userId: string, profileId?: string): Promise<Me
         originalDescription: keeper.originalDescription,
         date: keeper.date,
         amount: keeper.amount,
+        accountId: keeper.accountId,
+        smsSource: keeper.smsSource,
       })
     }
   }
