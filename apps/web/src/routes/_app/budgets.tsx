@@ -116,7 +116,7 @@ function BudgetsPage() {
                             type="button"
                             aria-label="Back to this month"
                             title="Back to this month"
-                            className="absolute left-full top-1/2 ml-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-primary transition-colors hover:bg-muted"
+                            className="absolute left-full top-1/2 ml-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-primary transition-colors hover:bg-muted"
                             onClick={() => setMonth(currentMonth())}
                           >
                             <CornerUpLeft className="h-3.5 w-3.5" />
