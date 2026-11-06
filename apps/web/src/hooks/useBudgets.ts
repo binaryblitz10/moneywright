@@ -47,6 +47,10 @@ export function useBudgetRange(
     queryKey: budgetKeys.range(profileId, startMonth, endMonth),
     queryFn: () => getBudgetRange(profileId!, startMonth, endMonth),
     enabled: enabled && !!profileId,
+    // Changing the period keeps the last one on screen until the next arrives, but never
+    // another profile's budgets
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === profileId ? keepPreviousData(previous) : undefined,
   })
 }
 

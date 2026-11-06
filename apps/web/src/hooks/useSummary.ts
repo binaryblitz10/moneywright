@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getSummary,
   getFxRates,
@@ -44,6 +44,10 @@ export function useSummary(
     queryKey: summaryKeys.financial(profileId, { startDate, endDate }),
     queryFn: () => getSummary(profileId, { startDate, endDate }),
     enabled,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === (profileId ?? 'family')
+        ? keepPreviousData(previous)
+        : undefined,
   })
 }
 
@@ -60,6 +64,12 @@ export function useMonthlyTrends(
     queryKey: summaryKeys.monthlyTrends(profileId, trendsOptions),
     queryFn: () => getMonthlyTrends(profileId, trendsOptions),
     enabled,
+    // Changing the period keeps the last one on screen until the next arrives, but never
+    // another profile's trends
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === (profileId ?? 'family')
+        ? keepPreviousData(previous)
+        : undefined,
   })
 }
 

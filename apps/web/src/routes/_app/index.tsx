@@ -1,6 +1,6 @@
-import { Fragment, useState, useMemo, useCallback, type ReactNode } from 'react'
+import { Fragment, useState, useMemo, useCallback, startTransition, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   useAuth,
   useCategories,
@@ -117,7 +117,8 @@ function DashboardPage() {
 
   const handleTimeframeChange = useCallback(
     (selection: DashboardTimeframeSelection) => {
-      setTimeframeOverride(selection)
+      // A transition keeps the picker responsive while the widgets below catch up
+      startTransition(() => setTimeframeOverride(selection))
       setPreferenceMutation.mutate({
         key: PREFERENCE_KEYS.DASHBOARD_CHART_TIMEFRAME,
         value: JSON.stringify(selection),
@@ -176,6 +177,7 @@ function DashboardPage() {
   const {
     data: summary,
     isLoading: summaryLoading,
+    isPlaceholderData: summaryStale,
     isError,
     error,
     refetch,
@@ -187,6 +189,12 @@ function DashboardPage() {
         endDate: dateRange.endDate,
       }),
     enabled: timeframeQueriesEnabled,
+    // Changing the timeframe keeps the last one on screen until the next arrives, but never
+    // another profile's figures
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === (profileId ?? 'family')
+        ? keepPreviousData(previous)
+        : undefined,
   })
 
   // Fetch accounts
@@ -197,7 +205,11 @@ function DashboardPage() {
   })
 
   // Fetch monthly trends
-  const { data: trendsData, isLoading: trendsLoading } = useMonthlyTrends(profileId, {
+  const {
+    data: trendsData,
+    isLoading: trendsLoading,
+    isPlaceholderData: trendsStale,
+  } = useMonthlyTrends(profileId, {
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
     enabled: timeframeQueriesEnabled && show('income_vs_expenses'),
@@ -229,12 +241,19 @@ function DashboardPage() {
 
   // Budgets follow the timeframe, a month at a time. They belong to one profile, so family view skips them.
   const budgetMonths = useMemo(() => getBudgetMonths(dateRange), [dateRange])
-  const { data: budgetRange, isLoading: budgetRangeLoading } = useBudgetRange(
+  const {
+    data: budgetRange,
+    isLoading: budgetRangeLoading,
+    isPlaceholderData: budgetsStale,
+  } = useBudgetRange(
     profileId,
     budgetMonths.startMonth,
     budgetMonths.endMonth,
     timeframeQueriesEnabled && show('budgets')
   )
+
+  // While the next timeframe loads the last one stays up, dimmed
+  const refreshing = summaryStale || trendsStale || budgetsStale
 
   // Handlers
   const handleMonthClick = useCallback((month: MonthlyTrendData) => {
@@ -474,7 +493,7 @@ function DashboardPage() {
       {isError ? (
         <QueryError error={error} onRetry={refetch} />
       ) : (
-        <>
+        <div className={cn('transition-opacity duration-200', refreshing && 'opacity-60')}>
           {/* Main Stats Grid */}
           {orderedCards.length > 0 && (
             <StatCardGrid className={cn('mb-6', STAT_GRID_COLUMNS[orderedCards.length])}>
@@ -533,7 +552,7 @@ function DashboardPage() {
               size="lg"
             />
           )}
-        </>
+        </div>
       )}
 
       {/* Month Detail Modal */}
