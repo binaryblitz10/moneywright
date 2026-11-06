@@ -9,6 +9,7 @@ import { CreditCard, Info, PiggyBank, TrendingUp, Wallet, type LucideIcon } from
 import { Button } from '@/components/ui/button'
 import { StatCard, StatCardGrid } from '@/components/ui/stat-card'
 import { InlineEmptyState } from '@/components/ui/empty-state'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -28,6 +29,10 @@ import { formatRange } from './report-utils'
 import { CategoryIcon } from '@/components/ui/category-icon'
 
 const TOP_MERCHANTS = 15
+/** Categories with their own colour in the stacked bar; the rest are grouped */
+const BAR_SEGMENTS = 5
+/** Smallest width of a segment in the stacked bar, so tiny shares stay visible and hoverable */
+const MIN_SEGMENT_PX = 10
 
 interface PeriodReportViewProps {
   report: PeriodReport
@@ -166,6 +171,72 @@ function PeriodHead({ report, which }: { report: PeriodReport; which: 'current' 
   )
 }
 
+/** One bar split by category: how the table total is divided */
+function CategoryShareBar({
+  rows,
+  currency,
+  getCategoryColor,
+}: {
+  rows: ReportComparedRow[]
+  currency: string
+  getCategoryColor: (code: string) => string
+}) {
+  const [hovered, setHovered] = useState<string | null>(null)
+  const positive = rows.filter((row) => row.current > 0).sort((a, b) => b.current - a.current)
+  const sum = positive.reduce((total, row) => total + row.current, 0)
+  if (sum <= 0) return null
+
+  const top = positive.slice(0, BAR_SEGMENTS)
+  const otherTotal = positive.slice(BAR_SEGMENTS).reduce((total, row) => total + row.current, 0)
+  const segments = [
+    ...top.map((row) => ({
+      key: row.key,
+      label: row.label,
+      amount: row.current,
+      className: getCategoryColorClasses(getCategoryColor(row.key)).bar,
+    })),
+    ...(otherTotal > 0
+      ? [{ key: 'other', label: 'Other', amount: otherTotal, className: 'bg-muted-foreground/40' }]
+      : []),
+  ]
+
+  return (
+    <div
+      className="mb-4 flex h-4 gap-0.5 overflow-hidden rounded-md px-2"
+      onMouseLeave={() => setHovered(null)}
+    >
+      {segments.map((segment) => (
+        <Tooltip key={segment.key}>
+          <TooltipTrigger asChild>
+            <div
+              className={cn(
+                'h-full cursor-default transition-opacity first:rounded-l-md last:rounded-r-md',
+                hovered !== null && hovered !== segment.key && 'opacity-30',
+                segment.className
+              )}
+              style={{ flex: `${segment.amount} 0 0`, minWidth: MIN_SEGMENT_PX }}
+              onMouseEnter={() => setHovered(segment.key)}
+            />
+          </TooltipTrigger>
+          <TooltipContent
+            hideArrow
+            sideOffset={8}
+            className="rounded-lg border border-border-subtle bg-surface-elevated px-3 py-2 text-foreground shadow-xl shadow-black/20"
+          >
+            <span className="font-medium">{segment.label}</span>
+            <span className="text-muted-foreground">
+              {' · '}
+              {formatCurrency(segment.amount, currency)}
+              {' · '}
+              {Math.round((segment.amount / sum) * 100)}%
+            </span>
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
+  )
+}
+
 function CategoryTable({
   title,
   rows,
@@ -191,7 +262,25 @@ function CategoryTable({
 
   return (
     <ReportCard title={title} description={`${rows.length} categories`}>
-      <Table>
+      <CategoryShareBar rows={rows} currency={currency} getCategoryColor={getCategoryColor} />
+      {/* Fixed column widths, so the spending and income tables line up with each other */}
+      <Table className="min-w-[40rem] table-fixed">
+        <colgroup>
+          {compared ? (
+            <>
+              <col className="w-[28%]" />
+              <col className="w-[20%]" />
+              <col className="w-[20%]" />
+              <col className="w-[20%]" />
+              <col className="w-[12%]" />
+            </>
+          ) : (
+            <>
+              <col />
+              <col className="w-36" />
+            </>
+          )}
+        </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead className={TH_CLASS}>Category</TableHead>
