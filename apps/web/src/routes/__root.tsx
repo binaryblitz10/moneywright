@@ -84,7 +84,11 @@ export function useAuth() {
 }
 
 export const Route = createRootRoute({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, cause }) => {
+    // The checks below take several requests in a row. A page that only changes its own search
+    // params (the reports' months, a filter) stays on the route it already passed them for.
+    if (cause === 'stay') return
+
     // Skip auth check for public routes (includes PIN routes)
     if (isPublicRoute(location.pathname)) {
       return
