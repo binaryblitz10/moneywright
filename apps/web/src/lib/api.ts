@@ -3341,39 +3341,6 @@ export interface PeriodReport {
   currency: string
 }
 
-export interface ReportMonthlyRow {
-  key: string
-  label: string
-  /** One amount per month of the report */
-  months: number[]
-  total: number
-  average: number
-}
-
-export interface ReportMerchantTrendRow extends ReportMonthlyRow {
-  payments: number
-  averagePerPayment: number | null
-  trend: 'rising' | 'falling' | 'steady' | null
-}
-
-export interface ReportAccountMonthlyRow extends ReportMonthlyRow {
-  type: 'bank' | 'card' | 'other'
-  last4: string | null
-}
-
-export interface TrendsReport {
-  from: string
-  to: string
-  months: string[]
-  categories: ReportMonthlyRow[]
-  merchants: ReportMerchantTrendRow[]
-  accounts: ReportAccountMonthlyRow[]
-  monthTotals: number[]
-  total: number
-  average: number
-  currency: string
-}
-
 export interface InvestmentFlow {
   putIn: number
   takenOut: number
@@ -3435,12 +3402,6 @@ export async function getReportBounds(profileId?: string): Promise<ReportBounds>
 /** Period report: complete months against the months just before */
 export async function getPeriodReport(params: ReportRangeParams): Promise<PeriodReport> {
   const response = await api.get('/reports/period', { params })
-  return response.data
-}
-
-/** Spending trends: category, merchant and account spend month by month */
-export async function getTrendsReport(params: ReportRangeParams): Promise<TrendsReport> {
-  const response = await api.get('/reports/trends', { params })
   return response.data
 }
 

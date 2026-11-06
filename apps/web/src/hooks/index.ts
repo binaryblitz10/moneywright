@@ -222,13 +222,7 @@ export {
 export { dataHealthKeys, useDataHealth } from './useDataHealth'
 
 // Report hooks
-export {
-  reportKeys,
-  useReportBounds,
-  usePeriodReport,
-  useTrendsReport,
-  useInvestmentsReport,
-} from './useReports'
+export { reportKeys, useReportBounds, usePeriodReport, useInvestmentsReport } from './useReports'
 
 // Categorization learning hooks
 export {

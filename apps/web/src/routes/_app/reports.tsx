@@ -9,7 +9,6 @@ import {
   usePeriodReport,
   useProfileSelection,
   useReportBounds,
-  useTrendsReport,
 } from '@/hooks'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -23,7 +22,6 @@ import {
   PeriodPicker,
   PeriodReportView,
   ReportSkeleton,
-  SpendingTrendsView,
   comparisonRange,
   formatRange,
   resolveRange,
@@ -31,7 +29,7 @@ import {
   type ReportTab,
 } from '@/components/reports'
 
-const REPORT_TABS = ['period', 'trends', 'investments'] as const
+const REPORT_TABS = ['period', 'investments'] as const
 
 const monthParam = z.string().regex(MONTH_PATTERN).optional().catch(undefined)
 
@@ -74,7 +72,6 @@ function ReportsPage() {
   const params = range ? { profileId, ...range } : undefined
 
   const period = usePeriodReport(params, tab === 'period')
-  const trends = useTrendsReport(params, tab === 'trends')
   const investments = useInvestmentsReport(params, tab === 'investments')
 
   // The router cross-fades pages with a view transition, which freezes the page for a moment.
@@ -89,11 +86,9 @@ function ReportsPage() {
     })
 
   const description = range
-    ? tab === 'trends'
-      ? `${formatRange(range)}, month by month`
-      : comparison
-        ? `${formatRange(range)} compared with ${formatRange(comparison)}`
-        : `${formatRange(range)}, no earlier data to compare`
+    ? comparison
+      ? `${formatRange(range)} compared with ${formatRange(comparison)}`
+      : `${formatRange(range)}, no earlier data to compare`
     : 'Your money, month by month'
 
   return (
@@ -131,20 +126,12 @@ function ReportsPage() {
         <Tabs value={tab} onValueChange={setTab} className="gap-4">
           <TabsList className="w-full sm:w-fit">
             <TabsTrigger value="period">Period report</TabsTrigger>
-            <TabsTrigger value="trends">Spending trends</TabsTrigger>
             <TabsTrigger value="investments">Investments</TabsTrigger>
           </TabsList>
 
           <TabsContent value="period">
             <QueryBody query={period}>
               {(report) => <PeriodReportView report={report} getCategoryColor={getCategoryColor} />}
-            </QueryBody>
-          </TabsContent>
-          <TabsContent value="trends">
-            <QueryBody query={trends}>
-              {(report) => (
-                <SpendingTrendsView report={report} getCategoryColor={getCategoryColor} />
-              )}
             </QueryBody>
           </TabsContent>
           <TabsContent value="investments">

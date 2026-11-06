@@ -4,7 +4,6 @@ import { auth, type AuthVariables } from '../middleware/auth'
 import { getInvestmentsReport } from '../services/reports/investments'
 import { getPeriodReport } from '../services/reports/period'
 import { getReportBounds, MONTH_PATTERN, validateMonthRange } from '../services/reports/shared'
-import { getTrendsReport } from '../services/reports/trends'
 
 const reportRoutes = new Hono<{ Variables: AuthVariables }>()
 
@@ -62,19 +61,6 @@ reportRoutes.get('/period', async (c) => {
   if ('message' in parsed)
     return c.json({ error: 'validation_error', message: parsed.message }, 400)
   return c.json(await getPeriodReport(userId, parsed.query))
-})
-
-/**
- * GET /reports/trends
- * Month-by-month spending by category, merchant and account
- * Query params: same as /reports/period
- */
-reportRoutes.get('/trends', async (c) => {
-  const userId = c.get('userId')
-  const parsed = await parseRange(userId, c.req.query())
-  if ('message' in parsed)
-    return c.json({ error: 'validation_error', message: parsed.message }, 400)
-  return c.json(await getTrendsReport(userId, parsed.query))
 })
 
 /**

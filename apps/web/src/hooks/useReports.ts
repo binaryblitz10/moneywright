@@ -3,7 +3,6 @@ import {
   getInvestmentsReport,
   getPeriodReport,
   getReportBounds,
-  getTrendsReport,
   type ReportRangeParams,
 } from '@/lib/api'
 
@@ -13,8 +12,6 @@ export const reportKeys = {
   bounds: (profileId?: string) => [...reportKeys.all, 'months', profileId ?? 'family'] as const,
   period: (params: ReportRangeParams) =>
     [...reportKeys.all, 'period', params.profileId ?? 'family', params.from, params.to] as const,
-  trends: (params: ReportRangeParams) =>
-    [...reportKeys.all, 'trends', params.profileId ?? 'family', params.from, params.to] as const,
   investments: (params: ReportRangeParams) =>
     [
       ...reportKeys.all,
@@ -48,15 +45,6 @@ export function usePeriodReport(params: ReportRangeParams | undefined, enabled =
   return useQuery({
     queryKey: reportKeys.period(params ?? { from: '', to: '' }),
     queryFn: () => getPeriodReport(params!),
-    enabled: enabled && !!params,
-    placeholderData: keepMonthsOfSameProfile(params?.profileId),
-  })
-}
-
-export function useTrendsReport(params: ReportRangeParams | undefined, enabled = true) {
-  return useQuery({
-    queryKey: reportKeys.trends(params ?? { from: '', to: '' }),
-    queryFn: () => getTrendsReport(params!),
     enabled: enabled && !!params,
     placeholderData: keepMonthsOfSameProfile(params?.profileId),
   })
