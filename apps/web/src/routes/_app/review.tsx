@@ -114,12 +114,16 @@ function ReviewPage() {
         </TabsList>
       </Tabs>
 
-      {activeTab === 'duplicates' ? (
-        <DuplicatesPanel {...panelProps} />
-      ) : activeTab === 'history' ? (
+      {activeTab === 'history' ? (
         <HistoryPanel {...panelProps} />
       ) : (
-        <CategorizationPanel {...panelProps} />
+        <div className="rounded-2xl border border-border-subtle bg-card p-4 sm:p-6">
+          {activeTab === 'duplicates' ? (
+            <DuplicatesPanel {...panelProps} />
+          ) : (
+            <CategorizationPanel {...panelProps} />
+          )}
+        </div>
       )}
 
       <EditTransactionDialog

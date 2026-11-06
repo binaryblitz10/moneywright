@@ -119,7 +119,7 @@ export function DuplicatesPanel({
   }
 
   return (
-    <div className="space-y-4 pt-8">
+    <div className="space-y-4">
       {current && (
         <div
           key={current.key}

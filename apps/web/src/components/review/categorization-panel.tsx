@@ -153,7 +153,7 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
       className={cn(
         // Clicking the arrows quickly counts as a double click, which would select the text
         'mx-auto w-full max-w-3xl select-none',
-        compact ? 'flex flex-1 flex-col justify-center gap-3' : 'space-y-4 pt-8'
+        compact ? 'flex flex-1 flex-col justify-center gap-3' : 'space-y-4'
       )}
     >
       <div className={deckHeight}>
