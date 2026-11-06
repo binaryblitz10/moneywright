@@ -18,7 +18,7 @@ const ROW_LIMIT = 200
 const CARD_HEIGHT = 'h-[15rem]'
 const DECK_HEIGHT = 'h-[18.5rem]'
 
-export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps) {
+export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewPanelProps) {
   // Settled ones leave at once, before the refetch drops them
   const [settled, setSettled] = useState<Set<string>>(new Set())
   const [index, setIndex] = useState(0)
@@ -70,7 +70,10 @@ export function CategorizationPanel({ filters, ...tableProps }: ReviewPanelProps
         title="No Pending Transactions"
         size="sm"
         glow
-        className="flex min-h-[18.5rem] flex-col items-center justify-center"
+        className={cn(
+          'flex flex-col items-center justify-center',
+          compact ? 'min-h-[11rem]' : 'min-h-[18.5rem]'
+        )}
       />
     )
   }

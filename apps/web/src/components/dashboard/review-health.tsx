@@ -1,20 +1,9 @@
 import { Link } from '@tanstack/react-router'
-import {
-  ChevronRight,
-  Copy,
-  FileWarning,
-  MessageSquareWarning,
-  ShieldCheck,
-  Wand2,
-} from 'lucide-react'
+import { ChevronRight, FileWarning, ShieldCheck, Wand2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 interface ReviewHealthProps {
-  /** Groups of likely duplicate transactions */
-  duplicateGroups: number
-  /** Bank messages that agree with a statement line on date and amount but not the merchant */
-  possibleMatches: number
   /** Statement gaps, balances that don't add up, card payments to check and the like */
   dataIssues: number
   /** Changes the app made on its own in the last week and that are still in place */
@@ -44,15 +33,10 @@ function Row({
 }
 
 /** Data problems that aren't a single transaction to settle, each linking to where it's fixed */
-export function ReviewHealth({
-  duplicateGroups,
-  possibleMatches,
-  dataIssues,
-  autoFixed,
-}: ReviewHealthProps) {
+export function ReviewHealth({ dataIssues, autoFixed }: ReviewHealthProps) {
   const autoFixedRow = autoFixed > 0 && (
     <li>
-      <Link to="/review" search={{ tab: 'auto-fixed' }} className={ROW_CLASS}>
+      <Link to="/review" search={{ tab: 'history' }} className={ROW_CLASS}>
         <Wand2 className="h-4 w-4 shrink-0 text-positive" />
         <span className="min-w-0 flex-1 truncate">
           {autoFixed} {autoFixed === 1 ? 'issue' : 'issues'} fixed automatically
@@ -62,7 +46,7 @@ export function ReviewHealth({
     </li>
   )
 
-  if (duplicateGroups + possibleMatches + dataIssues === 0) {
+  if (dataIssues === 0) {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-3 rounded-xl border border-positive/15 bg-positive/5 px-3 py-2.5">
@@ -71,7 +55,7 @@ export function ReviewHealth({
           </span>
           <div className="min-w-0">
             <p className="text-sm font-medium leading-tight">Data health is good</p>
-            <p className="text-xs text-muted-foreground">No duplicates, gaps or balance issues</p>
+            <p className="text-xs text-muted-foreground">No statement gaps or balance issues</p>
           </div>
         </div>
         {autoFixedRow && <ul>{autoFixedRow}</ul>}
@@ -81,24 +65,6 @@ export function ReviewHealth({
 
   return (
     <ul>
-      {duplicateGroups > 0 && (
-        <li>
-          <Link to="/review" search={{}} className={ROW_CLASS}>
-            <Row icon={Copy} count={duplicateGroups}>
-              Possible duplicates
-            </Row>
-          </Link>
-        </li>
-      )}
-      {possibleMatches > 0 && (
-        <li>
-          <Link to="/review" search={{ tab: 'duplicates' }} className={ROW_CLASS}>
-            <Row icon={MessageSquareWarning} count={possibleMatches}>
-              Bank messages to match
-            </Row>
-          </Link>
-        </li>
-      )}
       {dataIssues > 0 && (
         <li>
           <Link to="/settings" search={{ section: 'data' }} className={ROW_CLASS}>

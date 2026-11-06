@@ -16,7 +16,12 @@ import type { ReviewPanelProps } from './types'
 const MERGE_SLIDE_MS = 450
 const MERGE_CONFIRM_MS = 800
 
-export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: ReviewPanelProps) {
+export function DuplicatesPanel({
+  filters,
+  formatAmount,
+  compact,
+  ...tableProps
+}: ReviewPanelProps) {
   const {
     data: groups = [],
     isLoading,
@@ -104,7 +109,10 @@ export function DuplicatesPanel({ filters, formatAmount, ...tableProps }: Review
           title="No Duplicate Transactions"
           size="sm"
           glow
-          className="flex min-h-[18.5rem] flex-col items-center justify-center"
+          className={cn(
+            'flex flex-col items-center justify-center',
+            compact ? 'min-h-[11rem]' : 'min-h-[18.5rem]'
+          )}
         />
       </div>
     )

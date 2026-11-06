@@ -2,25 +2,24 @@ import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { EditTransactionDialog } from '@/components/transactions'
+import { CategorizationPanel, DuplicatesPanel } from '@/components/review'
 import { Button } from '@/components/ui/button'
 import { SectionCard } from '@/components/ui/section-card'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
 import {
   useAccounts,
+  useAuth,
   useAutoFixBatches,
   useDataHealth,
   usePreferences,
   useReviewCounts,
-  useTransactions,
 } from '@/hooks'
-import { ReviewDeck, type ReviewQueue } from './review-deck'
+import { countOpenDataIssues } from '@/components/settings'
 import { ReviewHealth } from './review-health'
 import { PREFERENCE_KEYS, type Category, type Transaction } from '@/lib/api'
-import { countOpenDataIssues } from '@/components/settings'
 
-/** Cards loaded at a time; settling them refetches the next ones */
-const DECK_SIZE = 20
+type ReviewTab = 'duplicates' | 'categorization'
 
 interface ReviewCardProps {
   /** Undefined in family view, which reviews everyone's transactions */
@@ -31,7 +30,15 @@ interface ReviewCardProps {
   className?: string
 }
 
-/** Transactions that need a category and data health problems, settled from the dashboard */
+function formatAmount(amount: number, currency: string): string {
+  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+/** The Review page's Duplicates and Categories tabs, settled from the dashboard */
 export function ReviewCard({
   profileId,
   enabled,
@@ -39,29 +46,24 @@ export function ReviewCard({
   countryCode,
   className,
 }: ReviewCardProps) {
-  const [chosenQueue, setChosenQueue] = useState<ReviewQueue | null>(null)
-  const [mountedAt] = useState(() => Date.now())
+  const [chosenTab, setChosenTab] = useState<ReviewTab | null>(null)
   const [editing, setEditing] = useState<Transaction | null>(null)
 
+  const { profiles } = useAuth()
   const { data: counts } = useReviewCounts(profileId)
   const { data: accounts } = useAccounts(profileId, { enabled })
   const { data: health } = useDataHealth(profileId, { enabled })
   const { data: preferences } = usePreferences()
   const { data: batches } = useAutoFixBatches(profileId, enabled)
+  const [mountedAt] = useState(() => Date.now())
 
-  const categorizeCount = counts ? counts.pending + counts.other : 0
-  const checkCount = counts?.lowConfidence ?? 0
-  // Start on the queue that has something in it, until one is picked
-  const queue: ReviewQueue =
-    chosenQueue ?? (categorizeCount === 0 && checkCount > 0 ? 'check' : 'categorize')
-
-  // Biggest amounts first: they move the totals most
-  const { data, isLoading } = useTransactions(
-    { profileId, reviewStatus: queue === 'check' ? 'low_confidence' : 'all', enabled },
-    { page: 1, limit: DECK_SIZE, sortBy: 'amount', sortOrder: 'desc' }
-  )
-
-  // Checks ignored in Settings stay out; the shaky-category check is already its own queue here
+  const duplicatesCount = counts ? counts.duplicateGroups + counts.possibleMatches : 0
+  const categorizationCount = counts ? counts.pending + counts.other + counts.lowConfidence : 0
+  // Start on the tab that has something in it, until one is picked
+  const tab: ReviewTab =
+    chosenTab ??
+    (duplicatesCount === 0 && categorizationCount > 0 ? 'categorization' : 'duplicates')
+  // Checks ignored in Settings stay out; the shaky-category check is already part of Categories
   const dataIssues = health
     ? countOpenDataIssues(health, preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS])
     : 0
@@ -71,20 +73,35 @@ export function ReviewCard({
       .filter((b) => !b.undoneAt && new Date(b.createdAt).getTime() >= weekAgo)
       .reduce((sum, b) => sum + b.changes.filter((c) => !c.undoneAt).length, 0)
   }, [batches, mountedAt])
-  const toReview = categorizeCount + checkCount
+  const toReview = duplicatesCount + categorizationCount
+
+  const panelProps = {
+    filters: { profileId, enabled },
+    accounts: accounts ?? [],
+    categories,
+    countryCode,
+    profiles,
+    showProfileBadge: profileId === undefined,
+    onEditTransaction: setEditing,
+    getCategoryLabel: (code: string) =>
+      categories.find((c) => c.code === code)?.label ?? code.replace(/_/g, ' '),
+    formatAmount,
+    compact: true,
+  }
 
   return (
     <SectionCard
       title="Review"
       description={
-        toReview > 0
-          ? `${toReview} ${toReview === 1 ? 'transaction' : 'transactions'}`
-          : 'Nothing to review'
+        toReview > 0 ? `${toReview} ${toReview === 1 ? 'item' : 'items'}` : 'Nothing to review'
       }
       className={cn('gap-2', className)}
       contentClassName="space-y-5"
       action={
-        <Link to="/review" search={{ tab: 'categorization' }}>
+        <Link
+          to="/review"
+          search={{ tab: tab === 'categorization' ? 'categorization' : undefined }}
+        >
           <Button
             variant="ghost"
             size="sm"
@@ -97,49 +114,38 @@ export function ReviewCard({
       }
     >
       <SegmentedControl
-        aria-label="Review queue"
+        aria-label="Review tab"
         size="sm"
-        value={queue}
-        onChange={setChosenQueue}
+        value={tab}
+        onChange={setChosenTab}
         options={[
           {
-            value: 'categorize',
+            value: 'duplicates',
             label: (
               <>
-                Uncategorised <span className="tabular-nums opacity-70">{categorizeCount}</span>
+                Duplicates <span className="tabular-nums opacity-70">{duplicatesCount}</span>
               </>
             ),
           },
           {
-            value: 'check',
+            value: 'categorization',
             label: (
               <>
-                Low confidence <span className="tabular-nums opacity-70">{checkCount}</span>
+                Categories <span className="tabular-nums opacity-70">{categorizationCount}</span>
               </>
             ),
           },
         ]}
       />
 
-      {/* Keyed so each queue starts with its own settled and skipped cards */}
-      <ReviewDeck
-        key={queue}
-        queue={queue}
-        transactions={data?.transactions ?? []}
-        isLoading={isLoading}
-        accounts={accounts ?? []}
-        categories={categories}
-        countryCode={countryCode}
-        onEdit={setEditing}
-      />
+      {tab === 'duplicates' ? (
+        <DuplicatesPanel {...panelProps} />
+      ) : (
+        <CategorizationPanel {...panelProps} />
+      )}
 
       <div className="border-t border-border-subtle pt-4">
-        <ReviewHealth
-          duplicateGroups={counts?.duplicateGroups ?? 0}
-          possibleMatches={counts?.possibleMatches ?? 0}
-          dataIssues={dataIssues}
-          autoFixed={autoFixed}
-        />
+        <ReviewHealth dataIssues={dataIssues} autoFixed={autoFixed} />
       </div>
 
       <EditTransactionDialog

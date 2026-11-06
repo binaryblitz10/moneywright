@@ -12,4 +12,6 @@ export interface ReviewPanelProps {
   onEditTransaction: (transaction: Transaction) => void
   getCategoryLabel: (code: string) => string
   formatAmount: (amount: number, currency: string) => string
+  /** A shorter empty state, for the dashboard widget */
+  compact?: boolean
 }
