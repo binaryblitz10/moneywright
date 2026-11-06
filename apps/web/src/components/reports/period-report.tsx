@@ -120,7 +120,7 @@ export function PeriodReportView({ report, getCategoryColor }: PeriodReportViewP
 
       {report.incomeCategories.length > 0 && (
         <CategoryTable
-          title="Income"
+          title="Income by category"
           rows={report.incomeCategories}
           total={{ current: totals.current.income, previous: totals.previous?.income ?? null }}
           goodWhen="up"
