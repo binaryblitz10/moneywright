@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, Calendar, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RangeCalendar } from '@/components/ui/range-calendar'
 import { toLocalDateString } from '@/components/dashboard/utils'
 import { useOptionNavigation } from '@/hooks/useOptionNavigation'
@@ -14,14 +14,25 @@ import {
   QUICK_PRESETS,
   findPresetId,
   formatLongDate,
+  getMonthRange,
   getPresetLabel,
   getPresetRange,
   getRangeLabel,
+  getWholeMonth,
   parseLocalDate,
   type DatePresetId,
   type DateRangeValue,
 } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
+
+const SMALL_WORDS = new Set(['to', 'of', 'and'])
+
+/** "Last quarter" -> "Last Quarter", keeping small words such as "to" lowercase */
+function toTitleCase(text: string): string {
+  return text.replace(/\b[a-z]+/g, (word, index: number) =>
+    index > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)
+  )
+}
 
 export { getRangeLabel as getDateRangeLabel } from '@/lib/date-presets'
 
@@ -77,7 +88,7 @@ function DateField({ value, label, onCommit }: DateFieldProps) {
         if (e.key === 'Enter') e.currentTarget.blur()
         if (e.key === 'Escape') setText(null)
       }}
-      className="h-10 rounded-lg text-sm"
+      className="h-10 select-text rounded-lg text-sm"
     />
   )
 }
@@ -176,9 +187,22 @@ export function DateRangePicker({
   const hasDateFilter = !!(startDate || endDate)
   const buttonLabel = label ?? getRangeLabel({ startDate, endDate }, country, currentPresetId)
 
+  // The compact picker is a month switcher: the arrows step by whole months from the month the
+  // range ends in, and the middle opens the picker
+  const switcher = variant === 'compact'
+  const baseMonth = endDate ? parseLocalDate(endDate) : new Date()
+  const prevMonthRange = getMonthRange(baseMonth, -1)
+  const nextMonthRange = getMonthRange(baseMonth, 1)
+  const canGoPrev = !minDate || prevMonthRange.endDate! >= minDate
+  const canGoNext = nextMonthRange.startDate! <= (maxDate ?? toLocalDateString(new Date()))
+
   const handleOpenChange = (next: boolean) => {
     if (next) {
-      setDraft({ startDate, endDate, presetId: currentPresetId })
+      setDraft({
+        startDate,
+        endDate,
+        presetId: currentPresetId ?? (getWholeMonth({ startDate, endDate }) ? 'monthly' : null),
+      })
       setMonth(viewFor({ startDate, endDate }))
       setAnchor(undefined)
       setPreview(undefined)
@@ -219,14 +243,26 @@ export function DateRangePicker({
     setAnchor(undefined)
   }
 
+  // Monthly is saved as the dates of the month, so the month picked stays picked
+  const stepMonth = (delta: number) => {
+    const current = getWholeMonth(draft) ?? new Date()
+    const range = getMonthRange(current, delta)
+    setDraft({ ...range, presetId: 'monthly' })
+    setMonth(viewFor(range))
+    setAnchor(undefined)
+  }
+
   const apply = () => {
-    onChange(draft.startDate, draft.endDate, draft.presetId)
+    onChange(draft.startDate, draft.endDate, draft.presetId === 'monthly' ? null : draft.presetId)
     setOpen(false)
   }
 
   // All time has no dates; any other range needs both
   const canApply = draft.presetId === 'all' || (!!draft.startDate && !!draft.endDate)
   const isCustom = draft.presetId === null
+  const monthly = draft.presetId === 'monthly' ? getWholeMonth(draft) : null
+  const prevMonth = monthly ? getMonthRange(monthly, -1) : null
+  const nextMonth = monthly ? getMonthRange(monthly, 1) : null
   const option = (id: DatePresetId, optionLabel: string) => (
     <SidebarOption
       key={id}
@@ -250,30 +286,64 @@ export function DateRangePicker({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size={variant === 'field' ? 'default' : 'sm'}
-          className={cn(
-            variant === 'field' ? 'h-10 justify-between rounded-lg font-normal' : 'h-9 text-sm',
-            PICKER_COLORS_CLASS,
-            hasDateFilter && variant === 'field' && 'border-primary/30 bg-primary/5',
-            className
-          )}
-        >
-          {variant === 'compact' && <Calendar className="mr-1.5 h-4 w-4" />}
-          <span className={variant === 'field' ? 'truncate' : undefined}>{buttonLabel}</span>
-          <ChevronDown
-            className={cn(variant === 'field' ? 'ml-2 opacity-50' : 'ml-1', 'h-4 w-4 shrink-0')}
-          />
-        </Button>
-      </PopoverTrigger>
+      {switcher ? (
+        <PopoverAnchor asChild>
+          <div
+            className={cn(
+              'inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-card p-1 select-none',
+              className
+            )}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Previous month"
+              disabled={!canGoPrev}
+              onClick={() => onChange(prevMonthRange.startDate, prevMonthRange.endDate, null)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" className="h-8 min-w-40 px-3 text-sm font-medium">
+                {toTitleCase(buttonLabel)}
+              </Button>
+            </PopoverTrigger>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Next month"
+              disabled={!canGoNext}
+              onClick={() => onChange(nextMonthRange.startDate, nextMonthRange.endDate, null)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </PopoverAnchor>
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size={variant === 'field' ? 'default' : 'sm'}
+            className={cn(
+              'h-10 justify-between rounded-lg font-normal',
+              PICKER_COLORS_CLASS,
+              hasDateFilter && 'border-primary/30 bg-primary/5',
+              className
+            )}
+          >
+            <span className="truncate">{buttonLabel}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent
         align={align}
         collisionPadding={16}
         className={cn(
           PICKER_CONTENT_COLORS_CLASS,
-          'w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0'
+          'w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl p-0 select-none'
         )}
         {...navigation}
       >
@@ -323,6 +393,31 @@ export function DateRangePicker({
                 <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 <DateField label="End date" value={draft.endDate} onCommit={commitEnd} />
               </div>
+              {monthly && prevMonth && nextMonth && (
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    aria-label="Previous month"
+                    disabled={!!minDate && prevMonth.endDate! < minDate}
+                    onClick={() => stepMonth(-1)}
+                    className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <span className="text-sm font-semibold">
+                    {monthly.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next month"
+                    disabled={!!maxDate && nextMonth.startDate! > maxDate}
+                    onClick={() => stepMonth(1)}
+                    className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+              )}
               <RangeCalendar
                 month={month}
                 onMonthChange={setMonth}

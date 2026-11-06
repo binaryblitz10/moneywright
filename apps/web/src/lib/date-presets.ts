@@ -8,6 +8,7 @@ import { getFinancialYearRange, toLocalDateString } from '@/components/dashboard
 export type DatePresetId =
   | 'today'
   | 'yesterday'
+  | 'monthly'
   | 'all'
   | 'last_7d'
   | 'last_30d'
@@ -38,6 +39,7 @@ export interface DatePreset {
 export const QUICK_PRESETS: DatePreset[] = [
   { id: 'today', label: 'Today' },
   { id: 'yesterday', label: 'Yesterday' },
+  { id: 'monthly', label: 'Monthly' },
   { id: 'all', label: 'All time' },
 ]
 
@@ -66,8 +68,9 @@ export const PERIOD_TO_DATE_PRESETS: DatePreset[] = [
   { id: 'year_to_date', label: 'Year to date' },
 ]
 
+// Monthly is a picker mode, not a saved preset: it ends up as the dates of the month picked
 const ALL_PRESET_IDS: DatePresetId[] = [
-  ...QUICK_PRESETS.map((p) => p.id),
+  ...QUICK_PRESETS.map((p) => p.id).filter((id) => id !== 'monthly'),
   ...LAST_PRESETS.map((p) => p.id),
   ...FINANCIAL_YEAR_PRESETS.map((p) => p.id),
   ...PERIOD_TO_DATE_PRESETS.map((p) => p.id),
@@ -82,6 +85,24 @@ export function getPresetLabel(id: DatePresetId, country: string | null | undefi
   if (fy) return getFinancialYearRange(country, fy.offset).label
   return [...QUICK_PRESETS, ...LAST_PRESETS, ...PERIOD_TO_DATE_PRESETS].find((p) => p.id === id)!
     .label
+}
+
+/** The whole calendar month a date falls in, shifted by `delta` months */
+export function getMonthRange(date: Date, delta = 0): DateRangeValue {
+  const y = date.getFullYear()
+  const m = date.getMonth() + delta
+  return {
+    startDate: toLocalDateString(new Date(y, m, 1)),
+    endDate: toLocalDateString(new Date(y, m + 1, 0)),
+  }
+}
+
+/** The first day of the month when the range is exactly one whole calendar month, else null */
+export function getWholeMonth(range: DateRangeValue): Date | null {
+  if (!range.startDate || !range.endDate) return null
+  const start = parseLocalDate(range.startDate)
+  const whole = getMonthRange(start)
+  return whole.startDate === range.startDate && whole.endDate === range.endDate ? start : null
 }
 
 /** The dates a preset covers today; empty for all time */
@@ -106,6 +127,8 @@ export function getPresetRange(
       return range(today, today)
     case 'yesterday':
       return range(new Date(y, m, d - 1), new Date(y, m, d - 1))
+    case 'monthly':
+      return getMonthRange(now)
     case 'all':
       return {}
     case 'last_7d':
@@ -183,6 +206,9 @@ export function getRangeLabel(
 ): string {
   const id = presetId === undefined ? findPresetId(range, country) : presetId
   if (id) return getPresetLabel(id, country)
+
+  const month = getWholeMonth(range)
+  if (month) return month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   const { startDate, endDate } = range
   if (startDate && endDate) {
