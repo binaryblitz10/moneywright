@@ -301,7 +301,7 @@ function CategoryTable({
                     startDate: period.startDate,
                     endDate: period.endDate,
                   }}
-                  className="flex items-center gap-2 hover:underline"
+                  className="flex items-center gap-2"
                 >
                   <CategoryIcon
                     code={row.key}
