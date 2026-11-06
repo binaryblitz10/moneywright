@@ -3,20 +3,10 @@
  */
 
 import { useState } from 'react'
-import {
-  AlertTriangle,
-  ListChecks,
-  Loader2,
-  MessageSquareText,
-  Search,
-  Undo2,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, Loader2, MessageSquareText, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
   Dialog,
   DialogContent,
@@ -25,16 +15,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ReviewIssuesDialog } from '@/components/bank-messages/review-issues-dialog'
-import {
-  BulkActionBar,
-  EditTransactionDialog,
-  TransactionEditForm,
-  TransactionTable,
-} from '@/components/transactions'
+import { EditTransactionDialog, TransactionTable } from '@/components/transactions'
 import { useRestoreDismissedSms } from '@/hooks'
 import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
-
-type Filter = 'all' | 'imported' | 'verified'
 
 const OUTCOME_BADGES: Partial<Record<SyncedSms['status'], string>> = {
   dismissed: 'Dismissed',
@@ -45,6 +28,21 @@ const NEW_FOR_MS = 24 * 60 * 60 * 1000
 
 const BADGE_CLASS =
   'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0'
+
+const DAY_MS = 86_400_000
+/** Groups that always show; each older month loads on demand */
+const ALWAYS_SHOWN = ['Today', 'This week', 'This month']
+
+/** "Today", "This week", "This month", else the month name, by when the message arrived */
+function groupLabel(iso: string, now: Date): string {
+  const date = new Date(iso)
+  if (date.toDateString() === now.toDateString()) return 'Today'
+  if (now.getTime() - date.getTime() < 7 * DAY_MS) return 'This week'
+  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()) {
+    return 'This month'
+  }
+  return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
 
 function toDateString(iso: string): string {
   const d = new Date(iso)
@@ -110,15 +108,12 @@ export function MessagesTable({
   formatAmount,
   lastSyncAt,
 }: MessagesTableProps) {
-  const [filter, setFilter] = useState<Filter>('all')
   const [reviewOpen, setReviewOpen] = useState(false)
   const [restoring, setRestoring] = useState<SyncedSms | null>(null)
   const restoreMutation = useRestoreDismissedSms()
   const [editing, setEditing] = useState<Transaction | null>(null)
-  const [selectionMode, setSelectionMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkEditOpen, setBulkEditOpen] = useState(false)
-  const [search, setSearch] = useState('')
+  // Older months shown beyond Today / This week / This month
+  const [extraMonths, setExtraMonths] = useState(0)
 
   // When each transaction came from a message, for the New pill (pending and dismissed have none)
   const importedAtByTxn = new Map(
@@ -126,21 +121,19 @@ export function MessagesTable({
   )
   // Messages waiting for review are handled in the review dialog, not listed in the table
   const listed = messages.filter((m) => m.status !== 'needs_review')
-  const count = (status: SyncedSms['status']): number =>
-    listed.filter((m) => m.status === status).length
-  const query = search.trim().toLowerCase()
-  const matchesSearch = (m: SyncedSms): boolean =>
-    !query ||
-    [
-      m.sender,
-      m.merchant,
-      m.last4,
-      m.transaction?.originalDescription,
-      m.transaction?.summary,
-    ].some((field) => field?.toLowerCase().includes(query))
-  const visible = listed.filter(
-    (m) => (filter === 'all' || m.status === filter) && matchesSearch(m)
-  )
+  const matching = listed
+  const now = new Date()
+  const labelById = new Map(matching.map((m) => [m.id, groupLabel(m.receivedAt, now)] as const))
+  // Older months in order, newest first
+  const olderMonths = [
+    ...new Set(matching.map((m) => labelById.get(m.id)!).filter((l) => !ALWAYS_SHOWN.includes(l))),
+  ]
+  const shownMonths = new Set(olderMonths.slice(0, extraMonths))
+  const visible = matching.filter((m) => {
+    const label = labelById.get(m.id)!
+    return ALWAYS_SHOWN.includes(label) || shownMonths.has(label)
+  })
+  const hiddenMonths = olderMonths.length - shownMonths.size
   // Rows without a transaction of their own are keyed by message id
   const statusById = new Map(
     visible.filter((m) => !m.transaction).map((m) => [m.id, m.status] as const)
@@ -158,21 +151,17 @@ export function MessagesTable({
       )
   )
 
-  // Only rows that are transactions can be selected (not messages waiting for review or dismissed)
-  const selectableCount = visible.filter((m) => m.transaction).length
-
-  const changeFilter = (next: Filter) => {
-    setSelectedIds(new Set())
-    setFilter(next)
-  }
-
-  const toggleSelectionMode = () => {
-    setSelectedIds(new Set())
-    setSelectionMode((on) => !on)
-  }
+  // Rows in groups, newest first; a group is one label's run of rows
+  const groups: { label: string; rows: Transaction[] }[] = []
+  visible.forEach((m, i) => {
+    const label = labelById.get(m.id)!
+    const last = groups[groups.length - 1]
+    if (last?.label === label) last.rows.push(rows[i]!)
+    else groups.push({ label, rows: [rows[i]!] })
+  })
 
   return (
-    <div className={cn('space-y-3', selectedIds.size > 0 && 'pb-24')}>
+    <div className="space-y-6">
       {pending.length > 0 && (
         <div
           role="alert"
@@ -183,138 +172,78 @@ export function MessagesTable({
             {pending.length} {pending.length === 1 ? 'message needs' : 'messages need'} your review
             before {pending.length === 1 ? 'it can be' : 'they can be'} added as transactions.
           </p>
-          <Button size="sm" onClick={() => setReviewOpen(true)}>
+          <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
             Review issues
           </Button>
         </div>
       )}
-      <div
-        className={cn(
-          'flex flex-wrap items-center gap-3 p-4 rounded-2xl',
-          'bg-linear-to-b from-card to-card/80',
-          'border border-border-subtle',
-          'shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]',
-          'dark:shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]'
-        )}
-      >
-        <div className="relative min-w-60 flex-1">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Search messages"
-            data-page-search
-            placeholder="Search by sender or merchant..."
-            value={search}
-            onChange={(e) => {
-              setSelectedIds(new Set())
-              setSearch(e.target.value)
-            }}
-            className="h-11 rounded-xl border-border-subtle bg-surface-elevated pl-10 pr-10 placeholder:text-muted-foreground/60"
-          />
-          {search && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 transition-colors hover:bg-surface-hover"
-            >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-        <SegmentedControl
-          aria-label="Filter messages"
-          className="max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          value={filter}
-          onChange={changeFilter}
-          options={[
-            { value: 'all', label: `All (${listed.length})` },
-            { value: 'imported', label: `Imported (${count('imported')})` },
-            { value: 'verified', label: `Verified (${count('verified')})` },
-          ]}
-        />
-      </div>
-
-      {(selectableCount > 0 || lastSyncAt) && (
-        <div className="flex flex-wrap items-center gap-3">
-          {selectableCount > 0 && (
-            <button
-              type="button"
-              aria-pressed={selectionMode}
-              onClick={toggleSelectionMode}
-              className={cn(
-                'flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200',
-                selectionMode
-                  ? 'bg-surface-hover border-border-hover text-muted-foreground hover:text-foreground'
-                  : 'bg-surface-elevated border-border-subtle text-muted-foreground hover:text-foreground hover:border-border-hover'
-              )}
-            >
-              {selectionMode ? (
-                <X className="h-3.5 w-3.5" />
-              ) : (
-                <ListChecks className="h-3.5 w-3.5" />
-              )}
-              <span>{selectionMode ? 'Cancel' : 'Select'}</span>
-            </button>
-          )}
-          {lastSyncAt && (
-            <p className="ml-auto text-xs text-muted-foreground">
-              Last synced {new Date(lastSyncAt).toLocaleTimeString()}
-            </p>
-          )}
-        </div>
+      {lastSyncAt && (
+        <p className="text-right text-xs text-muted-foreground">
+          Last synced {new Date(lastSyncAt).toLocaleTimeString()}
+        </p>
       )}
 
-      {visible.length === 0 ? (
+      {matching.length === 0 ? (
         <EmptyState
           icon={MessageSquareText}
           title="No messages here"
           description={
             messages.length === 0
               ? 'Press Sync to read your bank messages, or sync from an earlier date in Settings.'
-              : 'No messages match your search or filter.'
+              : 'Messages waiting for review are in the banner above.'
           }
         />
       ) : (
-        <TransactionTable
-          transactions={rows}
-          accounts={accounts}
-          categories={categories}
-          countryCode={countryCode}
-          getCategoryLabel={getCategoryLabel}
-          formatAmount={formatAmount}
-          onEditTransaction={(txn) => {
-            const dismissed = visible.find((m) => m.id === txn.id && m.status === 'dismissed')
-            if (dismissed) setRestoring(dismissed)
-            else setEditing(txn)
-          }}
-          isSelectable={(txn) => !statusById.has(txn.id)}
-          isCategoryEditable={(txn) => !statusById.has(txn.id)}
-          selectedIds={selectionMode ? selectedIds : undefined}
-          onSelectionChange={selectionMode ? setSelectedIds : undefined}
-          renderBadge={(txn) => {
-            const status = statusById.get(txn.id)
-            if (status) {
-              const label = OUTCOME_BADGES[status]
-              return label ? (
-                <span className={cn(BADGE_CLASS, 'border-border-subtle text-muted-foreground')}>
-                  {label}
-                </span>
-              ) : null
-            }
-            const importedAt = importedAtByTxn.get(txn.id)
-            const isNew = !!importedAt && Date.now() - new Date(importedAt).getTime() < NEW_FOR_MS
-            return isNew ? (
-              <span className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}>
-                New
-              </span>
-            ) : null
-          }}
-        />
+        groups.map((group) => (
+          <div key={group.label} className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </p>
+            <TransactionTable
+              hideHeader
+              transactions={group.rows}
+              accounts={accounts}
+              categories={categories}
+              countryCode={countryCode}
+              getCategoryLabel={getCategoryLabel}
+              formatAmount={formatAmount}
+              onEditTransaction={(txn) => {
+                const dismissed = visible.find((m) => m.id === txn.id && m.status === 'dismissed')
+                if (dismissed) setRestoring(dismissed)
+                else setEditing(txn)
+              }}
+              isCategoryEditable={(txn) => !statusById.has(txn.id)}
+              renderBadge={(txn) => {
+                const status = statusById.get(txn.id)
+                if (status) {
+                  const label = OUTCOME_BADGES[status]
+                  return label ? (
+                    <span className={cn(BADGE_CLASS, 'border-border-subtle text-muted-foreground')}>
+                      {label}
+                    </span>
+                  ) : null
+                }
+                const importedAt = importedAtByTxn.get(txn.id)
+                const isNew =
+                  !!importedAt && Date.now() - new Date(importedAt).getTime() < NEW_FOR_MS
+                return isNew ? (
+                  <span className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}>
+                    New
+                  </span>
+                ) : null
+              }}
+            />
+          </div>
+        ))
       )}
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">
-        Showing transactions synced in the last 14 days.
-      </p>
+      {hiddenMonths > 0 && (
+        <div className="flex justify-center pt-2">
+          <Button variant="outline" size="sm" onClick={() => setExtraMonths((n) => n + 1)}>
+            Show more
+          </Button>
+        </div>
+      )}
 
       <ReviewIssuesDialog
         open={reviewOpen && pending.length > 0}
@@ -356,41 +285,6 @@ export function MessagesTable({
           </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit {selectedIds.size} Transactions</DialogTitle>
-            <DialogDescription>
-              Only the fields you change are applied to every selected transaction.
-            </DialogDescription>
-          </DialogHeader>
-          <TransactionEditForm
-            transactionIds={[...selectedIds]}
-            categories={categories}
-            onClose={() => setBulkEditOpen(false)}
-            onSuccess={() => {
-              setBulkEditOpen(false)
-              setSelectedIds(new Set())
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {selectedIds.size > 0 && (
-        <BulkActionBar
-          selectedIds={selectedIds}
-          totalMatching={selectableCount}
-          filtered={filter !== 'all' || !!query}
-          pageFullySelected={false}
-          categories={categories}
-          showingHidden={false}
-          selectingAll={false}
-          onSelectAllMatching={() => {}}
-          onEdit={() => setBulkEditOpen(true)}
-          onClear={() => setSelectedIds(new Set())}
-        />
-      )}
 
       <EditTransactionDialog
         transaction={editing}

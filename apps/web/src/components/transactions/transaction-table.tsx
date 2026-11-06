@@ -65,6 +65,8 @@ interface TransactionTableProps {
   isCategoryEditable?: (transaction: Transaction) => boolean
   /** Called after a row's category was changed in place and saved */
   onCategoryChanged?: (transaction: Transaction, category: string) => void
+  /** Leaves out the column headings, for a table split into titled groups */
+  hideHeader?: boolean
 }
 
 // Sort indicator component
@@ -164,6 +166,7 @@ export function TransactionTable({
   isSelectable,
   isCategoryEditable,
   onCategoryChanged,
+  hideHeader,
 }: TransactionTableProps) {
   const updateTransaction = useUpdateTransaction()
   const offerSimilarChange = useOfferSimilarChange()
@@ -335,45 +338,59 @@ export function TransactionTable({
   const table = (
     <div className="hidden overflow-hidden rounded-xl border border-border-subtle bg-card md:block">
       <Table className="table-fixed">
-        <TableHeader>
-          <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
-            {selectable && (
-              <TableHead className="w-14 pl-5">
-                <Checkbox
-                  className={CHECKBOX_CLASS}
-                  aria-label="Select all transactions on this page"
-                  checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
-                  onCheckedChange={(checked) => togglePage(checked === true)}
+        {hideHeader && (
+          // The same column widths the heading row sets, so separate tables line up
+          <colgroup>
+            {selectable && <col className="w-14" />}
+            <col className={selectable ? 'w-27.5' : 'w-32'} />
+            <col />
+            <col className="w-48" />
+            <col className="w-35" />
+          </colgroup>
+        )}
+        {!hideHeader && (
+          <TableHeader>
+            <TableRow className="bg-surface-elevated hover:bg-surface-elevated border-b border-border-subtle">
+              {selectable && (
+                <TableHead className="w-14 pl-5">
+                  <Checkbox
+                    className={CHECKBOX_CLASS}
+                    aria-label="Select all transactions on this page"
+                    checked={
+                      allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false
+                    }
+                    onCheckedChange={(checked) => togglePage(checked === true)}
+                  />
+                </TableHead>
+              )}
+              <TableHead className={cn('w-27.5', !selectable && 'w-32 pl-5')}>
+                <SortableHeading
+                  label="Date"
+                  column="date"
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={onSortChange && handleSort}
                 />
               </TableHead>
-            )}
-            <TableHead className={cn('w-27.5', !selectable && 'w-32 pl-5')}>
-              <SortableHeading
-                label="Date"
-                column="date"
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={onSortChange && handleSort}
-              />
-            </TableHead>
-            <TableHead className="w-auto text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Description
-            </TableHead>
-            <TableHead className="w-48 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Category
-            </TableHead>
-            <TableHead className="w-35 pr-6">
-              <SortableHeading
-                label="Amount"
-                column="amount"
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={onSortChange && handleSort}
-                className="ml-auto"
-              />
-            </TableHead>
-          </TableRow>
-        </TableHeader>
+              <TableHead className="w-auto text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Description
+              </TableHead>
+              <TableHead className="w-48 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Category
+              </TableHead>
+              <TableHead className="w-35 pr-6">
+                <SortableHeading
+                  label="Amount"
+                  column="amount"
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={onSortChange && handleSort}
+                  className="ml-auto"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+        )}
         <TableBody>
           {transactions.map((txn, index) => {
             const account = accountMap.get(txn.accountId)
@@ -485,31 +502,35 @@ export function TransactionTable({
 
   const list = (
     <div className="overflow-hidden rounded-xl border border-border-subtle bg-card md:hidden">
-      {/* Sort and select-all controls, standing in for the table header */}
-      <div className="flex items-center gap-4 border-b border-border-subtle bg-surface-elevated px-4 py-2.5">
-        {selectable && (
-          <Checkbox
-            className={CHECKBOX_CLASS}
-            aria-label="Select all transactions on this page"
-            checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
-            onCheckedChange={(checked) => togglePage(checked === true)}
-          />
-        )}
-        <SortableHeading
-          label="Date"
-          column="date"
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSort={onSortChange && handleSort}
-        />
-        <SortableHeading
-          label="Amount"
-          column="amount"
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSort={onSortChange && handleSort}
-        />
-      </div>
+      {!hideHeader && (
+        <>
+          {/* Sort and select-all controls, standing in for the table header */}
+          <div className="flex items-center gap-4 border-b border-border-subtle bg-surface-elevated px-4 py-2.5">
+            {selectable && (
+              <Checkbox
+                className={CHECKBOX_CLASS}
+                aria-label="Select all transactions on this page"
+                checked={allOnPageSelected ? true : selectedOnPage > 0 ? 'indeterminate' : false}
+                onCheckedChange={(checked) => togglePage(checked === true)}
+              />
+            )}
+            <SortableHeading
+              label="Date"
+              column="date"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSort={onSortChange && handleSort}
+            />
+            <SortableHeading
+              label="Amount"
+              column="amount"
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSort={onSortChange && handleSort}
+            />
+          </div>
+        </>
+      )}
       {transactions.map((txn, index) => {
         const account = accountMap.get(txn.accountId)
         const last4 = (account?.accountNumber || '').slice(-4) || '****'
