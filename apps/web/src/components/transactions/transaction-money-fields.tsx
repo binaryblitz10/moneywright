@@ -29,6 +29,7 @@ export function TransactionMoneyFields({
         <DatePicker
           id={`${idPrefix}-date`}
           value={values.date}
+          className="bg-background border-input hover:bg-background hover:border-border-hover"
           onChange={(date) => onChange({ ...values, date })}
         />
       </div>
