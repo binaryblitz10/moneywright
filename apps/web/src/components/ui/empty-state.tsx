@@ -6,6 +6,14 @@ import { cn } from '@/lib/utils'
 
 type LinkProps = React.ComponentProps<typeof Link>
 
+/**
+ * Soft glow behind an empty-state icon. Place it first inside a `relative` wrapper.
+ * Drawn as a radial gradient, not a blurred circle: Safari clips `filter: blur()`
+ * inside animated (composited) cards, which cut the glow off at the top.
+ */
+export const ICON_GLOW =
+  'pointer-events-none absolute -inset-12 bg-radial-[closest-side] from-primary/5 to-transparent'
+
 export interface EmptyStateProps {
   /** Icon to display */
   icon: LucideIcon
@@ -83,7 +91,7 @@ export function EmptyState({
       )}
     >
       <div className="relative mx-auto mb-4 w-fit">
-        {glow && <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl" />}
+        {glow && <div className={ICON_GLOW} />}
         <div
           className={cn(
             'relative rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center',
@@ -157,7 +165,7 @@ export function InlineEmptyState({
   return (
     <div className={cn('flex flex-col items-center justify-center py-8 text-center', className)}>
       <div className="relative mb-3">
-        <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl" />
+        <div className={ICON_GLOW} />
         <div className="relative h-12 w-12 rounded-full bg-surface-elevated border border-border-subtle flex items-center justify-center">
           <Icon className="h-6 w-6 text-muted-foreground" />
         </div>

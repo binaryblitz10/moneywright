@@ -3,6 +3,7 @@ import { Repeat } from 'lucide-react'
 import type { DetectedSubscription } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ICON_GLOW } from '@/components/ui/empty-state'
 
 // Get monthly equivalent price
 function getMonthlyPrice(amount: number, frequency: DetectedSubscription['frequency']): number {
@@ -89,7 +90,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-10">
       <div className="relative">
-        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
+        <div className={ICON_GLOW} />
         <div className="relative p-3 rounded-xl bg-surface-elevated border border-border-subtle">
           <Repeat className="h-5 w-5 text-muted-foreground" />
         </div>
