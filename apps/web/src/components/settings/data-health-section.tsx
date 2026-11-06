@@ -24,7 +24,6 @@ import {
   type IssueTarget,
 } from './data-health-issues'
 import { CardPaymentChecks, DismissedCardPayment } from './card-payment-checks'
-import { FixIssuesDialog } from '@/components/review'
 import { MetaLabel } from '@/components/ui/meta-label'
 
 /** An unexplained cash difference above this (in rupees) is worth a look */
@@ -178,7 +177,6 @@ export function DataHealthSection({
   const autoFixEnabled = preferences?.[PREFERENCE_KEYS.AUTO_FIX_AFTER_IMPORT] !== 'false'
   const [expanded, setExpanded] = useState(false)
   const [showIgnored, setShowIgnored] = useState(false)
-  const [fixOpen, setFixOpen] = useState(false)
 
   const ignoredKeys = useMemo(
     () => parseIgnored(preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS]),
@@ -211,15 +209,7 @@ export function DataHealthSection({
   const visible = expanded ? issues : issues.slice(0, COLLAPSED_ROWS)
 
   return (
-    <SectionCard
-      title="Data Health"
-      contentClassName="space-y-5"
-      action={
-        <Button variant="outline" size="sm" onClick={() => setFixOpen(true)}>
-          Fix issues
-        </Button>
-      }
-    >
+    <SectionCard title="Data Health" contentClassName="space-y-5">
       {isLoading || !report ? (
         <Skeleton className="h-24 w-full" />
       ) : (
@@ -339,8 +329,6 @@ export function DataHealthSection({
           }
         />
       </div>
-
-      <FixIssuesDialog open={fixOpen} onOpenChange={setFixOpen} profileId={profileId} />
     </SectionCard>
   )
 }

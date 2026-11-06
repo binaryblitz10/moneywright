@@ -1,18 +1,11 @@
 import { useState } from 'react'
 import { createFileRoute, useSearch } from '@tanstack/react-router'
-import { Wrench } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
 import { useAuth, useCategories, useAccounts, useProfileSelection, useReviewCounts } from '@/hooks'
 import { EditTransactionDialog } from '@/components/transactions'
-import {
-  CategorizationPanel,
-  DuplicatesPanel,
-  FixIssuesDialog,
-  HistoryPanel,
-} from '@/components/review'
-import { Button } from '@/components/ui/button'
+import { CategorizationPanel, DuplicatesPanel, HistoryPanel } from '@/components/review'
 
 type ReviewTab = 'duplicates' | 'categorization' | 'history'
 
@@ -44,7 +37,6 @@ function ReviewPage() {
   const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
 
-  const [fixOpen, setFixOpen] = useState(false)
   // Lives here, not in HistoryPanel, so Show more survives switching tabs but resets on leaving Review
   const [historyMonths, setHistoryMonths] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
@@ -93,12 +85,6 @@ function ReviewPage() {
       <PageHeader
         title="Review"
         description="Resolve duplicates and sort out transactions that need a category"
-        actions={
-          <Button onClick={() => setFixOpen(true)}>
-            <Wrench className="h-4 w-4 mr-2" />
-            Fix issues
-          </Button>
-        }
       />
 
       <Tabs
@@ -141,8 +127,6 @@ function ReviewPage() {
       ) : (
         <CategorizationPanel {...panelProps} />
       )}
-
-      <FixIssuesDialog open={fixOpen} onOpenChange={setFixOpen} profileId={activeProfileId} />
 
       <EditTransactionDialog
         transaction={editingTransaction}
