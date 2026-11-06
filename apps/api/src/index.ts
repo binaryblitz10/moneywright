@@ -66,16 +66,14 @@ printBanner()
 // Validate required environment variables before anything else
 validateEnv()
 
-// Run database migrations automatically (except in development)
-// In dev mode, use `bun run db:migrate` or `bun run db:push` manually
-if (!isDevelopment()) {
-  try {
-    await runMigrations()
-  } catch (error) {
-    // Do not serve requests on a half-migrated database
-    console.error(`\n${error instanceof Error ? error.message : String(error)}\n`)
-    process.exit(1)
-  }
+// Run database migrations automatically, in development too: a dev server pointed at an older
+// database (the desktop app's data, say) would otherwise fail on every query for a new column
+try {
+  await runMigrations()
+} catch (error) {
+  // Do not serve requests on a half-migrated database
+  console.error(`\n${error instanceof Error ? error.message : String(error)}\n`)
+  process.exit(1)
 }
 
 // Recover statements left half-processed by a previous quit/restart
