@@ -1,9 +1,17 @@
 /**
- * Every synced bank message with its outcome; messages that need attention open a review dialog
+ * Synced bank messages and their outcome; a banner opens the messages that need review
  */
 
 import { useState } from 'react'
-import { ListChecks, Loader2, MessageSquareText, Search, Undo2, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  ListChecks,
+  Loader2,
+  MessageSquareText,
+  Search,
+  Undo2,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -15,9 +23,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  focusDialogOnOpen,
 } from '@/components/ui/dialog'
-import { ReviewForm } from '@/components/bank-messages/review-form'
+import { ReviewIssuesDialog } from '@/components/bank-messages/review-issues-dialog'
 import {
   BulkActionBar,
   EditTransactionDialog,
@@ -27,10 +34,9 @@ import {
 import { useRestoreDismissedSms } from '@/hooks'
 import type { Account, Category, PendingSms, SyncedSms, Transaction } from '@/lib/api'
 
-type Filter = 'all' | SyncedSms['status']
+type Filter = 'all' | 'imported' | 'verified'
 
 const OUTCOME_BADGES: Partial<Record<SyncedSms['status'], string>> = {
-  needs_review: 'Needs review',
   dismissed: 'Dismissed',
 }
 
@@ -47,7 +53,11 @@ function toDateString(iso: string): string {
 }
 
 /** A message with no transaction (waiting for review, or dismissed) shown as a table row */
-function toPlaceholderTransaction(message: SyncedSms, date: string | null): Transaction {
+function toPlaceholderTransaction(
+  message: SyncedSms,
+  date: string | null,
+  fallbackCurrency: string
+): Transaction {
   return {
     id: message.id,
     accountId: message.accountId ?? '',
@@ -57,7 +67,8 @@ function toPlaceholderTransaction(message: SyncedSms, date: string | null): Tran
     date: date ?? toDateString(message.receivedAt),
     type: message.type ?? 'debit',
     amount: message.amount ?? 0,
-    currency: message.currency ?? '',
+    // A message that could not be fully read has no currency, which cannot be formatted blank
+    currency: message.currency ?? fallbackCurrency,
     originalDescription: message.merchant ?? '—',
     summary: null,
     category: 'other',
@@ -99,8 +110,8 @@ export function MessagesTable({
   formatAmount,
   lastSyncAt,
 }: MessagesTableProps) {
-  const [filter, setFilter] = useState<Filter>(pending.length > 0 ? 'needs_review' : 'all')
-  const [reviewing, setReviewing] = useState<PendingSms | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [restoring, setRestoring] = useState<SyncedSms | null>(null)
   const restoreMutation = useRestoreDismissedSms()
   const [editing, setEditing] = useState<Transaction | null>(null)
@@ -113,9 +124,10 @@ export function MessagesTable({
   const importedAtByTxn = new Map(
     messages.flatMap((m) => (m.transactionId ? [[m.transactionId, m.importedAt] as const] : []))
   )
-  const pendingById = new Map(pending.map((m) => [m.id, m]))
+  // Messages waiting for review are handled in the review dialog, not listed in the table
+  const listed = messages.filter((m) => m.status !== 'needs_review')
   const count = (status: SyncedSms['status']): number =>
-    messages.filter((m) => m.status === status).length
+    listed.filter((m) => m.status === status).length
   const query = search.trim().toLowerCase()
   const matchesSearch = (m: SyncedSms): boolean =>
     !query ||
@@ -126,15 +138,24 @@ export function MessagesTable({
       m.transaction?.originalDescription,
       m.transaction?.summary,
     ].some((field) => field?.toLowerCase().includes(query))
-  const visible = messages.filter(
+  const visible = listed.filter(
     (m) => (filter === 'all' || m.status === filter) && matchesSearch(m)
   )
   // Rows without a transaction of their own are keyed by message id
   const statusById = new Map(
     visible.filter((m) => !m.transaction).map((m) => [m.id, m.status] as const)
   )
+  const accountById = new Map(accounts.map((a) => [a.id, a]))
   const rows = visible.map(
-    (m) => m.transaction ?? toPlaceholderTransaction(m, pendingById.get(m.id)?.date ?? null)
+    (m) =>
+      m.transaction ??
+      toPlaceholderTransaction(
+        m,
+        null,
+        (m.accountId ? accountById.get(m.accountId)?.currency : undefined) ??
+          accounts[0]?.currency ??
+          'USD'
+      )
   )
 
   // Only rows that are transactions can be selected (not messages waiting for review or dismissed)
@@ -152,6 +173,21 @@ export function MessagesTable({
 
   return (
     <div className={cn('space-y-3', selectedIds.size > 0 && 'pb-24')}>
+      {pending.length > 0 && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-subtle bg-card px-4 py-3"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+          <p className="min-w-0 flex-1 text-sm">
+            {pending.length} {pending.length === 1 ? 'message needs' : 'messages need'} your review
+            before {pending.length === 1 ? 'it can be' : 'they can be'} added as transactions.
+          </p>
+          <Button size="sm" onClick={() => setReviewOpen(true)}>
+            Review issues
+          </Button>
+        </div>
+      )}
       <div
         className={cn(
           'flex flex-wrap items-center gap-3 p-4 rounded-2xl',
@@ -191,11 +227,9 @@ export function MessagesTable({
           value={filter}
           onChange={changeFilter}
           options={[
-            { value: 'all', label: `All (${messages.length})` },
+            { value: 'all', label: `All (${listed.length})` },
             { value: 'imported', label: `Imported (${count('imported')})` },
             { value: 'verified', label: `Verified (${count('verified')})` },
-            { value: 'needs_review', label: `Needs review (${count('needs_review')})` },
-            { value: 'dismissed', label: `Dismissed (${count('dismissed')})` },
           ]}
         />
       </div>
@@ -249,10 +283,8 @@ export function MessagesTable({
           getCategoryLabel={getCategoryLabel}
           formatAmount={formatAmount}
           onEditTransaction={(txn) => {
-            const waiting = pendingById.get(txn.id)
             const dismissed = visible.find((m) => m.id === txn.id && m.status === 'dismissed')
-            if (waiting) setReviewing(waiting)
-            else if (dismissed) setRestoring(dismissed)
+            if (dismissed) setRestoring(dismissed)
             else setEditing(txn)
           }}
           isSelectable={(txn) => !statusById.has(txn.id)}
@@ -284,28 +316,13 @@ export function MessagesTable({
         Showing transactions synced in the last 14 days.
       </p>
 
-      <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>
-        <DialogContent
-          className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
-          onOpenAutoFocus={focusDialogOnOpen}
-        >
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle>Review message</DialogTitle>
-            <DialogDescription>
-              Check the details, then add it as a transaction or dismiss it.
-            </DialogDescription>
-          </DialogHeader>
-          {reviewing && (
-            <ReviewForm
-              key={reviewing.id}
-              message={reviewing}
-              accounts={accounts.filter((a) => a.isActive)}
-              onDone={() => setReviewing(null)}
-              onCancel={() => setReviewing(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <ReviewIssuesDialog
+        open={reviewOpen && pending.length > 0}
+        onOpenChange={setReviewOpen}
+        pending={pending}
+        accounts={accounts}
+        formatAmount={formatAmount}
+      />
 
       <Dialog open={!!restoring} onOpenChange={(open) => !open && setRestoring(null)}>
         <DialogContent className="sm:max-w-md">

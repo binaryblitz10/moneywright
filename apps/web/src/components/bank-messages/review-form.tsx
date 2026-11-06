@@ -76,7 +76,7 @@ export function ReviewForm({ message, accounts, onDone, onCancel }: ReviewFormPr
         </div>
 
         {foreignCharge && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+          <div className="rounded-lg border border-warning/30 bg-warning-muted p-3 text-xs">
             <p className="font-medium text-foreground">
               Charged in {message.currency}
               {message.amount !== null && ` (${message.amount})`}
