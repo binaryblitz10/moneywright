@@ -18,14 +18,11 @@ type ReviewTab = 'duplicates' | 'categorization' | 'history'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
-  /** Set when an old 'auto-fixed' link opens the History tab on its Auto-fixed segment */
-  segment?: 'auto-fixed'
 }
 
 export const Route = createFileRoute('/_app/review')({
   component: ReviewPage,
   validateSearch: (search: Record<string, unknown>): ReviewSearchParams => ({
-    segment: search.tab === 'auto-fixed' ? 'auto-fixed' : undefined,
     tab:
       search.tab === 'categorization' || search.tab === 'history'
         ? search.tab
@@ -42,7 +39,7 @@ export const Route = createFileRoute('/_app/review')({
 function ReviewPage() {
   const { user, profiles } = useAuth()
   const navigate = Route.useNavigate()
-  const { tab, segment } = useSearch({ from: '/_app/review' })
+  const { tab } = useSearch({ from: '/_app/review' })
   const activeTab: ReviewTab = tab ?? 'duplicates'
   const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
@@ -134,7 +131,7 @@ function ReviewPage() {
       {activeTab === 'duplicates' ? (
         <DuplicatesPanel {...panelProps} />
       ) : activeTab === 'history' ? (
-        <HistoryPanel {...panelProps} initialSegment={segment ?? 'merged'} />
+        <HistoryPanel {...panelProps} />
       ) : (
         <CategorizationPanel {...panelProps} />
       )}
