@@ -37,7 +37,7 @@ const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger
  * The app's standard expand animation: the height eases open while the content
  * fades in and slides down into place. `className` styles the revealed content
  * (margins included, they are clipped while closed). Children stay mounted so the
- * close animates too; the closed panel is `inert`.
+ * close animates too; the closed panel is `invisible`, which also takes it out of the tab order.
  */
 function CollapsibleContent({ className, children, ...props }: ComponentProps<'div'>) {
   const open = useContext(CollapsibleOpenContext)
@@ -45,10 +45,9 @@ function CollapsibleContent({ className, children, ...props }: ComponentProps<'d
   return (
     <div
       data-state={open ? 'open' : 'closed'}
-      inert={!open}
       className={cn(
         'grid overflow-hidden transition-all duration-500 ease-in-out',
-        open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        open ? 'visible grid-rows-[1fr] opacity-100' : 'invisible grid-rows-[0fr] opacity-0'
       )}
       {...props}
     >
