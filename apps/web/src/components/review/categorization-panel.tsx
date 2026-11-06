@@ -9,7 +9,7 @@ import { useBulkUpdateTransactions, useTransactions } from '@/hooks'
 import { CategoryPicker } from '@/components/transactions/category-picker'
 import { CategoryCard } from './category-card'
 import { ReviewActionButton } from './review-action-button'
-import { groupByMerchant } from './merchant-groups'
+import { groupByMerchant, type MerchantGroupData } from './merchant-groups'
 import type { ReviewPanelProps } from './types'
 
 // Loads a big slice of rows and works through them one merchant at a time
@@ -25,6 +25,14 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
   // Settled ones leave at once, before the refetch drops them
   const [settled, setSettled] = useState<Set<string>>(new Set())
   const [index, setIndex] = useState(0)
+  // Which way the deck last moved; none until the first move, so the first card just fades in
+  const [direction, setDirection] = useState<'next' | 'prev' | null>(null)
+  // The card on show, and the one that just left, kept on screen while it animates out
+  const [shown, setShown] = useState<MerchantGroupData | null>(null)
+  const [leaving, setLeaving] = useState<{
+    group: MerchantGroupData
+    direction: 'next' | 'prev'
+  } | null>(null)
   // The merchant on show stays on show when the list reorders under it, e.g. after one of its
   // transactions is categorized in the transactions dialog
   const [activeKey, setActiveKey] = useState<string | null>(null)
@@ -49,8 +57,13 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
 
   // Adjusting state while rendering is React's way of following a value that changed
   if (currentKey && currentKey !== activeKey) setActiveKey(currentKey)
+  if (current && shown?.key !== current.key) {
+    if (shown) setLeaving({ group: shown, direction: direction ?? 'next' })
+    setShown(current)
+  }
 
   const goTo = (next: number) => {
+    setDirection(next < currentIndex ? 'prev' : 'next')
     setIndex(next)
     setActiveKey(deck[next]?.key ?? null)
   }
@@ -60,7 +73,12 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
       input.category
         ? { transactionIds: input.transactionIds, category: input.category }
         : { transactionIds: input.transactionIds, confirmCategory: true },
-      { onSuccess: () => setSettled((prev) => new Set(prev).add(key)) }
+      {
+        onSuccess: () => {
+          setDirection('next')
+          setSettled((prev) => new Set(prev).add(key))
+        },
+      }
     )
 
   if (isError) return <QueryError error={error} onRetry={() => void refetch()} />
@@ -90,6 +108,14 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
 
   const cardHeight = compact ? COMPACT_CARD_HEIGHT : CARD_HEIGHT
   const deckHeight = compact ? COMPACT_DECK_HEIGHT : DECK_HEIGHT
+  // A card waiting underneath, at its stack position (set with --deck-n)
+  const layerClass = cn(
+    'deck-layer absolute inset-x-0 top-0 border border-border-subtle bg-surface-elevated',
+    compact ? 'rounded-xl' : 'rounded-2xl',
+    cardHeight
+  )
+  const layerMotion =
+    direction === 'next' ? 'animate-deck-advance' : direction === 'prev' && 'animate-deck-recede'
 
   const ids = current.transactions.map((t) => t.id)
   const first = current.transactions[0]
@@ -130,30 +156,74 @@ export function CategorizationPanel({ filters, compact, ...tableProps }: ReviewP
       )}
     >
       <div className={deckHeight}>
-        <div className="relative pb-3">
-          {/* Cards waiting underneath */}
+        {/* Each stack step is one --deck-dy lower and --deck-ds narrower */}
+        <div
+          className={cn(
+            'relative pb-3',
+            compact
+              ? '[--deck-dy:0.375rem] [--deck-ds:0.05]'
+              : '[--deck-dy:0.5rem] [--deck-ds:0.04]'
+          )}
+        >
+          {/* Cards waiting underneath, remounted on every move so they shift up or back a step */}
           {deck.length > 2 && (
             <div
+              key={`back-${current.key}`}
               aria-hidden
               className={cn(
-                'absolute rounded-xl border border-border-subtle bg-surface-elevated/40',
-                cn(compact ? 'inset-x-6 top-3' : 'inset-x-8 top-4', cardHeight)
+                layerClass,
+                '[--deck-n:2]',
+                direction === 'next' ? 'animate-deck-advance-in' : layerMotion
               )}
             />
           )}
           {deck.length > 1 && (
             <div
+              key={`under-${current.key}`}
+              aria-hidden
+              className={cn(layerClass, '[--deck-n:1]', layerMotion)}
+            />
+          )}
+          {/* Going forward the old card is thrown off over the deck; going back it sinks into
+              the first stack position, under the card coming back */}
+          {leaving && (
+            <div
+              key={leaving.group.key}
+              inert
               aria-hidden
               className={cn(
-                'absolute rounded-xl border border-border-subtle bg-surface-elevated/70',
-                cn(compact ? 'inset-x-3 top-1.5' : 'inset-x-4 top-2', cardHeight)
+                'pointer-events-none absolute inset-x-0 top-0',
+                leaving.direction === 'next'
+                  ? 'z-20 animate-deck-throw'
+                  : 'deck-layer animate-deck-recede [--deck-n:1]'
               )}
-            />
+              onAnimationEnd={(e) => {
+                if (e.target === e.currentTarget) setLeaving(null)
+              }}
+            >
+              <CategoryCard
+                group={leaving.group}
+                className={cn(
+                  cardHeight,
+                  '!animate-none',
+                  leaving.direction === 'next' && 'shadow-lg'
+                )}
+                compact={compact}
+                isBusy
+                footerEnd={compact ? arrows : undefined}
+                onChangeAll={() => undefined}
+                {...tableProps}
+              />
+            </div>
           )}
           <CategoryCard
             key={current.key}
             group={current}
-            className={cardHeight}
+            className={cn(
+              cardHeight,
+              direction === 'next' && 'animate-deck-advance',
+              direction === 'prev' && 'animate-deck-return'
+            )}
             compact={compact}
             isBusy={busy}
             onConfirm={() => settle(current.key, { transactionIds: ids })}

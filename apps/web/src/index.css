@@ -370,6 +370,118 @@
   }
 }
 
+/* Merchant card deck. Cards stay opaque while they move: a see-through card shows the text of
+   the one behind it. Stack layers sit at position n (0 is the top card), each one step lower and
+   narrower; the deck sets the step with --deck-dy and --deck-ds.
+   Next: the top card is thrown off to the left with a slight tilt, and only fades once it has
+   cleared the deck, while every card underneath moves up one position.
+   Previous: the reverse, the card comes back from the left onto the top and the stack sinks.
+   Only leftward motion, so a flying card never adds a horizontal scrollbar.
+   One plain ease curve throughout, no overshoot, so nothing springs */
+.deck-layer {
+  transform: translateY(calc(var(--deck-n) * var(--deck-dy)))
+    scale(calc(1 - var(--deck-n) * var(--deck-ds)));
+}
+
+.deck-layer,
+.animate-deck-advance,
+.animate-deck-advance-in,
+.animate-deck-recede,
+.animate-deck-throw,
+.animate-deck-return {
+  transform-origin: bottom;
+}
+
+@keyframes deck-advance {
+  from {
+    transform: translateY(calc((var(--deck-n, 0) + 1) * var(--deck-dy)))
+      scale(calc(1 - (var(--deck-n, 0) + 1) * var(--deck-ds)));
+  }
+}
+
+@keyframes deck-recede {
+  from {
+    transform: translateY(calc((var(--deck-n) - 1) * var(--deck-dy)))
+      scale(calc(1 - (var(--deck-n) - 1) * var(--deck-ds)));
+  }
+}
+
+@keyframes deck-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes deck-throw {
+  to {
+    transform: translate(-125%, -1rem) rotate(-12deg);
+  }
+}
+
+@keyframes deck-return {
+  from {
+    transform: translate(-125%, -1rem) rotate(-12deg);
+  }
+}
+
+/* By 70% of the throw the card is past the left edge of the deck */
+@keyframes deck-vanish {
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes deck-arrive {
+  from {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+
+/* Layers further back start a beat later, so the stack moves as a cascade */
+.animate-deck-advance {
+  animation: deck-advance 0.5s cubic-bezier(0.4, 0, 0.2, 1) calc(var(--deck-n, 0) * 40ms) backwards;
+}
+
+/* The back layer joins from one step further back */
+.animate-deck-advance-in {
+  animation:
+    deck-advance 0.5s cubic-bezier(0.4, 0, 0.2, 1) calc(var(--deck-n) * 40ms) backwards,
+    deck-appear 0.3s ease-out calc(var(--deck-n) * 40ms) backwards;
+}
+
+.animate-deck-recede {
+  animation: deck-recede 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-deck-throw {
+  animation:
+    deck-throw 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards,
+    deck-vanish 0.5s linear forwards;
+}
+
+.animate-deck-return {
+  animation:
+    deck-return 0.5s cubic-bezier(0.4, 0, 0.2, 1) backwards,
+    deck-arrive 0.5s linear backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-deck-advance,
+  .animate-deck-advance-in,
+  .animate-deck-recede,
+  .animate-deck-throw,
+  .animate-deck-return {
+    animation-duration: 0.01ms;
+    animation-delay: 0s;
+  }
+}
+
 .animate-fade-in-scale {
   animation: fade-in-scale 0.2s ease-out forwards;
 }
