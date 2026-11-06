@@ -177,6 +177,7 @@ function DashboardPage() {
   const {
     data: summary,
     isLoading: summaryLoading,
+    isPending: summaryPending,
     isPlaceholderData: summaryStale,
     isError,
     error,
@@ -538,8 +539,8 @@ function DashboardPage() {
             />
           )}
 
-          {/* Empty State */}
-          {!summaryLoading && !hasData && (
+          {/* Empty State: only once the summary has really loaded, not while its query waits for preferences */}
+          {!summaryPending && !hasData && (
             <EmptyState
               icon={Upload}
               title="Get started with Moneywright"
