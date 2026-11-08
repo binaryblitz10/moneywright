@@ -3,7 +3,7 @@
  * merging a group into the copy worth keeping, and undoing a merge.
  */
 
-import { and, asc, eq, inArray, isNotNull, isNull, like } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { duplicateKey } from '../lib/duplicate-key'
@@ -332,14 +332,6 @@ export async function mergeDuplicates(
       const withNotes = found.find((copy) => copy.notes)
       if (withNotes) carried.notes = withNotes.notes
     }
-    // A bank message copy proves the keeper (its statement line) was announced by the bank
-    if (
-      !keeper.smsVerified &&
-      found.some((copy) => copy.smsVerified || copy.hash.startsWith('sms:'))
-    ) {
-      carried.smsVerified = true
-    }
-
     // A hidden hand-entered or bank message copy keeps the merged transaction hidden
     if (
       !keeper.isHidden &&
@@ -446,24 +438,6 @@ export async function unmergeDuplicate(userId: string, id: string): Promise<bool
           eq(tables.smsMessages.guid, copy.hash.slice('sms:'.length))
         )
       )
-    // The keeper stays verified only while another bank message copy is still merged into it
-    const [remaining] = await db
-      .select({ id: tables.transactions.id })
-      .from(tables.transactions)
-      .where(
-        and(
-          eq(tables.transactions.userId, userId),
-          eq(tables.transactions.duplicateOfId, keeperId),
-          like(tables.transactions.hash, 'sms:%')
-        )
-      )
-      .limit(1)
-    if (!remaining) {
-      await db
-        .update(tables.transactions)
-        .set({ smsVerified: false, updatedAt: now })
-        .where(eq(tables.transactions.id, keeperId))
-    }
   }
   invalidateDuplicateCache(userId)
   return true
