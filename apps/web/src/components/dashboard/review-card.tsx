@@ -13,6 +13,8 @@ import {
   useDataHealth,
   usePreferences,
   useReviewCounts,
+  getDuplicateReviewCount,
+  getCategorizationReviewCount,
 } from '@/hooks'
 import { countOpenDataIssues } from '@/components/settings'
 import { ReviewHealth } from './review-health'
@@ -53,8 +55,8 @@ export function ReviewCard({
   const { data: batches } = useAutoFixBatches(profileId, enabled)
   const [mountedAt] = useState(() => Date.now())
 
-  const duplicatesCount = counts ? counts.duplicateGroups + counts.possibleMatches : 0
-  const categorizationCount = counts ? counts.pending + counts.other + counts.lowConfidence : 0
+  const duplicatesCount = counts ? getDuplicateReviewCount(counts) : 0
+  const categorizationCount = counts ? getCategorizationReviewCount(counts) : 0
   // Checks ignored in Settings stay out; the shaky-category check is already part of Categories
   const dataIssues = health
     ? countOpenDataIssues(health, preferences?.[PREFERENCE_KEYS.DATA_HEALTH_IGNORED_CHECKS])

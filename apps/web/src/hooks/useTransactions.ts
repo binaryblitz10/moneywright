@@ -22,6 +22,7 @@ import {
   mergeDuplicates,
   unmergeDuplicate,
   getReviewCounts,
+  type ReviewCounts,
   linkTransactions,
   unlinkTransaction,
   getLinkCandidates,
@@ -392,6 +393,21 @@ export function useUnmergeDuplicate() {
       toast.error('Failed to unmerge transaction')
     },
   })
+}
+
+/** Items on the Duplicates tab */
+export function getDuplicateReviewCount(counts: ReviewCounts): number {
+  return counts.duplicateGroups + counts.possibleMatches
+}
+
+/** Items on the Categories tab */
+export function getCategorizationReviewCount(counts: ReviewCounts): number {
+  return counts.pending + counts.other + counts.lowConfidence
+}
+
+/** Everything waiting in Review: what the sidebar badge shows */
+export function getReviewTotal(counts: ReviewCounts): number {
+  return getDuplicateReviewCount(counts) + getCategorizationReviewCount(counts)
 }
 
 /**

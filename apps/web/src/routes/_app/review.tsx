@@ -3,7 +3,15 @@ import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Transaction, TransactionFilters } from '@/lib/api'
-import { useAuth, useCategories, useAccounts, useProfileSelection, useReviewCounts } from '@/hooks'
+import {
+  useAuth,
+  useCategories,
+  useAccounts,
+  useProfileSelection,
+  useReviewCounts,
+  getDuplicateReviewCount,
+  getCategorizationReviewCount,
+} from '@/hooks'
 import { EditTransactionDialog } from '@/components/transactions'
 import { CategorizationPanel, DuplicatesPanel, HistoryPanel } from '@/components/review'
 
@@ -74,9 +82,7 @@ function ReviewPage() {
     formatAmount,
   }
 
-  const categorizationCount = counts
-    ? counts.pending + counts.other + counts.lowConfidence
-    : undefined
+  const categorizationCount = counts ? getCategorizationReviewCount(counts) : undefined
 
   return (
     <div className="space-y-6">
@@ -100,7 +106,7 @@ function ReviewPage() {
             Duplicates
             {counts && (
               <span className="text-xs text-muted-foreground">
-                {counts.duplicateGroups + counts.possibleMatches}
+                {getDuplicateReviewCount(counts)}
               </span>
             )}
           </TabsTrigger>

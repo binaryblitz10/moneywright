@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from '@tanstack/react-router'
 import {
   useProfileSelection,
   useReviewCounts,
+  getReviewTotal,
   useSmsImportStatus,
   useSmsSyncing,
   useUpdateChecker,
@@ -60,12 +61,7 @@ export function AppSidebar({ onOpenSearch }: AppSidebarProps) {
     handleFamilyViewChange,
   } = useProfileSelection()
   const { data: reviewCounts } = useReviewCounts(activeProfileId)
-  const reviewTotal = reviewCounts
-    ? reviewCounts.duplicateGroups +
-      reviewCounts.pending +
-      reviewCounts.other +
-      reviewCounts.possibleMatches
-    : 0
+  const reviewTotal = reviewCounts ? getReviewTotal(reviewCounts) : 0
 
   // Bank Messages only appears once reading bank messages is switched on
   const { data: smsStatus } = useSmsImportStatus()
