@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Plus, X } from 'lucide-react'
@@ -21,6 +22,7 @@ interface OllamaModelsModalProps {
 export function OllamaModelsModal({ open, onOpenChange, models }: OllamaModelsModalProps) {
   const queryClient = useQueryClient()
   const [showAddForm, setShowAddForm] = useState(false)
+  const [modelToRemove, setModelToRemove] = useState<OllamaModel | null>(null)
   const [newModelId, setNewModelId] = useState('')
   const [newModelName, setNewModelName] = useState('')
   const [newModelThinking, setNewModelThinking] = useState(false)
@@ -92,7 +94,8 @@ export function OllamaModelsModal({ open, onOpenChange, models }: OllamaModelsMo
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeModelMutation.mutate(model.id)}
+                    onClick={() => setModelToRemove(model)}
+                    aria-label={`Remove ${model.name}`}
                     disabled={removeModelMutation.isPending}
                   >
                     <X className="h-4 w-4" />
@@ -156,6 +159,15 @@ export function OllamaModelsModal({ open, onOpenChange, models }: OllamaModelsMo
           )}
         </div>
       </DialogContent>
+
+      <ConfirmDialog
+        open={modelToRemove !== null}
+        onOpenChange={(open) => !open && setModelToRemove(null)}
+        title="Remove this model?"
+        description={`${modelToRemove?.name ?? 'This model'} is removed from your list. You can add it again later.`}
+        confirmLabel="Remove"
+        onConfirm={() => modelToRemove && removeModelMutation.mutate(modelToRemove.id)}
+      />
     </Dialog>
   )
 }

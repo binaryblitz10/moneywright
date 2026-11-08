@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
+import { toast } from 'sonner'
 import {
   usePreferences,
   useSetPreference,
@@ -23,6 +24,9 @@ import { ToolCallModal } from '@/components/ai-elements/tool-call-modal'
 import { PREFERENCE_KEYS } from '@/lib/api'
 import type { ChatMessage } from '@/lib/api'
 import { Plus, AlertCircle } from 'lucide-react'
+
+/** How long a deleted chat can be restored before it is removed for good */
+const UNDO_DELETE_MS = 6000
 
 import {
   type Step,
@@ -115,6 +119,14 @@ function ChatPage() {
   )
   const createConversation = useCreateConversation()
   const deleteConversation = useDeleteConversation()
+  // Deleted chats disappear at once but are only removed on the server once the Undo toast
+  // has run out
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
+  const deleteTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const visibleConversations = useMemo(
+    () => conversations?.filter((conv) => !pendingDeleteIds.has(conv.id)),
+    [conversations, pendingDeleteIds]
+  )
 
   const {
     data: conversation,
@@ -340,16 +352,45 @@ function ChatPage() {
     [chatStream, navigate]
   )
 
-  // Handle deleting a conversation
+  // Handle deleting a conversation: hide it now, delete for real after the Undo toast
   const handleDeleteConversation = useCallback(
-    async (convId: string, e: React.MouseEvent) => {
+    (convId: string, e: React.MouseEvent) => {
       e.stopPropagation()
-      await deleteConversation.mutateAsync(convId)
-      if (convId === urlConversationId) {
-        handleNewChat()
-      }
+      const setPending = (add: boolean) =>
+        setPendingDeleteIds((prev) => {
+          const next = new Set(prev)
+          if (add) next.add(convId)
+          else next.delete(convId)
+          return next
+        })
+
+      const wasOpen = convId === urlConversationId
+      setPending(true)
+      if (wasOpen) handleNewChat()
+
+      const timer = setTimeout(() => {
+        deleteTimersRef.current.delete(convId)
+        deleteConversation.mutate(convId, {
+          // On success the refetched list no longer has it; on failure bring it back
+          onError: () => setPending(false),
+        })
+      }, UNDO_DELETE_MS)
+      deleteTimersRef.current.set(convId, timer)
+
+      toast('Conversation deleted', {
+        duration: UNDO_DELETE_MS,
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            clearTimeout(deleteTimersRef.current.get(convId))
+            deleteTimersRef.current.delete(convId)
+            setPending(false)
+            if (wasOpen) handleSelectConversation(convId)
+          },
+        },
+      })
     },
-    [deleteConversation, urlConversationId, handleNewChat]
+    [deleteConversation, urlConversationId, handleNewChat, handleSelectConversation]
   )
 
   // Handle tool call click
@@ -434,7 +475,7 @@ function ChatPage() {
                     <ConversationHistory
                       open={historyOpen}
                       onOpenChange={setHistoryOpen}
-                      conversations={conversations}
+                      conversations={visibleConversations}
                       isLoading={conversationsLoading}
                       currentConversationId={urlConversationId}
                       onSelectConversation={handleSelectConversation}
@@ -454,7 +495,7 @@ function ChatPage() {
               <ConversationHistory
                 open={historyOpen}
                 onOpenChange={setHistoryOpen}
-                conversations={conversations}
+                conversations={visibleConversations}
                 isLoading={conversationsLoading}
                 currentConversationId={urlConversationId}
                 onSelectConversation={handleSelectConversation}

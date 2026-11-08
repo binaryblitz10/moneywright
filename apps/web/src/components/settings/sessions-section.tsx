@@ -2,9 +2,11 @@
  * Active sessions section component
  */
 
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Loader2, Monitor, Smartphone, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { revokeSession, revokeOtherSessions } from '@/lib/api'
@@ -18,6 +20,8 @@ interface SessionsSectionProps {
 
 export function SessionsSection({ sessions, isLoading }: SessionsSectionProps) {
   const queryClient = useQueryClient()
+  const [sessionToRevoke, setSessionToRevoke] = useState<Session | null>(null)
+  const [confirmRevokeOthers, setConfirmRevokeOthers] = useState(false)
 
   // Revoke session mutation
   const revokeSessionMutation = useMutation({
@@ -64,7 +68,7 @@ export function SessionsSection({ sessions, isLoading }: SessionsSectionProps) {
             variant="ghost"
             size="sm"
             className="h-7 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => revokeOthersMutation.mutate()}
+            onClick={() => setConfirmRevokeOthers(true)}
             disabled={revokeOthersMutation.isPending}
           >
             <LogOut className="mr-1 h-3 w-3" />
@@ -119,7 +123,7 @@ export function SessionsSection({ sessions, isLoading }: SessionsSectionProps) {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs text-muted-foreground hover:text-destructive"
-                  onClick={() => revokeSessionMutation.mutate(session.id)}
+                  onClick={() => setSessionToRevoke(session)}
                   disabled={revokeSessionMutation.isPending}
                 >
                   Revoke
@@ -129,6 +133,23 @@ export function SessionsSection({ sessions, isLoading }: SessionsSectionProps) {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={sessionToRevoke !== null}
+        onOpenChange={(open) => !open && setSessionToRevoke(null)}
+        title="Revoke this session?"
+        description={`${sessionToRevoke ? getDeviceName(sessionToRevoke) : 'This device'} will be signed out and has to sign in again.`}
+        confirmLabel="Revoke"
+        onConfirm={() => sessionToRevoke && revokeSessionMutation.mutate(sessionToRevoke.id)}
+      />
+      <ConfirmDialog
+        open={confirmRevokeOthers}
+        onOpenChange={setConfirmRevokeOthers}
+        title="Sign out all other devices?"
+        description="Every session except this one is signed out and has to sign in again."
+        confirmLabel="Sign out others"
+        onConfirm={() => revokeOthersMutation.mutate()}
+      />
     </SectionCard>
   )
 }
