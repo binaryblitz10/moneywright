@@ -106,16 +106,16 @@ describe('exportFileName', () => {
   const name = 'app-manual-2026-01-31T10-20-30-123Z.db'
   test('uses the backup timestamp', () => {
     expect(exportFileName(name, () => false)).toBe(
-      'moneywright-backup-2026-01-31T10-20-30-123Z.zip'
+      'moneywright-backup-2026-01-31T10-20-30-123Z.mwbackup'
     )
   })
   test('avoids overwriting existing files', () => {
     const taken = new Set([
-      'moneywright-backup-2026-01-31T10-20-30-123Z.zip',
-      'moneywright-backup-2026-01-31T10-20-30-123Z-2.zip',
+      'moneywright-backup-2026-01-31T10-20-30-123Z.mwbackup',
+      'moneywright-backup-2026-01-31T10-20-30-123Z-2.mwbackup',
     ])
     expect(exportFileName(name, (f) => taken.has(f))).toBe(
-      'moneywright-backup-2026-01-31T10-20-30-123Z-3.zip'
+      'moneywright-backup-2026-01-31T10-20-30-123Z-3.mwbackup'
     )
   })
 })

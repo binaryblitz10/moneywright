@@ -89,13 +89,16 @@ export {
   useDeleteTransactionRule,
 } from './useTransactionRules'
 
+// Data export and erase hooks
+export { useExportTransactions, useEraseData } from './useDataExport'
+
 // Backup hooks
 export {
   backupKeys,
   useBackups,
   useCreateBackup,
   useRestoreBackup,
-  useExportBackup,
+  useSaveBackup,
 } from './useBackups'
 
 // SMS import hooks

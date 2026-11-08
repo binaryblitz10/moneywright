@@ -16,8 +16,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useBackups, useCreateBackup, useExportBackup, useRestoreBackup } from '@/hooks'
-import { getBackupDownloadUrl } from '@/lib/api'
+import { useBackups, useCreateBackup, useSaveBackup, useRestoreBackup } from '@/hooks'
+import { BackupPassphraseDialog } from './backup-passphrase-dialog'
 import type { BackupInfo, BackupKind } from '@/lib/api'
 
 const KIND_LABELS: Record<BackupKind, string> = {
@@ -45,8 +45,9 @@ export function BackupsSection() {
   const { data, isLoading } = useBackups()
   const createMutation = useCreateBackup()
   const restoreMutation = useRestoreBackup()
-  const exportMutation = useExportBackup()
+  const saveMutation = useSaveBackup()
   const [restoring, setRestoring] = useState<BackupInfo | null>(null)
+  const [saving, setSaving] = useState<BackupInfo | null>(null)
 
   // Backups are not available for every kind of database
   if (!isLoading && data && !data.supported) return null
@@ -88,12 +89,21 @@ export function BackupsSection() {
               key={backup.name}
               backup={backup}
               onRestore={() => setRestoring(backup)}
-              onExport={() => exportMutation.mutate(backup.name)}
-              exporting={exportMutation.isPending && exportMutation.variables === backup.name}
+              onDownload={() => setSaving(backup)}
+              downloading={saveMutation.isPending && saveMutation.variables?.name === backup.name}
             />
           ))}
         </div>
       )}
+
+      <BackupPassphraseDialog
+        open={saving !== null}
+        onOpenChange={(open) => !open && setSaving(null)}
+        onSubmit={(passphrase) => {
+          if (saving) saveMutation.mutate({ name: saving.name, passphrase })
+          setSaving(null)
+        }}
+      />
 
       <AlertDialog open={restoring !== null} onOpenChange={(open) => !open && setRestoring(null)}>
         <AlertDialogContent>
@@ -125,15 +135,11 @@ export function BackupsSection() {
 interface BackupRowProps {
   backup: BackupInfo
   onRestore: () => void
-  onExport: () => void
-  exporting: boolean
+  onDownload: () => void
+  downloading: boolean
 }
 
-/** The desktop app cannot download files, so it saves them to the Downloads folder instead */
-const isDesktopApp =
-  typeof window !== 'undefined' && !!(window as { __TAURI__?: unknown }).__TAURI__
-
-function BackupRow({ backup, onRestore, onExport, exporting }: BackupRowProps) {
+function BackupRow({ backup, onRestore, onDownload, downloading }: BackupRowProps) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-elevated px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -142,23 +148,14 @@ function BackupRow({ backup, onRestore, onExport, exporting }: BackupRowProps) {
           {KIND_LABELS[backup.kind]} · {formatSize(backup.size)}
         </p>
       </div>
-      {isDesktopApp ? (
-        <Button variant="outline" size="sm" onClick={onExport} disabled={exporting}>
-          {exporting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Download
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" asChild>
-          <a href={getBackupDownloadUrl(backup.name)} download>
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </a>
-        </Button>
-      )}
+      <Button variant="outline" size="sm" onClick={onDownload} disabled={downloading}>
+        {downloading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="mr-2 h-4 w-4" />
+        )}
+        Download
+      </Button>
       <Button variant="outline" size="sm" onClick={onRestore}>
         <RotateCcw className="mr-2 h-4 w-4" />
         Restore

@@ -21,6 +21,7 @@ export { countOpenDataIssues } from './data-health-issues'
 export { DashboardWidgetsSection } from './dashboard-widgets-section'
 export { ThemeSection } from './theme-section'
 export { BackupsSection } from './backups-section'
+export { YourDataSection } from './your-data-section'
 export { SmsImportSection } from './sms-import-section'
 
 export { SettingsNav, SETTINGS_SECTIONS, type SettingsSection } from './settings-nav'

@@ -1,4 +1,5 @@
 import { api } from './axios'
+import { isDesktopApp } from './desktop'
 
 /**
  * User type
@@ -3447,15 +3448,64 @@ export async function restoreBackup(name: string): Promise<void> {
   await api.post(`/backups/${encodeURIComponent(name)}/restore`)
 }
 
-/** Link that downloads a backup as a zip (opened by the browser, which sends the login cookie) */
-export function getBackupDownloadUrl(name: string): string {
-  return `/api/backups/${encodeURIComponent(name)}/download`
+/** Hand a downloaded response to the browser as a file save */
+function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
-/** Save a backup zip to the Downloads folder (desktop app); returns where it was saved */
-export async function exportBackup(name: string): Promise<string> {
-  const response = await api.post(`/backups/${encodeURIComponent(name)}/export`)
-  return response.data.path
+/** File name from a Content-Disposition header */
+function downloadFileName(header: string | undefined, fallback: string): string {
+  return header?.match(/filename="([^"]+)"/)?.[1] ?? fallback
+}
+
+/**
+ * Save a backup locked with a passphrase: to the Downloads folder in the desktop app,
+ * as a browser download elsewhere. Returns the saved path in the desktop app.
+ */
+export async function saveBackup(name: string, passphrase: string): Promise<string | null> {
+  const url = `/backups/${encodeURIComponent(name)}`
+  if (isDesktopApp) {
+    const response = await api.post(`${url}/export`, { passphrase })
+    return response.data.path
+  }
+  const response = await api.post(`${url}/download`, { passphrase }, { responseType: 'blob' })
+  saveBlob(
+    response.data,
+    downloadFileName(response.headers['content-disposition'], 'moneywright-backup.mwbackup')
+  )
+  return null
+}
+
+// ============================================
+// Data export and erase
+// ============================================
+
+/** Save the transactions matching the filters as CSV (see saveBackup for where it goes) */
+export async function exportTransactions(filters?: TransactionFilters): Promise<string | null> {
+  const query = buildFilterParams(filters).toString()
+  const url = `/transactions/export${query ? `?${query}` : ''}`
+  if (isDesktopApp) {
+    const response = await api.post(url)
+    return response.data.path
+  }
+  const response = await api.get(url, { responseType: 'blob' })
+  saveBlob(
+    response.data,
+    downloadFileName(response.headers['content-disposition'], 'moneywright-transactions.csv')
+  )
+  return null
+}
+
+/** Erase all profiles, accounts, transactions and other data (local mode) */
+export async function eraseAllData(): Promise<void> {
+  await api.post('/user/erase-data', { confirmation: 'ERASE' })
 }
 
 // ============================================

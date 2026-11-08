@@ -1,15 +1,18 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { z } from 'zod/v4'
 import type { Database } from 'bun:sqlite'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { client, dbType } from '../db'
 import {
-  buildBackupZip,
+  buildBackupFile,
   createManualBackup,
   exportBackupToDownloads,
+  exportFileName,
   isValidBackupName,
   listBackups,
   stageRestore,
 } from '../services/backups'
+import { MIN_PASSPHRASE_LENGTH } from '../lib/backup-crypto'
 import { logger } from '../lib/logger'
 
 const backupRoutes = new Hono<{ Variables: AuthVariables }>()
@@ -41,39 +44,61 @@ backupRoutes.post('/', (c) => {
   }
 })
 
-/**
- * GET /backups/:name/download
- * Download a zip with the backup and the .env needed to read it
- */
-backupRoutes.get('/:name/download', (c) => {
-  if (dbType !== 'sqlite') return c.json(unsupported, 400)
-  const name = c.req.param('name')
+const passphraseSchema = z.object({
+  passphrase: z
+    .string()
+    .min(MIN_PASSPHRASE_LENGTH, `Use at least ${MIN_PASSPHRASE_LENGTH} characters`),
+})
+
+/** Validate the :name param and the passphrase body shared by download and export */
+async function parseBackupRequest(
+  c: Context
+): Promise<{ name: string; passphrase: string } | Response> {
+  const name = c.req.param('name') ?? ''
   if (!isValidBackupName(name)) {
     return c.json({ error: 'invalid_name', message: 'Invalid backup name' }, 400)
   }
+  const body = passphraseSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!body.success) {
+    return c.json(
+      { error: 'validation_error', message: body.error.issues[0]?.message ?? 'Invalid request' },
+      400
+    )
+  }
+  return { name, passphrase: body.data.passphrase }
+}
 
-  const zip = buildBackupZip(name)
-  if (!zip) return c.json({ error: 'not_found', message: 'Backup not found' }, 404)
+/**
+ * POST /backups/:name/download
+ * Download the backup (with the key needed to read it) as a file locked with a passphrase
+ */
+backupRoutes.post('/:name/download', async (c) => {
+  if (dbType !== 'sqlite') return c.json(unsupported, 400)
+  const request = await parseBackupRequest(c)
+  if (request instanceof Response) return request
 
-  return new Response(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), {
+  const file = await buildBackupFile(request.name, request.passphrase)
+  if (!file) return c.json({ error: 'not_found', message: 'Backup not found' }, 404)
+
+  const fileName = exportFileName(request.name, () => false)
+  return new Response(new Blob([new Uint8Array(file)], { type: 'application/octet-stream' }), {
     headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${name.replace(/\.db$/, '')}.zip"`,
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
     },
   })
 })
 
 /**
  * POST /backups/:name/export
- * Save the download zip to the Downloads folder (for the desktop app, which cannot download files)
+ * Save the passphrase-protected file to the Downloads folder (for the desktop app, which cannot download files)
  */
-backupRoutes.post('/:name/export', (c) => {
+backupRoutes.post('/:name/export', async (c) => {
   if (dbType !== 'sqlite') return c.json(unsupported, 400)
-  const name = c.req.param('name')
-  if (!isValidBackupName(name)) {
-    return c.json({ error: 'invalid_name', message: 'Invalid backup name' }, 400)
-  }
-  const path = exportBackupToDownloads(name)
+  const request = await parseBackupRequest(c)
+  if (request instanceof Response) return request
+
+  const path = await exportBackupToDownloads(request.name, request.passphrase)
   if (!path) return c.json({ error: 'not_found', message: 'Backup not found' }, 404)
   return c.json({ path })
 })

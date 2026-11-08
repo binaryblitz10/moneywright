@@ -26,6 +26,7 @@ import {
   DashboardWidgetsSection,
   ThemeSection,
   BackupsSection,
+  YourDataSection,
   SmsImportSection,
   SettingsNav,
   SETTINGS_SECTIONS,
@@ -135,6 +136,9 @@ function SettingsPage() {
 
               {/* Backups - hidden when the database does not support them */}
               <BackupsSection />
+
+              {/* Export and erase - erase is for local mode only */}
+              <YourDataSection canErase={!authEnabled} />
             </>
           )}
 

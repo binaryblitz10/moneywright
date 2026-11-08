@@ -22,6 +22,7 @@ import {
   useStatements,
   useDebounce,
   useProfileSelection,
+  useExportTransactions,
 } from '@/hooks'
 import {
   TransactionStats,
@@ -39,7 +40,7 @@ import type { SortBy, SortOrder } from '@/components/transactions'
 import { EmptyState } from '@/components/ui/empty-state'
 import { QueryError } from '@/components/ui/query-error'
 import { Button } from '@/components/ui/button'
-import { ListChecks, Plus, Receipt, Upload, X } from 'lucide-react'
+import { Download, ListChecks, Plus, Receipt, Upload, X } from 'lucide-react'
 
 // Filters live in the URL so a refresh, the back button or a shared link keeps them.
 // List filters are comma-separated; flags are '1'.
@@ -144,6 +145,7 @@ function TransactionsPage() {
   const queryEnabled = !!activeProfileId || showFamilyView
 
   // Build active filters
+  const exportMutation = useExportTransactions()
   const activeFilters: TransactionFilters & { enabled?: boolean } = {
     ...filters,
     profileId: activeProfileId,
@@ -253,6 +255,14 @@ function TransactionsPage() {
         description="View and manage your transactions"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => exportMutation.mutate(activeFilters)}
+              disabled={exportMutation.isPending}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
             <Button onClick={() => setAddOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add transaction

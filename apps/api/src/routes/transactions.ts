@@ -22,6 +22,8 @@ import {
   getRecategorizeJobStatus,
   getCategorizationStatus,
 } from '../services/statements'
+import { exportTransactionsCsv } from '../services/transaction-export'
+import { saveToDownloads } from '../lib/downloads'
 import { queueRenameJob, getRenameJobStatus } from '../services/transaction-rename'
 import { findSimilarForCorrection } from '../services/categorization-events'
 import { getProfileById } from '../services/profiles'
@@ -258,6 +260,34 @@ transactionRoutes.get('/', async (c) => {
 transactionRoutes.get('/ids', async (c) => {
   const userId = c.get('userId')
   return c.json(await getTransactionIds(userId, parseTransactionFilters(c)))
+})
+
+/** Name for an exported CSV, e.g. moneywright-transactions-2026-01-31 */
+function exportBaseName(): string {
+  return `moneywright-transactions-${new Date().toISOString().slice(0, 10)}`
+}
+
+/**
+ * GET /transactions/export
+ * Download every transaction matching the filters as CSV
+ */
+transactionRoutes.get('/export', async (c) => {
+  const csv = await exportTransactionsCsv(c.get('userId'), parseTransactionFilters(c))
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${exportBaseName()}.csv"`,
+    },
+  })
+})
+
+/**
+ * POST /transactions/export
+ * Save the CSV to the Downloads folder (for the desktop app, which cannot download files)
+ */
+transactionRoutes.post('/export', async (c) => {
+  const csv = await exportTransactionsCsv(c.get('userId'), parseTransactionFilters(c))
+  return c.json({ path: saveToDownloads(exportBaseName(), 'csv', csv) })
 })
 
 /**

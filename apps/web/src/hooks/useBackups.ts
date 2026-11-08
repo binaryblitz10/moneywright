@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getBackups, createBackup, restoreBackup, exportBackup } from '@/lib/api'
+import { getBackups, createBackup, restoreBackup, saveBackup } from '@/lib/api'
 
 // Query Keys
 export const backupKeys = {
@@ -51,12 +51,13 @@ export function useRestoreBackup() {
 }
 
 /**
- * Save a backup zip to the Downloads folder (used in the desktop app)
+ * Save a passphrase-protected backup file (download, or Downloads folder in the desktop app)
  */
-export function useExportBackup() {
+export function useSaveBackup() {
   return useMutation({
-    mutationFn: exportBackup,
-    onSuccess: () => toast.success('Saved to Downloads'),
+    mutationFn: ({ name, passphrase }: { name: string; passphrase: string }) =>
+      saveBackup(name, passphrase),
+    onSuccess: (path) => toast.success(path ? 'Saved to Downloads' : 'Backup downloaded'),
     onError: () => toast.error('Could not save the backup'),
   })
 }

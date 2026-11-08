@@ -18,11 +18,12 @@ import {
   statSync,
   writeFileSync,
 } from 'fs'
-import { homedir } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import { zipSync } from 'fflate'
 import { getDataDir, getSqlitePath } from '../lib/startup'
 import { logger } from '../lib/logger'
+import { encryptBackup } from '../lib/backup-crypto'
+import { saveToDownloads, uniqueFileName } from '../lib/downloads'
 
 export type BackupKind = 'auto' | 'manual' | 'before-restore'
 
@@ -42,6 +43,8 @@ const MAX_AUTO_BACKUPS = 10
 const PRE_MIGRATION_PREFIX = 'app-pre-migration-'
 const MANUAL_PREFIX = 'app-manual-'
 const BEFORE_RESTORE_PREFIX = 'app-before-restore-'
+/** File extension of a downloaded, passphrase-protected backup */
+export const BACKUP_FILE_EXT = 'mwbackup'
 const RESTORE_MARKER = 'restore-pending.json'
 
 // app-<pre-migration|manual|before-restore>-2026-01-31T10-20-30-123Z.db
@@ -186,9 +189,10 @@ export function listBackups(): BackupInfo[] {
 
 /**
  * Build a zip with the backup and the current .env (holds the key needed to read the backup).
- * Returns null if the backup does not exist.
+ * Returns null if the backup does not exist. The zip holds the encryption key, so it must
+ * never leave the computer unencrypted: use buildBackupFile for downloads.
  */
-export function buildBackupZip(name: string): Uint8Array | null {
+function buildBackupZip(name: string): Uint8Array | null {
   if (!isValidBackupName(name)) return null
   const path = join(getBackupsDir(), name)
   if (!existsSync(path)) return null
@@ -200,6 +204,18 @@ export function buildBackupZip(name: string): Uint8Array | null {
   }
   // Database files are already compact; skip compression for speed
   return zipSync(files, { level: 0 })
+}
+
+/**
+ * The backup zip protected with a passphrase, ready to download.
+ * Returns null if the backup does not exist.
+ */
+export async function buildBackupFile(
+  name: string,
+  passphrase: string
+): Promise<Uint8Array | null> {
+  const zip = buildBackupZip(name)
+  return zip ? encryptBackup(zip, passphrase) : null
 }
 
 /**
@@ -263,47 +279,25 @@ export function applyPendingRestore(): void {
 }
 
 /**
- * Pick a zip file name for exporting a backup that does not overwrite an existing file.
+ * Pick a file name for exporting a backup that does not overwrite an existing file.
  */
 export function exportFileName(backupName: string, exists: (fileName: string) => boolean): string {
   const stamp = backupName
     .replace(/^app-(pre-migration|manual|before-restore)-/, '')
     .replace(/\.db$/, '')
-  const base = `moneywright-backup-${stamp}`
-  let fileName = `${base}.zip`
-  for (let n = 2; exists(fileName); n++) fileName = `${base}-${n}.zip`
-  return fileName
+  return uniqueFileName(`moneywright-backup-${stamp}`, BACKUP_FILE_EXT, exists)
 }
 
 /**
- * Save the backup zip to the user's Downloads folder and show it in the file manager.
+ * Save the encrypted backup to the user's Downloads folder and show it in the file manager.
  * Returns the saved path, or null if the backup does not exist.
  */
-export function exportBackupToDownloads(name: string): string | null {
-  const zip = buildBackupZip(name)
-  if (!zip) return null
-
-  const dir = join(homedir(), 'Downloads')
-  mkdirSync(dir, { recursive: true })
-  const file = join(
-    dir,
-    exportFileName(name, (f) => existsSync(join(dir, f)))
-  )
-  writeFileSync(file, zip)
-  revealInFileManager(file, dir)
-  return file
-}
-
-function revealInFileManager(file: string, dir: string): void {
-  const command =
-    process.platform === 'darwin'
-      ? ['open', '-R', file]
-      : process.platform === 'win32'
-        ? ['explorer', `/select,${file}`]
-        : ['xdg-open', dir]
-  try {
-    Bun.spawn(command, { stdout: 'ignore', stderr: 'ignore' })
-  } catch {
-    // Showing the file is a convenience; the export itself succeeded
-  }
+export async function exportBackupToDownloads(
+  name: string,
+  passphrase: string
+): Promise<string | null> {
+  const file = await buildBackupFile(name, passphrase)
+  if (!file) return null
+  const stamp = exportFileName(name, () => false).replace(`.${BACKUP_FILE_EXT}`, '')
+  return saveToDownloads(stamp, BACKUP_FILE_EXT, file)
 }

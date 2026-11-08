@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod/v4'
+import { eraseAllUserData } from '../services/data-erase'
+import { isAuthEnabled } from '../lib/startup'
 import { auth, type AuthVariables } from '../middleware/auth'
 import { updateUserCountry, findUserById, isOnboardingComplete } from '../services/user'
 
@@ -72,6 +74,25 @@ userRoutes.get('/me', auth(), async (c) => {
     createdAt: user.createdAt,
     onboardingComplete,
   })
+})
+
+/**
+ * POST /user/erase-data
+ * Erase all of the user's data (local mode; with sign-in on, use DELETE /auth/account)
+ */
+userRoutes.post('/erase-data', auth(), async (c) => {
+  if (isAuthEnabled()) {
+    return c.json({ error: 'unsupported', message: 'Delete your account instead' }, 400)
+  }
+  const body = await c.req.json().catch(() => ({}))
+  if (body.confirmation !== 'ERASE') {
+    return c.json(
+      { error: 'confirmation_required', message: 'Send { confirmation: "ERASE" } to confirm' },
+      400
+    )
+  }
+  await eraseAllUserData(c.get('userId'))
+  return c.json({ success: true })
 })
 
 export default userRoutes
