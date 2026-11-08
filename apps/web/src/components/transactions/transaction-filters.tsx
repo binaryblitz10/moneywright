@@ -134,7 +134,7 @@ export function TransactionFiltersBar({
             />
             <Search
               className={cn(
-                'absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 transition-colors',
+                'pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 transition-colors',
                 searchFocused ? 'text-primary' : 'text-muted-foreground'
               )}
             />
