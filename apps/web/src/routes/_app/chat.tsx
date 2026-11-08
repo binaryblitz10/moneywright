@@ -1,3 +1,4 @@
+import { getLastConversationId, setLastConversationId } from '@/lib/last-conversation'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -332,13 +333,38 @@ function ChatPage() {
     void sendText(ask)
   }, [ask, urlConversationId, chatReady, navigate, sendText])
 
+  // Remember the open conversation, and reopen it when the page is visited again
+  const conversationScope = showFamilyView ? 'family' : activeProfileId
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (conversationScope && activeConversationId) {
+      setLastConversationId(conversationScope, activeConversationId)
+    }
+  }, [conversationScope, activeConversationId])
+  useEffect(() => {
+    if (restoredRef.current || !conversationScope) return
+    if (urlConversationId || ask) {
+      restoredRef.current = true
+      return
+    }
+    if (!conversations) return
+    restoredRef.current = true
+    const saved = getLastConversationId(conversationScope)
+    if (saved && conversations.some((conv) => conv.id === saved)) {
+      navigate({ to: '/chat', search: { conversationId: saved }, replace: true })
+    } else if (saved) {
+      setLastConversationId(conversationScope, null)
+    }
+  }, [conversationScope, urlConversationId, ask, conversations, navigate])
+
   // Handle new chat
   const handleNewChat = useCallback(() => {
+    if (conversationScope) setLastConversationId(conversationScope, null)
     chatStream.resetState()
     setMessages([])
     setActiveConversationId(undefined)
     navigate({ to: '/chat', search: {}, replace: true })
-  }, [chatStream, navigate])
+  }, [chatStream, navigate, conversationScope])
 
   // Handle selecting a conversation
   const handleSelectConversation = useCallback(
@@ -457,7 +483,8 @@ function ChatPage() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col">
+      {/* Reaches over the page padding at the bottom so the chat gets the room */}
+      <div className="-mb-6 flex h-[calc(100%+1.5rem)] min-h-0 flex-col lg:-mb-8 lg:h-[calc(100%+2rem)]">
         {!showWelcome && (
           <>
             <div className="shrink-0 pb-4">
