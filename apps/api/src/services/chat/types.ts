@@ -190,3 +190,53 @@ export function formatCurrency(amount: number, currency: string = 'INR'): string
     maximumFractionDigits: 2,
   }).format(amount)
 }
+
+/** A transaction shown as an example in a proposal preview */
+export interface ProposalSample {
+  date: string
+  type: 'credit' | 'debit'
+  amount: number
+  /** Present when the example comes from a known account, so the card can show it */
+  accountId?: string
+  currency?: string
+  description: string
+  /** The bank's text for the transaction, shown under the name when it differs */
+  originalDescription: string
+  category: string
+}
+
+interface ProposalBase {
+  proposal: true
+  title: string
+  summary: string
+  preview?: { count: number; samples: ProposalSample[] }
+}
+
+/**
+ * A change the chat agent suggests. Nothing is changed until the user applies it in the UI.
+ */
+export type ChatProposal =
+  | (ProposalBase & {
+      kind: 'recategorize'
+      payload: { transactionIds: string[]; category: string }
+    })
+  | (ProposalBase & {
+      kind: 'createRule'
+      payload: {
+        matchTerms: string[]
+        transactionType: 'credit' | 'debit' | null
+        name: string | null
+        category: string | null
+        isSubscription: boolean
+      }
+    })
+  | (ProposalBase & {
+      kind: 'setBudget'
+      payload: {
+        profileId: string
+        category: string
+        monthlyAmount: number
+        rollover: boolean
+        existingBudgetId?: string
+      }
+    })

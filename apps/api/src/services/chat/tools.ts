@@ -21,7 +21,7 @@ import { tavily } from '@tavily/core'
 import { openai } from '@ai-sdk/openai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
-import type { AIProvider } from './types'
+import type { AIProvider, ChatProposal } from './types'
 import { logger } from '../../lib/logger'
 import { createLLMClient } from '../../llm'
 import {
@@ -35,6 +35,9 @@ import {
 
 // Import existing service functions
 import { getTransactions, getDetectedSubscriptions, type TransactionFilters } from '../transactions'
+import { previewRule } from '../transaction-rules'
+import { findUserById } from '../user'
+import { categoryLabel } from '../spending-changes'
 import { computeSavings, getCashFlow, getMonthCoverage, getMonthsRange } from '../cashflow'
 import { getSpendingChanges } from '../spending-changes'
 import { buildDataHealthSummary } from './data-health-summary'
@@ -47,7 +50,12 @@ import {
 import { isMonth, monthsBetween } from '../../lib/budgets'
 import { getProfilesByUserId } from '../profiles'
 import { comparePeriods, daysInRange, getTotals } from '../transaction-totals'
-import { CATEGORY_KIND_LABELS } from '../../lib/constants'
+import {
+  CATEGORY_KIND_LABELS,
+  getCategoriesForCountry,
+  isValidCategory,
+  type CountryCode,
+} from '../../lib/constants'
 import { getAccountsWithBalances, calculateNetWorth } from '../accounts'
 import { getHoldingsByUserId, getInvestmentSummary } from '../investment-holdings'
 import { getSourcesByUserId } from '../investment-sources'
@@ -309,6 +317,17 @@ function paginate<T>(data: T[], page: number): { slice: T[]; hasMore: boolean } 
     slice: data.slice(start, end),
     hasMore: end < data.length,
   }
+}
+
+/** Most transactions one recategorize proposal may cover */
+const MAX_PROPOSAL_TRANSACTIONS = 200
+
+const PROPOSAL_RULES = `This only PROPOSES a change and changes nothing: the user must press Apply on the card shown under your message. Never say the change was made. Make at most one proposal per user request unless asked for more, and prefer showing the numbers (with the data tools) before proposing.`
+
+/** The user's country, which decides the category list */
+async function getUserCountry(userId: string): Promise<CountryCode> {
+  const user = await findUserById(userId)
+  return (user?.country || 'US') as CountryCode
 }
 
 /**
@@ -1146,6 +1165,189 @@ In family view the budgets come grouped by profile. Budgets only cover spending 
           profiles: summaries
             .filter(({ summary }) => summary.budgets.length > 0)
             .map(({ profile, summary }) => ({ profile, ...toResult(summary) })),
+        }
+      },
+    }),
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROPOSAL TOOLS - Validate and describe a change; the user applies it in the UI
+    // ═══════════════════════════════════════════════════════════════════════
+
+    proposeRecategorize: tool({
+      description: `Propose moving matching transactions to another category. ${PROPOSAL_RULES}
+Transaction ids are not shown in getTransactions, so pick the transactions with the same filters (at least one is required). Matches that already have the category are skipped. At most ${MAX_PROPOSAL_TRANSACTIONS} transactions: narrow the filters if there are more.`,
+      inputSchema: z.object({
+        category: z.string().describe('Category code to move the transactions to'),
+        search: z.string().optional().describe('Search in description, summary and notes'),
+        startDate: isoDate.optional().describe('Start date (YYYY-MM-DD)'),
+        endDate: isoDate.optional().describe('End date (YYYY-MM-DD)'),
+        fromCategory: z
+          .string()
+          .optional()
+          .describe('Only transactions currently in this category'),
+        type: z.enum(['credit', 'debit']).optional().describe('Transaction type'),
+        minAmount: z.number().optional().describe('Minimum amount'),
+        maxAmount: z.number().optional().describe('Maximum amount'),
+        accountId: z.string().optional().describe('Filter by account ID'),
+      }),
+      execute: async (params): Promise<ChatProposal | { error: string }> => {
+        const { category, fromCategory, ...rest } = params
+        if (!Object.values(rest).some((value) => value !== undefined)) {
+          return {
+            error:
+              'Give at least one filter (search, dates, amount, account) to pick the transactions',
+          }
+        }
+        if (!isValidCategory(await getUserCountry(userId), category)) {
+          return { error: `Unknown category "${category}"` }
+        }
+
+        const { transactions } = await getTransactions(
+          userId,
+          { ...rest, category: fromCategory, profileId: profileIdForQuery },
+          { limit: MAX_PROPOSAL_TRANSACTIONS * 5, sortBy: 'date', sortOrder: 'desc' }
+        )
+        const matches = transactions.filter((t) => t.category !== category)
+        if (matches.length === 0) {
+          return { error: 'No transactions match, or they are already in that category' }
+        }
+        if (matches.length > MAX_PROPOSAL_TRANSACTIONS) {
+          return {
+            error: `${matches.length} transactions match; narrow the filters to at most ${MAX_PROPOSAL_TRANSACTIONS}`,
+          }
+        }
+
+        const label = categoryLabel(category)
+        return {
+          proposal: true,
+          kind: 'recategorize',
+          title: `Move ${matches.length} transaction${matches.length === 1 ? '' : 's'} to ${label}`,
+          summary: `Change the category of ${matches.length} transaction${matches.length === 1 ? '' : 's'} to ${label}.`,
+          payload: { transactionIds: matches.map((t) => t.id), category },
+          preview: {
+            count: matches.length,
+            samples: matches.slice(0, 5).map((t) => ({
+              date: t.date,
+              type: t.type,
+              amount: roundMoney(t.amount),
+              accountId: t.accountId,
+              currency: t.currency,
+              description: t.summary || t.originalDescription,
+              originalDescription: t.originalDescription,
+              category: t.category,
+            })),
+          },
+        }
+      },
+    }),
+
+    proposeRule: tool({
+      description: `Propose a rule that categorizes (and optionally names or flags as subscription) every transaction whose description contains one of the terms, now and in future imports. ${PROPOSAL_RULES}
+The terms must match at least one existing transaction.`,
+      inputSchema: z.object({
+        matchTerms: z
+          .array(z.string())
+          .min(1)
+          .describe('Words found in the description, e.g. ["netflix"]'),
+        category: z.string().nullable().optional().describe('Category code to assign'),
+        name: z.string().nullable().optional().describe('Name to show for matching transactions'),
+        transactionType: z
+          .enum(['credit', 'debit'])
+          .nullable()
+          .optional()
+          .describe('Only credits or debits'),
+        isSubscription: z.boolean().optional().describe('Mark matches as subscriptions'),
+      }),
+      execute: async (params): Promise<ChatProposal | { error: string }> => {
+        const category = params.category ?? null
+        const name = params.name?.trim() || null
+        const transactionType = params.transactionType ?? null
+        const isSubscription = params.isSubscription ?? false
+        if (!category && !name && !isSubscription) {
+          return { error: 'A rule needs a category, a name or the subscription flag' }
+        }
+        if (category && !isValidCategory(await getUserCountry(userId), category)) {
+          return { error: `Unknown category "${category}"` }
+        }
+
+        const preview = await previewRule(userId, {
+          matchTerms: params.matchTerms,
+          transactionType,
+        })
+        if (preview.count === 0) {
+          return { error: 'No transactions match these terms (terms need a few characters each)' }
+        }
+
+        const terms = params.matchTerms.join(', ')
+        return {
+          proposal: true,
+          kind: 'createRule',
+          title: `Rule for "${terms}"${category ? ` → ${categoryLabel(category)}` : ''}`,
+          summary: `Matches ${preview.count} existing transaction${preview.count === 1 ? '' : 's'} and applies to future imports.`,
+          payload: {
+            matchTerms: params.matchTerms,
+            transactionType,
+            name,
+            category,
+            isSubscription,
+          },
+          preview: {
+            count: preview.count,
+            samples: preview.samples.map((t) => ({
+              date: t.date,
+              type: t.type,
+              amount: roundMoney(t.amount),
+              description: t.summary || t.originalDescription,
+              originalDescription: t.originalDescription,
+              category: t.category,
+            })),
+          },
+        }
+      },
+    }),
+
+    proposeBudget: tool({
+      description: `Propose a monthly budget for one spending category of the current profile (it replaces the limit if the category already has a budget). ${PROPOSAL_RULES}
+Only works in a single profile, not in family view.`,
+      inputSchema: z.object({
+        category: z.string().describe('Spending category code'),
+        monthlyAmount: z.number().positive().describe('Monthly limit'),
+        rollover: z.boolean().optional().describe('Carry unspent money to the next month'),
+      }),
+      execute: async (params): Promise<ChatProposal | { error: string }> => {
+        if (!profileId) {
+          return {
+            error:
+              'Budgets belong to one profile: ask the user to switch to a single profile first',
+          }
+        }
+        const known = getCategoriesForCountry(await getUserCountry(userId)).find(
+          (c) => c.code === params.category
+        )
+        if (!known || known.kind !== 'expense') {
+          return { error: `"${params.category}" is not a spending category` }
+        }
+
+        const month = new Date().toISOString().substring(0, 7)
+        const summary = await getBudgetSummary(userId, profileId, month)
+        const existing = summary.budgets.find((b) => b.category === params.category)
+        const rollover = params.rollover ?? existing?.rollover ?? false
+        const label = categoryLabel(params.category)
+
+        return {
+          proposal: true,
+          kind: 'setBudget',
+          title: `${existing ? 'Change' : 'Set'} ${label} budget to ${params.monthlyAmount} ${summary.currency}`,
+          summary: existing
+            ? `${label} already has a budget of ${existing.monthlyAmount} ${summary.currency} a month; this would change it to ${params.monthlyAmount}.`
+            : `A new budget of ${params.monthlyAmount} ${summary.currency} a month for ${label}.`,
+          payload: {
+            profileId,
+            category: params.category,
+            monthlyAmount: params.monthlyAmount,
+            rollover,
+            ...(existing ? { existingBudgetId: existing.id } : {}),
+          },
         }
       },
     }),

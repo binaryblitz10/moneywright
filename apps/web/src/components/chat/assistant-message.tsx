@@ -2,6 +2,7 @@
  * Assistant message component with chain of thought rendering
  */
 
+import { Fragment } from 'react'
 import { Brain, BrainCircuit, MessageSquare } from 'lucide-react'
 import { Message, MessageContent } from '@/components/ai-elements/message'
 import {
@@ -18,6 +19,7 @@ import { TOOL_CONFIG } from './tool-config'
 import { groupSteps } from './utils'
 import type { Step, ToolCallStep, UIMessage } from './types'
 import { ChatColumn } from './chat-column'
+import { ProposalCard, type Proposal } from './proposal-card'
 
 interface StreamState {
   steps: Array<{
@@ -135,31 +137,51 @@ export function AssistantMessage({
         const hasNoTextAfter = !groups.slice(groupIdx + 1).some((g) => g.type === 'text')
         const isProcessing = isLastMessage && streamState.isLoading && isLastGroup && hasNoTextAfter
 
+        const proposals = group.steps.flatMap((step) => {
+          if (step.type !== 'tool-call') return []
+          const result = (message.toolResults?.find((r) => r.toolCallId === step.toolCallId)
+            ?.result ?? streamState.toolCalls.get(step.toolCallId)?.result) as
+            | Record<string, unknown>
+            | undefined
+          return result?.proposal === true
+            ? [{ toolCallId: step.toolCallId, proposal: result as unknown as Proposal }]
+            : []
+        })
+
         return (
-          <ChatColumn key={`cot-group-${groupIdx}`}>
-            <ChainOfThought defaultOpen={true}>
-              <ChainOfThoughtHeader isLoading={isProcessing}>
-                {isProcessing ? 'Working on it' : 'Chain of thought'}
-              </ChainOfThoughtHeader>
-              <ChainOfThoughtContent>
-                {group.steps.map((step, stepIdx) => (
-                  <StepRenderer
-                    key={`step-${groupIdx}-${stepIdx}`}
-                    step={step}
-                    message={message}
-                    streamState={streamState}
-                    isActiveReasoning={
-                      isReasoningStreaming &&
-                      isLastMessage &&
-                      groupIdx === groups.length - 1 &&
-                      stepIdx === group.steps.length - 1
-                    }
-                    onToolCallClick={onToolCallClick}
-                  />
+          <Fragment key={`cot-group-${groupIdx}`}>
+            <ChatColumn>
+              <ChainOfThought defaultOpen={true}>
+                <ChainOfThoughtHeader isLoading={isProcessing}>
+                  {isProcessing ? 'Working on it' : 'Chain of thought'}
+                </ChainOfThoughtHeader>
+                <ChainOfThoughtContent>
+                  {group.steps.map((step, stepIdx) => (
+                    <StepRenderer
+                      key={`step-${groupIdx}-${stepIdx}`}
+                      step={step}
+                      message={message}
+                      streamState={streamState}
+                      isActiveReasoning={
+                        isReasoningStreaming &&
+                        isLastMessage &&
+                        groupIdx === groups.length - 1 &&
+                        stepIdx === group.steps.length - 1
+                      }
+                      onToolCallClick={onToolCallClick}
+                    />
+                  ))}
+                </ChainOfThoughtContent>
+              </ChainOfThought>
+            </ChatColumn>
+            {proposals.length > 0 && (
+              <ChatColumn>
+                {proposals.map(({ toolCallId, proposal }) => (
+                  <ProposalCard key={toolCallId} toolCallId={toolCallId} proposal={proposal} />
                 ))}
-              </ChainOfThoughtContent>
-            </ChainOfThought>
-          </ChatColumn>
+              </ChatColumn>
+            )}
+          </Fragment>
         )
       })}
     </>

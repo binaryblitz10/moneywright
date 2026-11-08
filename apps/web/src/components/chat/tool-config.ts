@@ -13,6 +13,8 @@ import {
   Code2,
   Shield,
   Landmark,
+  ListChecks,
+  PiggyBank,
 } from 'lucide-react'
 
 // Tool config for icons and labels (pending = in progress, completed = done)
@@ -116,6 +118,15 @@ export const TOOL_CONFIG: Record<
     pending: 'Reading policy document',
     completed: 'Read policy document',
   },
+
+  // Proposals (applied only after the user confirms)
+  proposeRecategorize: {
+    icon: Tag,
+    pending: 'Preparing a change',
+    completed: 'Prepared a recategorization',
+  },
+  proposeRule: { icon: ListChecks, pending: 'Preparing a change', completed: 'Prepared a rule' },
+  proposeBudget: { icon: PiggyBank, pending: 'Preparing a change', completed: 'Prepared a budget' },
 
   // Code execution
   executeCode: { icon: Code2, pending: 'Running analysis', completed: 'Completed analysis' },
