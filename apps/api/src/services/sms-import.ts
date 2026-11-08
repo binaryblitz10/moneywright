@@ -92,6 +92,8 @@ export interface SyncedSms {
   transaction: TransactionResponse | null
   /** When the message became a transaction (read, or added from review) */
   importedAt: string
+  /** How many other messages were merged into the same transaction as duplicates */
+  mergedCount: number
 }
 
 export interface SmsImportInput {
@@ -853,7 +855,25 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
     (row) => row.transactionId !== null || (row.status !== 'imported' && row.status !== 'verified')
   )
 
-  return listed.map((row) => ({
+  // Messages merged into one transaction are listed once: the message that created the
+  // transaction when it is still there, else the earliest one
+  const messagesByTxn = new Map<string, typeof listed>()
+  for (const row of listed) {
+    if (!row.transactionId) continue
+    messagesByTxn.set(row.transactionId, [...(messagesByTxn.get(row.transactionId) ?? []), row])
+  }
+  const shown = listed.filter((row) => {
+    if (!row.transactionId) return true
+    const group = messagesByTxn.get(row.transactionId)!
+    if (group.length === 1) return true
+    const ownHash = transactions.find((txn) => txn.id === row.transactionId)?.hash
+    const main =
+      group.find((m) => ownHash === `sms:${m.guid}`) ??
+      group.reduce((a, b) => (new Date(a.receivedAt) <= new Date(b.receivedAt) ? a : b))
+    return main.id === row.id
+  })
+
+  return shown.map((row) => ({
     id: row.id,
     sender: row.sender,
     receivedAt: new Date(row.receivedAt).toISOString(),
@@ -868,6 +888,7 @@ export async function listSyncedSms(userId: string): Promise<SyncedSms[]> {
     transaction: row.transactionId ? (transactionById.get(row.transactionId) ?? null) : null,
     // A message added from review becomes a transaction when it is added, any other when it is read
     importedAt: new Date(row.status === 'imported' ? row.updatedAt : row.createdAt).toISOString(),
+    mergedCount: row.transactionId ? messagesByTxn.get(row.transactionId)!.length - 1 : 0,
   }))
 }
 

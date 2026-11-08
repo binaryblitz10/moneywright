@@ -3621,6 +3621,8 @@ export interface SyncedSms {
   transaction: Transaction | null
   /** When the message became a transaction */
   importedAt: string
+  /** How many other messages were merged into the same transaction as duplicates */
+  mergedCount: number
 }
 
 export async function getSyncedSms(): Promise<SyncedSms[]> {

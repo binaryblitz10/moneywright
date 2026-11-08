@@ -62,6 +62,9 @@ export function MessagesTable({
   const importedAtByTxn = new Map(
     messages.flatMap((m) => (m.transactionId ? [[m.transactionId, m.importedAt] as const] : []))
   )
+  const mergedCountByTxn = new Map(
+    messages.flatMap((m) => (m.transactionId ? [[m.transactionId, m.mergedCount] as const] : []))
+  )
   // Only messages that became a transaction are listed: those waiting for review are in the
   // review dialog, and dismissed ones are left out
   const listed = messages.filter((m) => m.status !== 'needs_review' && m.status !== 'dismissed')
@@ -140,11 +143,29 @@ export function MessagesTable({
                 const importedAt = importedAtByTxn.get(txn.id)
                 const isNew =
                   !!importedAt && Date.now() - new Date(importedAt).getTime() < NEW_FOR_MS
-                return isNew ? (
-                  <span className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}>
-                    New
-                  </span>
-                ) : null
+                const mergedCount = mergedCountByTxn.get(txn.id) ?? 0
+                if (!isNew && mergedCount === 0) return null
+                return (
+                  <>
+                    {isNew && (
+                      <span
+                        className={cn(BADGE_CLASS, 'border-primary/30 bg-primary/10 text-primary')}
+                      >
+                        New
+                      </span>
+                    )}
+                    {mergedCount > 0 && (
+                      <span
+                        className={cn(
+                          BADGE_CLASS,
+                          'border-border-subtle bg-muted text-muted-foreground'
+                        )}
+                      >
+                        Merged · {mergedCount + 1}
+                      </span>
+                    )}
+                  </>
+                )
               }}
             />
           </div>
