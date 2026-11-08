@@ -88,7 +88,7 @@ function StatementsPage() {
   const searchParams = useSearch({ from: '/_app/statements' })
   const { profiles } = useAuth()
   const { activeProfileId, showFamilyView } = useProfileSelection()
-  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [showUploadDialog, setShowUploadDialog] = useState(searchParams.upload === true)
   const [accountFilter, setAccountFilter] = useState<string | null>(searchParams.accountId ?? null)
   const idFilter = searchParams.ids ? new Set(searchParams.ids.split(',')) : null
   const [sortOrder, setSortOrder] = useState<SortOption>(() => {
@@ -104,14 +104,15 @@ function StatementsPage() {
   const [editStatement, setEditStatement] = useState<Statement | null>(null)
   const [recategorizeStatement, setRecategorizeStatement] = useState<Statement | null>(null)
 
-  // Open upload dialog if ?upload=true is in the URL
+  // Arriving from another page, the dialog starts open (initial state above) so it is there from
+  // the first paint. When already on this page the state is set here instead. Either way the
+  // param is dropped so a refresh doesn't reopen it.
   useEffect(() => {
     if (searchParams.upload) {
       // Use setTimeout to avoid sync setState in effect
       const timer = setTimeout(() => {
         setShowUploadDialog(true)
-        // Clear the search param without navigating
-        navigate({ to: '/statements', search: {}, replace: true })
+        void navigate({ to: '/statements', search: {}, replace: true, viewTransition: false })
       }, 0)
       return () => clearTimeout(timer)
     }
