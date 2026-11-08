@@ -77,7 +77,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
     <div
       className={cn(
         'flex flex-col items-center justify-center min-h-[calc(100vh-16rem)] px-4 py-8',
-        'opacity-0 animate-fade-in',
+        'animate-fade-in',
         className
       )}
     >
@@ -95,7 +95,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
       <div className="relative text-center mb-10 max-w-xl">
         {/* Penny the Owl */}
         <div
-          className="inline-flex items-center justify-center mb-6 opacity-0 animate-fade-in"
+          className="inline-flex items-center justify-center mb-6 animate-fade-in"
           style={{ animationDelay: '100ms' }}
         >
           <img src="/logo.png" alt="Penny" className="w-20 h-20 object-contain drop-shadow-lg" />
@@ -103,7 +103,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
 
         {/* Headline */}
         <h1
-          className="font-display text-3xl sm:text-4xl font-semibold text-foreground mb-3 tracking-tight opacity-0 animate-fade-in"
+          className="font-display text-3xl sm:text-4xl font-semibold text-foreground mb-3 tracking-tight animate-fade-in"
           style={{ animationDelay: '150ms' }}
         >
           Ask Penny
@@ -111,7 +111,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
 
         {/* Subheadline */}
         <p
-          className="text-muted-foreground text-base sm:text-lg leading-relaxed opacity-0 animate-fade-in"
+          className="text-muted-foreground text-base sm:text-lg leading-relaxed animate-fade-in"
           style={{ animationDelay: '200ms' }}
         >
           Your wise financial companion. Ask questions, find transactions, and get personalized
@@ -132,7 +132,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
               'dark:hover:shadow-black/20',
               'transition-all duration-300 ease-out',
               'hover:-translate-y-0.5',
-              'opacity-0 animate-fade-in'
+              'animate-fade-in'
             )}
             style={{ animationDelay: `${250 + idx * 50}ms` }}
           >
@@ -180,7 +180,7 @@ export function ChatWelcome({ onSelectPrompt, className }: ChatWelcomeProps) {
 
       {/* Disclaimer - subtle and non-intrusive */}
       <p
-        className="text-xs text-muted-foreground/60 text-center max-w-md leading-relaxed opacity-0 animate-fade-in"
+        className="text-xs text-muted-foreground/60 text-center max-w-md leading-relaxed animate-fade-in"
         style={{ animationDelay: '500ms' }}
       >
         Penny analyzes your transaction data to provide insights. For important financial decisions,
