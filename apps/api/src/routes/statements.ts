@@ -23,7 +23,7 @@ import { decryptOptional } from '../lib/encryption'
 import { SUPPORTED_FILE_TYPES, type CountryCode } from '../lib/constants'
 import { logger } from '../lib/logger'
 
-/** Largest statement file accepted per upload (bytes) */
+/** Largest statement file accepted per upload (bytes). Keep in sync with MAX_FILE_MB in the web upload form */
 const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024
 const FILE_TOO_LARGE_ERROR = 'File is larger than 25 MB'
 

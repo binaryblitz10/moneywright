@@ -44,6 +44,10 @@ import { PROVIDER_LOGOS, getLogoInvertStyle } from '@/lib/provider-logos'
 type DocumentType = 'bank_statement' | 'investment_statement'
 type WizardStep = 'type' | 'source' | 'upload'
 
+/** Keep in sync with MAX_UPLOAD_FILE_BYTES in apps/api/src/routes/statements.ts */
+const MAX_FILE_MB = 25
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
+
 interface UploadFormProps {
   profileId: string
   onClose: () => void
@@ -337,23 +341,26 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
     }
   }, [])
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragActive(false)
+  /** Validates picked/dropped files, queues the good ones and reports what was skipped */
+  const acceptFiles = useCallback(
+    (picked: File[]) => {
+      const typeValid = picked.filter(isValidFile)
+      const tooLarge = typeValid.filter((file) => file.size > MAX_FILE_BYTES)
+      const validFiles = typeValid.filter((file) => file.size <= MAX_FILE_BYTES)
+      const wrongType = picked.length - typeValid.length
 
-      const droppedFiles = Array.from(e.dataTransfer.files)
-      const validFiles = droppedFiles.filter(isValidFile)
-      const invalidCount = droppedFiles.length - validFiles.length
-
-      if (invalidCount > 0) {
-        setError(
-          `${invalidCount} file${invalidCount !== 1 ? 's' : ''} skipped (only PDF, CSV, and Excel files are supported)`
+      const problems: string[] = []
+      if (wrongType > 0) {
+        problems.push(
+          `${wrongType} file${wrongType !== 1 ? 's' : ''} skipped (only PDF, CSV, and Excel files are supported)`
         )
-      } else {
-        setError(null)
       }
+      if (tooLarge.length > 0) {
+        problems.push(
+          `${tooLarge.map((file) => file.name).join(', ')} ${tooLarge.length !== 1 ? 'are' : 'is'} larger than ${MAX_FILE_MB} MB`
+        )
+      }
+      setError(problems.length > 0 ? problems.join('. ') : null)
 
       if (validFiles.length > 0) {
         setFiles((prev) => [...prev, ...validFiles])
@@ -364,30 +371,24 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
     [isValidFile]
   )
 
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragActive(false)
+      acceptFiles(Array.from(e.dataTransfer.files))
+    },
+    [acceptFiles]
+  )
+
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
-        const selectedFiles = Array.from(e.target.files)
-        const validFiles = selectedFiles.filter(isValidFile)
-        const invalidCount = selectedFiles.length - validFiles.length
-
-        if (invalidCount > 0) {
-          setError(
-            `${invalidCount} file${invalidCount !== 1 ? 's' : ''} skipped (only PDF, CSV, and Excel files are supported)`
-          )
-        } else {
-          setError(null)
-        }
-
-        if (validFiles.length > 0) {
-          setFiles((prev) => [...prev, ...validFiles])
-          setShowPasswordField(false)
-          setPassword('')
-        }
+        acceptFiles(Array.from(e.target.files))
       }
       e.target.value = ''
     },
-    [isValidFile]
+    [acceptFiles]
   )
 
   const removeFile = (index: number) => {
@@ -498,7 +499,7 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
 
               <div className="pt-4 border-t border-border/50">
                 <p className="text-xs text-muted-foreground text-center">
-                  Supported formats: PDF, CSV, Excel (.xlsx, .xls) • Max file size: 10MB
+                  Supported formats: PDF, CSV, Excel (.xlsx, .xls) • Max file size: {MAX_FILE_MB} MB
                 </p>
               </div>
             </div>
@@ -655,7 +656,7 @@ export function UploadForm({ profileId, onClose, onSuccess }: UploadFormProps) {
                     to select
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    PDF, CSV, or Excel • Max 10MB
+                    PDF, CSV, or Excel • Max {MAX_FILE_MB} MB
                   </p>
                 </div>
               )}
