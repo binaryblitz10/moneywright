@@ -26,7 +26,7 @@ export function PortfolioStats({
       {/* Portfolio Value */}
       <StatCard
         label="Portfolio Value"
-        value={totalCurrent}
+        value={totalCurrent > 0 || totalInvested > 0 ? totalCurrent : undefined}
         currency={currency}
         icon={Wallet}
         loading={isLoading}

@@ -4,6 +4,7 @@
 
 import { formatCurrency } from '@/components/dashboard/utils'
 import type { DataHealthReport } from '@/lib/api'
+import { plural } from '@/lib/utils'
 
 export type IssueTarget =
   /** Statements page narrowed to the statements (or account) behind the issue */
@@ -28,10 +29,6 @@ export function formatLongDate(date: string): string {
 
 function formatRange(from: string, to: string): string {
   return `${formatLongDate(from)} - ${formatLongDate(to)}`
-}
-
-function plural(count: number, word: string): string {
-  return `${count} ${word}${count === 1 ? '' : 's'}`
 }
 
 /** Flatten the report into one list of things to look at, most structural first */

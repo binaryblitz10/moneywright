@@ -30,10 +30,10 @@ export function TransactionStats({
   )
 
   return (
-    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
       {item('Money in', formatAmount(totalCredits, currency))}
       {item('Money out', formatAmount(totalDebits, currency))}
       {item('Total', totalCount.toLocaleString())}
-    </p>
+    </div>
   )
 }

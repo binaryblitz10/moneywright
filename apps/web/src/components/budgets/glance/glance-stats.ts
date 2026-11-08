@@ -117,8 +117,3 @@ export function dayLabel(month: string, day: number): string {
     day: 'numeric',
   })
 }
-
-export function plural(count: number, word: string): string {
-  const many = /[^aeiou]y$/.test(word) ? `${word.slice(0, -1)}ies` : `${word}s`
-  return `${count} ${count === 1 ? word : many}`
-}

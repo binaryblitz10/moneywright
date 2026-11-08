@@ -1,8 +1,8 @@
 import { useState, type CSSProperties } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, plural } from '@/lib/utils'
 import { formatBudgetAmount } from '../format'
 import { DaySpendingDialog } from './day-spending-dialog'
-import { dayLabel, plural, type GlanceStats } from './glance-stats'
+import { dayLabel, type GlanceStats } from './glance-stats'
 
 interface GlanceCalendarProps {
   stats: GlanceStats

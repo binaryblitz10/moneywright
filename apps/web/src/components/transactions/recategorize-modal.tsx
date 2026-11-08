@@ -33,6 +33,7 @@ import {
   PREFERENCE_KEYS,
 } from '@/lib/api'
 import { PROVIDER_LOGOS, getLogoInvertStyle } from '@/lib/provider-logos'
+import { plural } from '@/lib/utils'
 
 interface RecategorizeModalProps {
   open: boolean
@@ -192,7 +193,7 @@ export function RecategorizeModal({
         }
 
         if (status.status === 'completed') {
-          toast.success(`Recategorized ${status.transactionCount} transactions`)
+          toast.success(`Recategorized ${plural(status.transactionCount ?? 0, 'transaction')}`)
           onSuccess?.()
           // Reset after a delay to show completion
           setTimeout(() => {
@@ -306,7 +307,7 @@ export function RecategorizeModal({
                 <p className="font-medium text-foreground">Recategorization Complete</p>
                 {jobProgress && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    {jobProgress.total} transactions updated
+                    {plural(jobProgress.total, 'transaction')} updated
                   </p>
                 )}
               </div>

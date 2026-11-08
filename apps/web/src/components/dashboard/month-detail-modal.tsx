@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
+import { cn, plural } from '@/lib/utils'
 import { formatCurrency, formatDate } from './utils'
 import { SORT_OPTIONS, type SortOption, type ViewMode } from './types'
 import type { MonthlyTrendData, MonthTransactionsResponse, Transaction } from '@/lib/api'
@@ -141,7 +141,9 @@ export function MonthDetailModal({
               <p className="text-lg font-semibold text-foreground tabular-nums tracking-tight">
                 {formatCurrency(totals.income, currency)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">{income.length} transactions</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {plural(income.length, 'transaction')}
+              </p>
             </div>
             <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -151,7 +153,7 @@ export function MonthDetailModal({
                 {formatCurrency(totals.expenses, currency)}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {expenses.length} transactions
+                {plural(expenses.length, 'transaction')}
               </p>
             </div>
             <div className="rounded-xl bg-surface-elevated border border-border-subtle p-4">
@@ -176,7 +178,7 @@ export function MonthDetailModal({
                 {formatCurrency(totals.invested, currency)}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {investments.length} transactions
+                {plural(investments.length, 'transaction')}
               </p>
             </div>
           </div>

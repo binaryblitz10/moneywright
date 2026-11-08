@@ -14,7 +14,7 @@ import {
 import { formatDate } from '@/components/dashboard/utils'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { getAccountShortLabel } from '@/lib/statement-display'
-import { cn } from '@/lib/utils'
+import { cn, plural } from '@/lib/utils'
 import type { Transaction } from '@/lib/api'
 import type { MerchantGroupData } from './merchant-groups'
 import type { ReviewPanelProps } from './types'
@@ -125,7 +125,7 @@ export function CategoryCard({
                 setRowsOpen(true)
               }}
             >
-              {count} transactions
+              {plural(count, 'transaction')}
             </Button>
           ) : (
             first.summary && (

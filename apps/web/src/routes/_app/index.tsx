@@ -38,7 +38,7 @@ import {
 } from '@/lib/dashboard-widgets'
 import { getBudgetMonths } from '@/components/dashboard/budget-months'
 import { getRangeLabel } from '@/lib/date-presets'
-import { cn } from '@/lib/utils'
+import { cn, plural } from '@/lib/utils'
 
 import {
   type DashboardTimeframeSelection,
@@ -287,7 +287,7 @@ function DashboardPage() {
       : undefined
 
   const transactionCountSubtitle = (count: number | undefined) =>
-    count ? `${count} transactions · ${selectedTimeframeLabel}` : selectedTimeframeLabel
+    count ? `${plural(count, 'transaction')} · ${selectedTimeframeLabel}` : selectedTimeframeLabel
 
   const investedAmount = summary?.transactions.investedAmount
   const accountsCount = accounts?.length || 0

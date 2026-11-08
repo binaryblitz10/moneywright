@@ -534,7 +534,7 @@ function InvestmentsPage() {
           title="No investment sources yet"
           description="Add an investment source like a brokerage account, or upload an investment statement to start tracking your portfolio."
           action={{
-            label: 'Add Source',
+            label: 'Add Investment',
             onClick: () => setShowAddSourceDialog(true),
             icon: Plus,
           }}
