@@ -236,24 +236,31 @@ const MONTH_NAMES = [
   'december',
 ]
 
+function currentYear(): number {
+  return new Date().getFullYear()
+}
+
 /** A two-digit year is read as 20xx */
 function fullYear(year: string): number {
   return year.length === 2 ? 2000 + Number(year) : Number(year)
 }
 
-/** Reads typed "30 June 2026", "30 Jun 26", "30/06/2026", "3/6/26" (day first) or "2026-06-30" into YYYY-MM-DD */
+/**
+ * Reads typed "30 June 2026", "30 Jun 26", "30/06/2026", "3/6/26" (day first) or "2026-06-30" into
+ * YYYY-MM-DD. The year can be left out ("8/11", "8 Nov"), which means the current year.
+ */
 export function parseTypedDate(raw: string): string | null {
   const text = raw.trim()
   let y: number, m: number, d: number
   let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
   if (match) [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])]
-  else if ((match = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/)))
-    [d, m, y] = [Number(match[1]), Number(match[2]), fullYear(match[3]!)]
-  else if ((match = text.match(/^(\d{1,2})\s+([a-zA-Z]{3,9}),?\s+(\d{2}|\d{4})$/))) {
+  else if ((match = text.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/)))
+    [d, m, y] = [Number(match[1]), Number(match[2]), match[3] ? fullYear(match[3]) : currentYear()]
+  else if ((match = text.match(/^(\d{1,2})\s+([a-zA-Z]{3,9})(?:,?\s+(\d{2}|\d{4}))?$/))) {
     const name = match[2]!.toLowerCase()
     const index = MONTH_NAMES.findIndex((month) => month.startsWith(name))
     if (index < 0) return null
-    ;[d, m, y] = [Number(match[1]), index + 1, fullYear(match[3]!)]
+    ;[d, m, y] = [Number(match[1]), index + 1, match[3] ? fullYear(match[3]) : currentYear()]
   } else return null
   const date = new Date(y, m - 1, d)
   if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null
