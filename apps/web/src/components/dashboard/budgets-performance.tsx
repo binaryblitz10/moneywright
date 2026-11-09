@@ -1,10 +1,16 @@
 import { Link } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
-import { formatBudgetAmount, monthRangeOf, monthShort } from '@/components/budgets/format'
+import {
+  formatBudgetAmount,
+  monthRangeOf,
+  monthShort,
+  monthTitle,
+} from '@/components/budgets/format'
 import { CategoryIcon } from '@/components/ui/category-icon'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { getCategoryColorClasses } from '@/lib/category-colors'
 import { cn } from '@/lib/utils'
-import type { BudgetRangeSummary } from '@/lib/api'
+import type { BudgetMonth, BudgetRangeSummary } from '@/lib/api'
 
 /** Categories listed under the month strip */
 const VISIBLE_CATEGORIES = 4
@@ -17,6 +23,58 @@ const STATUS_BAR = {
   over: 'bg-negative',
 } as const
 
+const STATUS_TEXT = {
+  ok: 'text-positive',
+  warning: 'text-warning',
+  over: 'text-negative',
+} as const
+
+const STATUS_LABEL = {
+  ok: 'Within budget',
+  warning: 'Close to the limit',
+  over: 'Over budget',
+} as const
+
+interface MonthBarTooltipProps {
+  month: BudgetMonth
+  labels: Map<string, string>
+  money: (amount: number) => string
+}
+
+/** What a month's bar is made of: the total against its limit and the categories that went over */
+function MonthBarTooltip({ month, labels, money }: MonthBarTooltipProps) {
+  const over = month.entries.filter((e) => e.status === 'over')
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {monthTitle(month.month)}
+        {month.inProgress ? ' (so far)' : ''}
+      </p>
+      <p className="text-sm font-semibold tabular-nums">
+        {money(month.totalSpent)}{' '}
+        <span className="font-normal text-muted-foreground">of {money(month.totalAvailable)}</span>
+      </p>
+      <p className={cn('text-xs font-medium', STATUS_TEXT[month.status])}>
+        {STATUS_LABEL[month.status]} · {Math.round(month.percentUsed)}% used
+      </p>
+      {over.length > 0 && (
+        <ul className="space-y-1 border-t border-border-subtle pt-2">
+          {over.map((e) => (
+            <li key={e.category} className="flex items-center justify-between gap-4 text-xs">
+              <span className="truncate text-muted-foreground">
+                {labels.get(e.category) ?? e.category}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums text-negative">
+                +{money(e.spent - e.available)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 interface BudgetsPerformanceProps {
   summary: BudgetRangeSummary
   getCategoryColor: (code: string) => string
@@ -26,6 +84,7 @@ interface BudgetsPerformanceProps {
 export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerformanceProps) {
   const { currency, months, monthCount, monthsWithinBudget } = summary
   const money = (amount: number) => formatBudgetAmount(amount, currency)
+  const labels = new Map(summary.categories.map((c) => [c.category, c.categoryLabel]))
   const repeatOffenders = summary.categories
     .filter((c) => c.monthsOver > 0)
     .slice(0, VISIBLE_CATEGORIES)
@@ -48,21 +107,27 @@ export function BudgetsPerformance({ summary, getCategoryColor }: BudgetsPerform
         <ul className="flex h-20 items-stretch gap-1">
           {months.map((m) => (
             <li key={m.month} className="min-w-0 flex-1">
-              <Link
-                to="/budgets"
-                search={{ month: m.month }}
-                title={`${m.month}${m.inProgress ? ' (so far)' : ''}: ${money(m.totalSpent)} of ${money(m.totalAvailable)}`}
-                aria-label={`${m.month}: ${money(m.totalSpent)} of ${money(m.totalAvailable)} budgeted`}
-                className="flex h-full flex-col justify-end rounded-md bg-muted transition-colors hover:bg-muted/70 dark:bg-foreground/15 dark:hover:bg-foreground/20"
-              >
-                <span
-                  className={cn(
-                    'block min-h-1 rounded-md transition-[height] duration-700 ease-out',
-                    STATUS_BAR[m.status]
-                  )}
-                  style={{ height: `${Math.min(100, m.percentUsed)}%` }}
-                />
-              </Link>
+              <HoverCard openDelay={100} closeDelay={80}>
+                <HoverCardTrigger asChild>
+                  <Link
+                    to="/budgets"
+                    search={{ month: m.month }}
+                    aria-label={`${m.month}: ${money(m.totalSpent)} of ${money(m.totalAvailable)} budgeted`}
+                    className="flex h-full flex-col justify-end rounded-md bg-muted transition-colors hover:bg-muted/70 dark:bg-foreground/15 dark:hover:bg-foreground/20"
+                  >
+                    <span
+                      className={cn(
+                        'block min-h-1 rounded-md transition-[height] duration-700 ease-out',
+                        STATUS_BAR[m.status]
+                      )}
+                      style={{ height: `${Math.min(100, m.percentUsed)}%` }}
+                    />
+                  </Link>
+                </HoverCardTrigger>
+                <HoverCardContent side="top" className="w-60 p-3">
+                  <MonthBarTooltip month={m} labels={labels} money={money} />
+                </HoverCardContent>
+              </HoverCard>
             </li>
           ))}
         </ul>
