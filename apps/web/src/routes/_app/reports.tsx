@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileBarChart, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
+  IncomeFlowView,
   InvestmentsReportView,
   MONTH_PATTERN,
   PeriodPicker,
@@ -29,7 +30,7 @@ import {
   type ReportTab,
 } from '@/components/reports'
 
-const REPORT_TABS = ['period', 'investments'] as const
+const REPORT_TABS = ['period', 'income-flow', 'investments'] as const
 
 const monthParam = z.string().regex(MONTH_PATTERN).optional().catch(undefined)
 
@@ -71,7 +72,7 @@ function ReportsPage() {
   )
   const params = range ? { profileId, ...range } : undefined
 
-  const period = usePeriodReport(params, tab === 'period')
+  const period = usePeriodReport(params, tab === 'period' || tab === 'income-flow')
   const investments = useInvestmentsReport(params, tab === 'investments')
 
   // The router cross-fades pages with a view transition, which freezes the page for a moment.
@@ -126,12 +127,18 @@ function ReportsPage() {
         <Tabs value={tab} onValueChange={setTab} className="gap-4">
           <TabsList className="w-full sm:w-fit">
             <TabsTrigger value="period">Period report</TabsTrigger>
+            <TabsTrigger value="income-flow">Income flow</TabsTrigger>
             <TabsTrigger value="investments">Investments</TabsTrigger>
           </TabsList>
 
           <TabsContent value="period">
             <QueryBody query={period}>
               {(report) => <PeriodReportView report={report} getCategoryColor={getCategoryColor} />}
+            </QueryBody>
+          </TabsContent>
+          <TabsContent value="income-flow">
+            <QueryBody query={period}>
+              {(report) => <IncomeFlowView report={report} getCategoryColor={getCategoryColor} />}
             </QueryBody>
           </TabsContent>
           <TabsContent value="investments">

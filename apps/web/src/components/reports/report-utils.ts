@@ -6,7 +6,7 @@ import type { ReportBounds } from '@/lib/api'
 
 export const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
-export type ReportTab = 'period' | 'investments'
+export type ReportTab = 'period' | 'income-flow' | 'investments'
 
 export interface MonthRange {
   /** YYYY-MM */
