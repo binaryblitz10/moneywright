@@ -4,9 +4,11 @@
  * Laid out by hand (not a chart library) so every node keeps room for its label.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { Info } from 'lucide-react'
 import { InlineEmptyState } from '@/components/ui/empty-state'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { formatCurrency } from '@/components/dashboard/utils'
 import { getCategoryFillColor } from '@/lib/category-colors'
 import type { PeriodReport, ReportComparedRow } from '@/lib/api'
@@ -28,6 +30,9 @@ const MIN_NODE_HEIGHT = 4
 const NODE_WIDTH = 10
 const LABEL_GUTTER_LEFT = 200
 const LABEL_GUTTER_RIGHT = 220
+/** Room the info icon takes beside a label */
+const HINT_SPACE = 20
+const HINT_CLOSE_DELAY_MS = 150
 /** Narrower than this the chart scrolls sideways instead of squashing */
 const MIN_WIDTH = 820
 
@@ -37,6 +42,10 @@ interface Entry {
   label: string
   value: number
   color: string
+  /** Category codes behind the node; empty when it has no transactions to open */
+  categories: string[]
+  /** Short explanation, shown from an info icon beside the label */
+  hint?: string
 }
 
 interface FlowData {
@@ -72,7 +81,16 @@ function limitEntries(entries: Entry[], total: number, otherLabel: string): Entr
   if (rest.length === 1) return [...kept, rest[0]!]
   const restTotal = rest.reduce((sum, e) => sum + e.value, 0)
   return restTotal > 0
-    ? [...kept, { label: otherLabel, value: restTotal, color: getCategoryFillColor('zinc') }]
+    ? [
+        ...kept,
+        {
+          label: otherLabel,
+          value: restTotal,
+          color: getCategoryFillColor('zinc'),
+          categories: rest.flatMap((e) => e.categories),
+          hint: `Includes ${rest.map((e) => e.label).join(', ')}.`,
+        },
+      ]
     : kept
 }
 
@@ -83,6 +101,7 @@ function toEntries(rows: ReportComparedRow[], getCategoryColor: (code: string) =
       label: r.label,
       value: r.current,
       color: getCategoryFillColor(getCategoryColor(r.key)),
+      categories: [r.key],
     }))
 }
 
@@ -93,12 +112,12 @@ function buildFlow(
 ): FlowData | null {
   const incomeEntries = toEntries(report.incomeCategories, getCategoryColor)
   const spending = toEntries(report.expenseCategories, getCategoryColor)
-  const invested = report.investmentCategories
-    .filter((r) => r.current > 0)
-    .reduce((sum, r) => sum + r.current, 0)
+  const investments = report.investmentCategories.filter((r) => r.current > 0)
+  const invested = investments.reduce((sum, r) => sum + r.current, 0)
+  const spent = spending.reduce((sum, e) => sum + e.value, 0)
 
   const income = incomeEntries.reduce((sum, e) => sum + e.value, 0)
-  const outflow = spending.reduce((sum, e) => sum + e.value, 0) + invested
+  const outflow = spent + invested
   if (income <= 0 && outflow <= 0) return null
 
   // Outflow beyond income is drawn as a source, so both sides add up
@@ -108,14 +127,31 @@ function buildFlow(
 
   const sources = limitEntries(incomeEntries, total, 'Other income')
   if (shortfall > 0) {
-    sources.push({ label: 'Shortfall', value: shortfall, color: getCategoryFillColor('red') })
+    sources.push({
+      label: 'Shortfall',
+      value: shortfall,
+      color: getCategoryFillColor('red'),
+      categories: [],
+      hint: 'Spending and investing exceeded your income.',
+    })
   }
   const targets = limitEntries(spending, total, 'Other expenses')
   if (invested > 0) {
-    targets.push({ label: 'Invested', value: invested, color: getCategoryFillColor('blue') })
+    targets.push({
+      label: 'Invested',
+      value: invested,
+      color: getCategoryFillColor('blue'),
+      categories: investments.map((r) => r.key),
+    })
   }
   if (surplus > 0) {
-    targets.push({ label: 'Surplus', value: surplus, color: getCategoryFillColor('emerald') })
+    targets.push({
+      label: 'Surplus',
+      value: surplus,
+      color: getCategoryFillColor('emerald'),
+      categories: [],
+      hint: 'Income left after spending and investing.',
+    })
   }
   return { sources, targets, total }
 }
@@ -199,6 +235,60 @@ function useElementWidth<T extends HTMLElement>() {
   return { ref, width }
 }
 
+interface NodeHintProps {
+  text: string
+  label: string
+  /** Centre of the icon */
+  x: number
+  y: number
+}
+
+/** Info icon that opens a short explanation on hover or focus, like the one in the edit dialog */
+function NodeHint({ text, label, x, y }: NodeHintProps) {
+  const [open, setOpen] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const show = () => {
+    clearTimeout(closeTimer.current)
+    setOpen(true)
+  }
+  const hideSoon = () => {
+    clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setOpen(false), HINT_CLOSE_DELAY_MS)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <g
+          role="button"
+          tabIndex={0}
+          aria-label={`About ${label}`}
+          className="cursor-help text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+          onMouseEnter={show}
+          onMouseLeave={hideSoon}
+          onFocus={show}
+          onBlur={hideSoon}
+          onKeyDown={(e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)}
+        >
+          {/* Larger invisible target so the small icon is easy to hover */}
+          <circle cx={x} cy={y} r={10} fill="transparent" />
+          <Info x={x - 7} y={y - 7} width={14} height={14} />
+        </g>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        className="w-64 p-3 text-sm"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onMouseEnter={show}
+        onMouseLeave={hideSoon}
+      >
+        {text}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 interface IncomeFlowViewProps {
   report: PeriodReport
   getCategoryColor: (code: string) => string
@@ -206,6 +296,7 @@ interface IncomeFlowViewProps {
 
 export function IncomeFlowView({ report, getCategoryColor }: IncomeFlowViewProps) {
   const { currency } = report
+  const navigate = useNavigate()
   const flow = useMemo(() => buildFlow(report, getCategoryColor), [report, getCategoryColor])
   const { ref, width: measured } = useElementWidth<HTMLDivElement>()
   const [hovered, setHovered] = useState<string | null>(null)
@@ -227,9 +318,29 @@ export function IncomeFlowView({ report, getCategoryColor }: IncomeFlowViewProps
   const percent = (share: number) => `${(share * 100).toFixed(1)}%`
   const opacityOf = (id: string) => (hovered === null ? 0.28 : hovered === id ? 0.55 : 0.08)
 
+  const openTransactions = (node: PlacedNode) =>
+    navigate({
+      to: '/transactions',
+      search: {
+        category: node.categories.join(','),
+        startDate: report.period.startDate,
+        endDate: report.period.endDate,
+      },
+    })
+
   const renderNode = (node: PlacedNode, column: Column) => {
     const id = `${column}:${node.label}`
-    const labelX = column === 'source' ? node.x - 12 : node.x + NODE_WIDTH + 12
+    const clickable = node.categories.length > 0
+    const tooltip = [
+      `${node.label}: ${money(node.value)} (${percent(node.share)})`,
+      clickable ? 'Click to see the transactions' : undefined,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const edgeX = column === 'source' ? node.x - 12 : node.x + NODE_WIDTH + 12
+    const hintSpace = node.hint ? HINT_SPACE : 0
+    const labelX = column === 'source' ? edgeX - hintSpace : edgeX + hintSpace
+    const hintX = column === 'source' ? edgeX - 7 : edgeX + 7
     const anchor = column === 'source' ? 'end' : 'start'
     const centerY = node.y + node.height / 2
     return (
@@ -237,7 +348,16 @@ export function IncomeFlowView({ report, getCategoryColor }: IncomeFlowViewProps
         key={id}
         onMouseEnter={() => setHovered(id)}
         onMouseLeave={() => setHovered(null)}
-        className="cursor-default"
+        className={clickable ? 'cursor-pointer outline-none' : 'cursor-default'}
+        {...(clickable && {
+          role: 'link',
+          tabIndex: 0,
+          'aria-label': `${node.label}, ${money(node.value)}. Open transactions`,
+          onClick: () => openTransactions(node),
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter') openTransactions(node)
+          },
+        })}
       >
         <path
           d={ribbonPath(node, column, layout.pool.x)}
@@ -245,7 +365,7 @@ export function IncomeFlowView({ report, getCategoryColor }: IncomeFlowViewProps
           fillOpacity={opacityOf(id)}
           className="transition-[fill-opacity]"
         >
-          <title>{`${node.label}: ${money(node.value)} (${percent(node.share)})`}</title>
+          <title>{tooltip}</title>
         </path>
         <rect
           x={node.x}
@@ -274,6 +394,7 @@ export function IncomeFlowView({ report, getCategoryColor }: IncomeFlowViewProps
             {percent(node.share)}
           </tspan>
         </text>
+        {node.hint && <NodeHint text={node.hint} label={node.label} x={hintX} y={centerY} />}
       </g>
     )
   }
