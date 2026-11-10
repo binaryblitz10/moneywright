@@ -74,6 +74,46 @@ const DUE_TONE_STYLES: Record<CardDueTone, string> = {
   negative: 'bg-negative/10 text-negative',
 }
 
+interface CardDueBannerProps {
+  due: NonNullable<ReturnType<typeof getCardDueStatus>>
+  currency: string
+  className?: string
+}
+
+function CardDueBanner({ due, currency, className }: CardDueBannerProps) {
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg px-3 py-2.5 flex items-center gap-2.5',
+        DUE_TONE_STYLES[due.tone],
+        className
+      )}
+    >
+      <CalendarClock className="h-5 w-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{due.label}</p>
+        {due.detail && <p className="text-xs opacity-80">{due.detail}</p>}
+      </div>
+      {due.amountDue !== null && (
+        <div className="text-right">
+          <p className="text-sm font-semibold tabular-nums">{formatCurrency(due.amountDue)}</p>
+          {due.minimumDue !== null && (
+            <p className="text-xs opacity-80">Min {formatCurrency(due.minimumDue)}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CreditCardDisplay({
   account,
   countryCode,
@@ -263,28 +303,7 @@ export function CreditCardDisplay({
       </div>
 
       {/* Payment due */}
-      {due && (
-        <div
-          className={cn(
-            'mt-4 rounded-lg px-3 py-2.5 flex items-center gap-2.5',
-            DUE_TONE_STYLES[due.tone]
-          )}
-        >
-          <CalendarClock className="h-5 w-5 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{due.label}</p>
-            {due.detail && <p className="text-xs opacity-80">{due.detail}</p>}
-          </div>
-          {due.amountDue !== null && (
-            <div className="text-right">
-              <p className="text-sm font-semibold tabular-nums">{formatCurrency(due.amountDue)}</p>
-              {due.minimumDue !== null && (
-                <p className="text-xs opacity-80">Min {formatCurrency(due.minimumDue)}</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {due && <CardDueBanner due={due} currency={account.currency || 'INR'} className="mt-4" />}
     </div>
   )
 }
@@ -390,6 +409,12 @@ export function CreditCardDetailModal({
 
   // Outstanding balance
   const outstandingBalance = account.latestBalance ?? 0
+  const due = getCardDueStatus(account)
+  const creditLimit = account.cardStatement?.creditLimit ?? null
+  const utilization = creditLimit
+    ? Math.min(Math.max(outstandingBalance / creditLimit, 0), 1)
+    : null
+  const availableCredit = creditLimit ? Math.max(creditLimit - outstandingBalance, 0) : null
 
   return (
     <Dialog open={!!account} onOpenChange={onOpenChange}>
@@ -478,13 +503,13 @@ export function CreditCardDetailModal({
         <ScrollArea className="max-h-[calc(90vh-180px)]">
           <div className="p-6 space-y-6">
             {/* Balance Section - Hero element */}
-            <div className="relative rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated to-card p-5 overflow-hidden">
+            <div className="relative flex flex-col rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-elevated to-card p-5 overflow-hidden">
               {/* Background decoration */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-negative/5 rounded-full blur-3xl" />
 
-              <div className="relative">
+              <div className="relative flex flex-1 flex-col gap-4">
                 {/* Balance header */}
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="h-8 w-8 rounded-lg bg-negative/10 flex items-center justify-center">
                       <Wallet className="h-4 w-4 text-negative" />
@@ -496,15 +521,46 @@ export function CreditCardDetailModal({
                       </p>
                     </div>
                   </div>
-                </div>
-
-                {/* Balance display */}
-                <div className="mb-4">
                   <p className="text-3xl font-bold tabular-nums text-negative">
                     {currencySymbol}
                     {formatAmount(outstandingBalance)}
                   </p>
                 </div>
+
+                {/* Credit limit utilization */}
+                {utilization !== null && creditLimit && availableCredit !== null && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-muted-foreground">
+                        {Math.round(utilization * 100)}% of limit used
+                      </span>
+                      <span className="text-muted-foreground tabular-nums">
+                        Limit {currencySymbol}
+                        {formatAmount(creditLimit)}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all',
+                          utilization > 0.7
+                            ? 'bg-negative'
+                            : utilization > 0.3
+                              ? 'bg-amber-500'
+                              : 'bg-positive'
+                        )}
+                        style={{ width: `${utilization * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5 tabular-nums">
+                      {currencySymbol}
+                      {formatAmount(availableCredit)} available
+                    </p>
+                  </div>
+                )}
+
+                {/* Statement due */}
+                {due && <CardDueBanner due={due} currency={account.currency || 'INR'} />}
 
                 {/* Stats breakdown */}
                 <div className="grid grid-cols-2 gap-3">
