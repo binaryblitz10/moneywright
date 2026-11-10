@@ -48,6 +48,7 @@ import type { Account, Profile } from '@/lib/api'
 import { ProfileBadge } from '@/components/ui/profile-badge'
 import { OverdueBadge } from '@/components/ui/overdue-badge'
 import { isStatementOverdue } from '@/lib/statement-overdue'
+import { formatMaskedCardNumber } from '@/lib/card-number'
 import { getCardDueStatus, type CardDueTone } from '@/lib/card-due'
 import { useCreditCardPaymentHistory } from '@/hooks'
 import { MetaLabel } from '@/components/ui/meta-label'
@@ -129,8 +130,6 @@ export function CreditCardDisplay({
   const logoPath = account.institution
     ? `/institutions/${countryCode}/${account.institution}.svg`
     : null
-
-  const lastFour = account.accountNumber?.slice(-4) || '••••'
 
   const displayCardName =
     account.productName ||
@@ -267,7 +266,7 @@ export function CreditCardDisplay({
 
       {/* Card Number */}
       <p className="text-sm font-mono text-muted-foreground mt-4 tracking-wider">
-        •••• •••• •••• {lastFour}
+        {formatMaskedCardNumber(account.institution, account.accountNumber)}
       </p>
 
       {/* Balance */}
@@ -344,8 +343,6 @@ export function CreditCardDetailModal({
   const logoPath = account.institution
     ? `/institutions/${countryCode}/${account.institution}.svg`
     : null
-
-  const lastFour = account.accountNumber?.slice(-4) || '••••'
 
   const displayCardName =
     account.productName ||
@@ -471,7 +468,9 @@ export function CreditCardDetailModal({
                     <span className="text-sm text-muted-foreground">
                       {institutionName || account.institution || 'Credit Card'}
                     </span>
-                    <span className="text-sm text-muted-foreground font-mono">•••• {lastFour}</span>
+                    <span className="text-sm text-muted-foreground font-mono">
+                      {formatMaskedCardNumber(account.institution, account.accountNumber)}
+                    </span>
                   </div>
                 </div>
               </div>
