@@ -51,7 +51,9 @@ export function formatAxisAmount(amount: number, currency: string = 'INR'): stri
  * Date formatter for display
  */
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-IN', {
+  // Date-only strings parse as UTC midnight, which shows the previous day in US timezones
+  const [y = 0, m = 1, d = 1] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
   })

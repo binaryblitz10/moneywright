@@ -21,6 +21,7 @@ import {
   focusDialogOnOpen,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { parseLocalDate } from '@/lib/date-presets'
 import { cn } from '@/lib/utils'
 import type { Account, AccountType } from '@/lib/api'
 import { useTransactions, useAverageBalance } from '@/hooks'
@@ -268,7 +269,7 @@ export function BankAccountDetailModal({
                               {txn.summary || txn.originalDescription}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(txn.date).toLocaleDateString('en-GB', {
+                              {parseLocalDate(txn.date.slice(0, 10)).toLocaleDateString('en-GB', {
                                 weekday: 'short',
                                 day: 'numeric',
                                 month: 'short',

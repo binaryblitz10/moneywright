@@ -38,6 +38,7 @@ import {
 import { AddSubscriptionDialog } from '@/components/subscriptions/add-subscription-dialog'
 import { FrequencySelect } from '@/components/subscriptions/frequency-select'
 import { cn } from '@/lib/utils'
+import { parseLocalDate } from '@/lib/date-presets'
 import { ProfileBadge } from '@/components/ui/profile-badge'
 import {
   useAuth,
@@ -76,7 +77,7 @@ function formatCurrency(amount: number, currency: string): string {
 
 // Format date
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-IN', {
+  return parseLocalDate(dateStr.slice(0, 10)).toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

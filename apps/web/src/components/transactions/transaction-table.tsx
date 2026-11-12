@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { parseLocalDate } from '@/lib/date-presets'
 import {
   Table,
   TableBody,
@@ -246,7 +247,11 @@ export function TransactionTable({
   }
 
   const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    parseLocalDate(date.slice(0, 10)).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: '2-digit',
+    })
 
   const renderTitle = (txn: Transaction) => (
     <div className="flex items-center gap-2">
