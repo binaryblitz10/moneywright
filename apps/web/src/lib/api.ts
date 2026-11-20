@@ -1211,6 +1211,8 @@ export interface DuplicateGroup {
 export interface MergedDuplicate {
   transaction: Transaction
   keeper: Transaction | null
+  /** For a purchase the statement split: the markup and tax lines that make up the rest of it */
+  splitFees: Transaction[]
 }
 
 /**

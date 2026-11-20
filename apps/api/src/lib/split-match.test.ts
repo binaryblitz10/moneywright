@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { findSplitMatches, isFeeLine, type SplitRow } from './split-match'
+import { feeLinesFor, findSplitMatches, isFeeLine, type SplitRow } from './split-match'
 
 function row(id: string, date: string, amount: number, description: string): SplitRow {
   return { id, accountId: 'card', date, type: 'debit', amount, description }
@@ -72,5 +72,20 @@ describe('findSplitMatches', () => {
     expect(findSplitMatches([manual], [other, markup, gst])).toEqual([])
     const credit = { ...jd, type: 'credit' }
     expect(findSplitMatches([manual], [credit, markup, gst])).toEqual([])
+  })
+})
+
+describe('feeLinesFor', () => {
+  test('returns the fee lines that make up the difference', () => {
+    const lines = [jd, markup, gst, row('other', '2026-11-15', 500, 'SOMETHING ELSE')]
+    expect(
+      feeLinesFor(manual, jd, lines)
+        ?.map((line) => line.id)
+        .sort()
+    ).toEqual(['gst', 'markup'])
+  })
+
+  test('is null when the fees do not explain the amount', () => {
+    expect(feeLinesFor({ ...manual, amount: 3905.57 }, jd, [jd, markup, gst])).toBeNull()
   })
 })

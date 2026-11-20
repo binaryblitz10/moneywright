@@ -61,6 +61,28 @@ function feeCombinations(fees: SplitRow[], target: number): SplitRow[][] {
 }
 
 /**
+ * The fee lines that, with the purchase line `main`, add up to `entered`: the markup and tax of a
+ * purchase merged by a split match. Null unless exactly one set of the given lines explains it.
+ */
+export function feeLinesFor(
+  entered: SplitRow,
+  main: SplitRow,
+  lines: readonly SplitRow[]
+): SplitRow[] | null {
+  const fees = lines.filter(
+    (line) =>
+      line.id !== main.id &&
+      line.accountId === main.accountId &&
+      line.type === main.type &&
+      isFeeLine(line.description) &&
+      daysApart(line.date, main.date) <= FEE_DAYS
+  )
+  if (fees.length === 0 || fees.length > MAX_FEES) return null
+  const found = feeCombinations(fees, cents(entered.amount) - cents(main.amount))
+  return found.length === 1 ? found[0]! : null
+}
+
+/**
  * Find the provisional rows that equal one statement purchase plus its fee lines. A match must be
  * the only way to explain the provisional row, and none of its statement lines may also be claimed
  * by another provisional row; anything ambiguous is left out.

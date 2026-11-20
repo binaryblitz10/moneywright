@@ -3,7 +3,7 @@
  * merging a group into the copy worth keeping, and undoing a merge.
  */
 
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Transaction } from '../db'
 import { duplicateKey } from '../lib/duplicate-key'
@@ -14,6 +14,7 @@ import {
   type DuplicateCandidate,
 } from '../lib/duplicate-score'
 import { logger } from '../lib/logger'
+import { feeLinesFor, type SplitRow } from '../lib/split-match'
 import {
   getDismissedDuplicates,
   setDuplicatesDismissed,
@@ -447,6 +448,44 @@ export interface MergedDuplicate {
   transaction: TransactionResponse
   /** The transaction it was merged into; null if that one has since been deleted */
   keeper: TransactionResponse | null
+  /** For a purchase the statement split: the markup and tax lines that make up the rest of its amount */
+  splitFees: TransactionResponse[]
+}
+
+function toSplitRow(row: Transaction): SplitRow {
+  return {
+    id: row.id,
+    accountId: row.accountId,
+    date: row.date,
+    type: row.type,
+    amount: Number(row.amount),
+    description: row.originalDescription,
+  }
+}
+
+function shiftDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+}
+
+/** The fee lines of a merged copy that is the purchase plus fees of its keeper; none otherwise */
+async function findSplitFees(userId: string, copy: Transaction, keeper: Transaction) {
+  if (Number(copy.amount).toFixed(2) === Number(keeper.amount).toFixed(2)) return []
+  if (copy.accountId !== keeper.accountId || copy.type !== keeper.type) return []
+  const nearby = await db
+    .select()
+    .from(tables.transactions)
+    .where(
+      and(
+        eq(tables.transactions.userId, userId),
+        eq(tables.transactions.accountId, keeper.accountId),
+        gte(tables.transactions.date, shiftDays(keeper.date, -1)),
+        lte(tables.transactions.date, shiftDays(keeper.date, 1)),
+        isNull(tables.transactions.duplicateOfId)
+      )
+    )
+  const fees = feeLinesFor(toSplitRow(copy), toSplitRow(keeper), nearby.map(toSplitRow))
+  if (!fees) return []
+  return nearby.filter((row) => fees.some((fee) => fee.id === row.id)).map(toTransactionResponse)
 }
 
 /** Merged copies with the transaction each was merged into, newest transactions first */
@@ -465,7 +504,7 @@ export async function listMerged(userId: string, profileId?: string): Promise<Me
   if (copies.length === 0) return []
 
   const keeperIds = [...new Set(copies.map((copy) => copy.duplicateOfId!))]
-  const keepers = new Map<string, MergedDuplicate['keeper']>()
+  const keeperRows = new Map<string, Transaction>()
   // Chunked: a long merge history would overflow SQLite's variable limit in one IN list
   for (let i = 0; i < keeperIds.length; i += 500) {
     const rows = await db
@@ -477,15 +516,17 @@ export async function listMerged(userId: string, profileId?: string): Promise<Me
           inArray(tables.transactions.id, keeperIds.slice(i, i + 500))
         )
       )
-    for (const row of rows) {
-      keepers.set(row.id, toTransactionResponse(row))
-    }
+    for (const row of rows) keeperRows.set(row.id, row)
   }
 
-  return copies
-    .map((copy) => ({
+  const merged: MergedDuplicate[] = []
+  for (const copy of copies) {
+    const keeper = keeperRows.get(copy.duplicateOfId!)
+    merged.push({
       transaction: toTransactionResponse(copy),
-      keeper: keepers.get(copy.duplicateOfId!) ?? null,
-    }))
-    .reverse()
+      keeper: keeper ? toTransactionResponse(keeper) : null,
+      splitFees: keeper ? await findSplitFees(userId, copy, keeper) : [],
+    })
+  }
+  return merged.reverse()
 }

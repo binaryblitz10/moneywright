@@ -320,7 +320,7 @@ export function HistoryPanel({
       )
     )
 
-    for (const { transaction: copy, keeper } of mergedItems) {
+    for (const { transaction: copy, keeper, splitFees } of mergedItems) {
       if (statementId && !batchMergedIds.has(copy.id)) continue
       feed.push({
         id: `merged-${copy.id}`,
@@ -328,10 +328,16 @@ export function HistoryPanel({
         icon: GitMerge,
         title: (
           <>
-            Merged duplicate <strong>{copy.summary || copy.originalDescription}</strong>
+            {splitFees.length > 0 ? 'Merged purchase with fees' : 'Merged duplicate'}{' '}
+            <strong>{copy.summary || copy.originalDescription}</strong>
           </>
         ),
-        detail: `${formatShortDate(copy.date)} · ${formatAmount(copy.amount, copy.currency)}`,
+        detail:
+          splitFees.length > 0 && keeper
+            ? `${formatShortDate(copy.date)} · ${[keeper, ...splitFees]
+                .map((t) => formatAmount(t.amount, t.currency))
+                .join(' + ')} = ${formatAmount(copy.amount, copy.currency)}`
+            : `${formatShortDate(copy.date)} · ${formatAmount(copy.amount, copy.currency)}`,
         action: (
           <Button
             size="sm"
@@ -362,19 +368,24 @@ export function HistoryPanel({
               />
               <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-muted-foreground sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rotate-0" />
               {keeper ? (
-                <TxnCard
-                  {...cardContext}
-                  badge="keep"
-                  accountId={keeper.accountId}
-                  date={keeper.date}
-                  name={keeper.summary || keeper.originalDescription || 'Transaction'}
-                  description={keeper.originalDescription}
-                  amount={formatAmount(keeper.amount, keeper.currency)}
-                  type={keeper.type}
-                  category={keeper.category}
-                  smsSource={keeper.smsSource}
-                  onOpen={() => onEditTransaction(keeper)}
-                />
+                <div className="space-y-3">
+                  {[keeper, ...splitFees].map((t) => (
+                    <TxnCard
+                      key={t.id}
+                      {...cardContext}
+                      badge={t.id === keeper.id ? 'keep' : undefined}
+                      accountId={t.accountId}
+                      date={t.date}
+                      name={t.summary || t.originalDescription || 'Transaction'}
+                      description={t.originalDescription}
+                      amount={formatAmount(t.amount, t.currency)}
+                      type={t.type}
+                      category={t.category}
+                      smsSource={t.smsSource}
+                      onOpen={() => onEditTransaction(t)}
+                    />
+                  ))}
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   The transaction it was merged into no longer exists
