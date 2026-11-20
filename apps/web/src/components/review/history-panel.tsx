@@ -10,6 +10,7 @@ import {
   History,
   Link2,
   Undo2,
+  User,
   Wand2,
   type LucideIcon,
 } from 'lucide-react'
@@ -217,6 +218,15 @@ function AutoFixedChip() {
   )
 }
 
+function ManualMergeChip() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <User className="h-3 w-3" />
+      Manual
+    </span>
+  )
+}
+
 function ExpandedPanel({ children }: { children: ReactNode }) {
   return <div className="rounded-xl border border-border-subtle bg-muted/30 p-3">{children}</div>
 }
@@ -416,7 +426,12 @@ export function HistoryPanel({
       }
     }
     for (const item of feed) {
-      if (autoMergedIds.has(item.id.replace(/^merged-/, ''))) item.chip = <AutoFixedChip />
+      if (!item.id.startsWith('merged-')) continue
+      item.chip = autoMergedIds.has(item.id.slice('merged-'.length)) ? (
+        <AutoFixedChip />
+      ) : (
+        <ManualMergeChip />
+      )
     }
 
     const handled = new Set<string>()
