@@ -14,6 +14,7 @@ import { brokenLinks, cardPaymentUnique, transferPairs } from './card-links'
 import { recheckLowConfidence, stuckUncategorized } from './categorization'
 import { duplicatesLikely, duplicatesSure } from './duplicates'
 import { loadTransactions } from './rows'
+import { splitMatch } from './split-match'
 import { statementPeriods } from './statement-periods'
 import { columnValue, valuesMatch } from './values'
 import type { ChangeEntityType, ChangeRecord, Fix, FixContext, Fixer } from './types'
@@ -25,6 +26,7 @@ const FIXERS: Fixer[] = [
   statementPeriods,
   duplicatesSure,
   bankMessageRef,
+  splitMatch,
   brokenLinks,
   cardPaymentUnique,
   stuckUncategorized,

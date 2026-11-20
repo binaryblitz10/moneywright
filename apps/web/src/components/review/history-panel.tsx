@@ -195,7 +195,12 @@ function TxnCard({
 }
 
 /** Merges: shown through the merged list, not as rows of their own */
-const MERGE_FIXERS = new Set(['duplicates-sure', 'duplicates-likely', 'bank-message-ref'])
+const MERGE_FIXERS = new Set([
+  'duplicates-sure',
+  'duplicates-likely',
+  'bank-message-ref',
+  'split-match',
+])
 
 /** How each transaction fixer reads in the feed */
 const FIX_KINDS: Record<string, { verb: string; icon: LucideIcon }> = {
