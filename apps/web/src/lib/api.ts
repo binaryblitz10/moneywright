@@ -3915,8 +3915,11 @@ export async function applyAutoFixes(input: ApplyAutoFixInput): Promise<ApplyAut
   return response.data
 }
 
-export async function getAutoFixBatches(profileId?: string): Promise<AutoFixBatch[]> {
-  const response = await api.get('/auto-fix/batches', { params: { profileId } })
+export async function getAutoFixBatches(
+  profileId?: string,
+  statementId?: string
+): Promise<AutoFixBatch[]> {
+  const response = await api.get('/auto-fix/batches', { params: { profileId, statementId } })
   return response.data.batches
 }
 

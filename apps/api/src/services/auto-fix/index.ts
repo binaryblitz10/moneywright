@@ -3,7 +3,7 @@
  * change so it can be undone. Safe fixers run after an import; the others wait for the user.
  */
 
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, like } from 'drizzle-orm'
 import { db, dbType, tables } from '../../db'
 import { logger } from '../../lib/logger'
 import { invalidateDuplicateCache } from '../duplicates'
@@ -91,6 +91,56 @@ function dbTime(date: Date): Date {
 }
 
 /**
+ * Write the changes fixes made as one batch, so they show in History and can be undone.
+ * Also used by work that is done as part of an import rather than by a fixer.
+ */
+export async function recordBatch(
+  ctx: { userId: string; profileId?: string },
+  applied: Array<{ fixer: string; records: ChangeRecord[] }>,
+  options: {
+    trigger: 'import' | 'manual'
+    statementIds?: string[]
+    summary: Record<string, number>
+  }
+): Promise<string> {
+  // Changes get increasing times so undo can replay them backwards in the order they were made
+  const base = Date.now()
+  const batchId = await db.transaction(async (tx) => {
+    const [batch] = await tx
+      .insert(tables.autoFixBatches)
+      .values({
+        userId: ctx.userId,
+        profileId: ctx.profileId ?? null,
+        trigger: options.trigger,
+        statementIds: JSON.stringify(options.statementIds ?? []),
+        summary: JSON.stringify(options.summary),
+        createdAt: dbTime(new Date(base)),
+      })
+      .returning({ id: tables.autoFixBatches.id })
+    const rows = applied.flatMap(({ fixer, records }) =>
+      records.map((record) => ({ fixer, record }))
+    )
+    for (let i = 0; i < rows.length; i += 200) {
+      await tx.insert(tables.autoFixChanges).values(
+        rows.slice(i, i + 200).map(({ fixer, record }, offset) => ({
+          batchId: batch!.id,
+          fixer,
+          entityType: record.entityType,
+          entityId: record.entityId,
+          description: record.description,
+          before: JSON.stringify(record.before),
+          after: JSON.stringify(record.after),
+          createdAt: dbTime(new Date(base + i + offset)),
+        }))
+      )
+    }
+    return batch!.id
+  })
+  invalidateDuplicateCache(ctx.userId)
+  return batchId
+}
+
+/**
  * Apply fixes and record them as one batch. Each fixer finds its fixes again just before applying
  * them, so an earlier fixer's changes are seen. A fix that fails is logged and skipped.
  */
@@ -126,38 +176,10 @@ export async function applyFixes(ctx: FixContext, options: ApplyOptions): Promis
   const count = applied.length
   if (count === 0) return { batchId: null, count: 0, byFixer }
 
-  // Changes get increasing times so undo can replay them backwards in the order they were made
-  const base = Date.now()
-  const batchId = await db.transaction(async (tx) => {
-    const [batch] = await tx
-      .insert(tables.autoFixBatches)
-      .values({
-        userId: ctx.userId,
-        profileId: ctx.profileId ?? null,
-        trigger: options.trigger,
-        statementIds: JSON.stringify(options.statementIds ?? []),
-        summary: JSON.stringify(byFixer),
-        createdAt: dbTime(new Date(base)),
-      })
-      .returning({ id: tables.autoFixBatches.id })
-    const rows = applied.flatMap(({ fixer, records }) =>
-      records.map((record) => ({ fixer, record }))
-    )
-    for (let i = 0; i < rows.length; i += 200) {
-      await tx.insert(tables.autoFixChanges).values(
-        rows.slice(i, i + 200).map(({ fixer, record }, offset) => ({
-          batchId: batch!.id,
-          fixer,
-          entityType: record.entityType,
-          entityId: record.entityId,
-          description: record.description,
-          before: JSON.stringify(record.before),
-          after: JSON.stringify(record.after),
-          createdAt: dbTime(new Date(base + i + offset)),
-        }))
-      )
-    }
-    return batch!.id
+  const batchId = await recordBatch(ctx, applied, {
+    trigger: options.trigger,
+    statementIds: options.statementIds,
+    summary: byFixer,
   })
 
   invalidateDuplicateCache(ctx.userId)
@@ -379,7 +401,8 @@ function isoOrNull(value: string | Date | null): string | null {
 export async function listBatches(
   userId: string,
   profileId?: string,
-  limit = 20
+  limit = 20,
+  statementId?: string
 ): Promise<BatchResponse[]> {
   const batches = await db
     .select()
@@ -387,7 +410,9 @@ export async function listBatches(
     .where(
       and(
         eq(tables.autoFixBatches.userId, userId),
-        profileId ? eq(tables.autoFixBatches.profileId, profileId) : undefined
+        profileId ? eq(tables.autoFixBatches.profileId, profileId) : undefined,
+        // statementIds is a JSON array of ids
+        statementId ? like(tables.autoFixBatches.statementIds, `%"${statementId}"%`) : undefined
       )
     )
     .orderBy(desc(tables.autoFixBatches.createdAt))

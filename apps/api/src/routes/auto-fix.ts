@@ -83,9 +83,15 @@ autoFixRoutes.post('/apply', async (c) => {
  * The latest batches of fixes with their changes, newest first
  * Query params:
  *   - profileId (optional): Limit to one profile
+ *   - statementId (optional): Only the batches made after importing this statement
  */
 autoFixRoutes.get('/batches', async (c) => {
-  const batches = await listBatches(c.get('userId'), c.req.query('profileId') || undefined)
+  const batches = await listBatches(
+    c.get('userId'),
+    c.req.query('profileId') || undefined,
+    undefined,
+    c.req.query('statementId') || undefined
+  )
   return c.json({ batches })
 })
 

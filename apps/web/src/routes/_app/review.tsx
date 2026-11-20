@@ -19,6 +19,8 @@ type ReviewTab = 'duplicates' | 'categorization' | 'history'
 
 interface ReviewSearchParams {
   tab?: ReviewTab
+  /** History: show only the fixes made after importing this statement */
+  statement?: string
 }
 
 export const Route = createFileRoute('/_app/review')({
@@ -34,13 +36,15 @@ export const Route = createFileRoute('/_app/review')({
             : search.tab === 'possible_matches'
               ? 'duplicates'
               : undefined,
+    statement:
+      typeof search.statement === 'string' && search.statement ? search.statement : undefined,
   }),
 })
 
 function ReviewPage() {
   const { user, profiles } = useAuth()
   const navigate = Route.useNavigate()
-  const { tab } = useSearch({ from: '/_app/review' })
+  const { tab, statement } = useSearch({ from: '/_app/review' })
   const activeTab: ReviewTab = tab ?? 'duplicates'
   const { activeProfileId, showFamilyView } = useProfileSelection()
   const countryCode = user?.country?.toLowerCase() || 'in'
@@ -121,7 +125,11 @@ function ReviewPage() {
       </Tabs>
 
       {activeTab === 'history' ? (
-        <HistoryPanel {...panelProps} />
+        <HistoryPanel
+          {...panelProps}
+          statementId={statement}
+          onClearBatch={() => navigate({ search: { tab: 'history' } })}
+        />
       ) : (
         <div className="rounded-2xl border border-border-subtle bg-card p-4 sm:p-6">
           {activeTab === 'duplicates' ? (

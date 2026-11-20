@@ -13,7 +13,8 @@ import { invalidateTransactionTotals } from './useTransactions'
 export const autoFixKeys = {
   all: ['auto-fix'] as const,
   preview: (profileId?: string) => [...autoFixKeys.all, 'preview', profileId ?? 'family'] as const,
-  batches: (profileId?: string) => [...autoFixKeys.all, 'batches', profileId ?? 'family'] as const,
+  batches: (profileId?: string, statementId?: string) =>
+    [...autoFixKeys.all, 'batches', profileId ?? 'family', statementId ?? 'all'] as const,
 }
 
 /** Fixes change transactions, duplicates, review counts, data health and statements */
@@ -33,10 +34,14 @@ export function useAutoFixPreview(profileId: string | undefined, enabled: boolea
 }
 
 /** Recent batches of fixes, newest first */
-export function useAutoFixBatches(profileId: string | undefined, enabled: boolean = true) {
+export function useAutoFixBatches(
+  profileId: string | undefined,
+  enabled: boolean = true,
+  statementId?: string
+) {
   return useQuery({
-    queryKey: autoFixKeys.batches(profileId),
-    queryFn: () => getAutoFixBatches(profileId),
+    queryKey: autoFixKeys.batches(profileId, statementId),
+    queryFn: () => getAutoFixBatches(profileId, statementId),
     enabled,
   })
 }

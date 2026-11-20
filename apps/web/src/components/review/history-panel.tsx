@@ -199,6 +199,7 @@ const MERGE_FIXERS = new Set([
   'duplicates-sure',
   'duplicates-likely',
   'bank-message-ref',
+  'bank-message-match',
   'split-match',
 ])
 
@@ -291,11 +292,14 @@ export function HistoryPanel({
   countryCode,
   formatAmount,
   onEditTransaction,
+  statementId,
+  onClearBatch,
 }: ReviewPanelProps) {
   const { extraMonths, openIds, showMore, setOpen } = useHistoryUiState()
   const { data: dismissedGroups = [] } = useDuplicateGroups({ ...filters, dismissed: true })
   const { data: mergedItems = [] } = useMergedDuplicates(filters.profileId)
-  const { data: batches = [] } = useAutoFixBatches(filters.profileId)
+  // One statement's view asks for only the fixes made after importing it
+  const { data: batches = [] } = useAutoFixBatches(filters.profileId, true, statementId)
   const dismissMutation = useDismissDuplicates()
   const unmergeMutation = useUnmergeDuplicate()
   const undoChange = useUndoChange()
@@ -307,7 +311,17 @@ export function HistoryPanel({
       toast.success(describeUndo(result))
     const onError = () => toast.error('Could not undo')
 
+    // In an import's view, only the merges that import's fixes made
+    const batchMergedIds = new Set(
+      batches.flatMap((batch) =>
+        batch.changes
+          .filter((change) => !change.undoneAt && MERGE_FIXERS.has(change.fixer))
+          .map((change) => change.entityId)
+      )
+    )
+
     for (const { transaction: copy, keeper } of mergedItems) {
+      if (statementId && !batchMergedIds.has(copy.id)) continue
       feed.push({
         id: `merged-${copy.id}`,
         at: copy.updatedAt,
@@ -372,7 +386,7 @@ export function HistoryPanel({
       })
     }
 
-    for (const group of dismissedGroups) {
+    for (const group of statementId ? [] : dismissedGroups) {
       const first = group.transactions[0]
       if (!first) continue
       feed.push({
@@ -581,6 +595,7 @@ export function HistoryPanel({
     mergedItems,
     dismissedGroups,
     batches,
+    statementId,
     accounts,
     categories,
     countryCode,
@@ -591,17 +606,31 @@ export function HistoryPanel({
     undoChange,
   ])
 
+  const batchBanner = statementId && (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-muted/30 px-4 py-3">
+      <p className="text-sm text-muted-foreground">
+        Showing the fixes made after importing one statement
+      </p>
+      <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={onClearBatch}>
+        Show all history
+      </Button>
+    </div>
+  )
+
   if (groups.length === 0) {
     // In the same outer box the other two tabs sit in
     return (
-      <div className="rounded-2xl border border-border-subtle bg-card p-4 sm:p-6">
-        <EmptyState
-          icon={History}
-          title="No History"
-          size="sm"
-          glow
-          className="flex min-h-[18.5rem] flex-col items-center justify-center"
-        />
+      <div className="space-y-6">
+        {batchBanner}
+        <div className="rounded-2xl border border-border-subtle bg-card p-4 sm:p-6">
+          <EmptyState
+            icon={History}
+            title={statementId ? 'No fixes to show' : 'No History'}
+            size="sm"
+            glow
+            className="flex min-h-[18.5rem] flex-col items-center justify-center"
+          />
+        </div>
       </div>
     )
   }
@@ -609,12 +638,13 @@ export function HistoryPanel({
   const recent = groups.filter((g) => g.label === 'This week' || g.label === 'This month')
   const months = groups.filter((g) => g.label !== 'This week' && g.label !== 'This month')
   // With nothing recent, the newest older month shows by default so the tab is never blank
-  const shownMonths = (recent.length === 0 ? 1 : 0) + extraMonths
+  const shownMonths = statementId ? months.length : (recent.length === 0 ? 1 : 0) + extraMonths
   const visible = [...recent, ...months.slice(0, shownMonths)]
   const hidden = months.length - shownMonths
 
   return (
     <div className="space-y-6">
+      {batchBanner}
       {visible.map((group) => (
         <div key={group.label} className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

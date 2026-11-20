@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ImportReport } from './import-report'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -88,6 +89,7 @@ export function StatementCard({
       : 0
   const importReport = statement.summary?.importReport
   const autoFixCount = statement.summary?.autoFix?.count ?? 0
+  const hasFixes = autoFixCount > 0 || (importReport?.mergedWithBankMessages ?? 0) > 0
   const validation = statement.summary?.validation
   const droppedRowCount =
     typeof statement.summary?.droppedRowCount === 'number' ? statement.summary.droppedRowCount : 0
@@ -327,6 +329,21 @@ export function StatementCard({
               <span className="mx-1.5 opacity-50">·</span>
               <span className="tabular-nums">{formatFileSize(statement.fileSizeBytes)}</span>
             </p>
+
+            {isCompleted && !isInvestment && hasFixes && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-2 h-7 shrink-0"
+                onClick={(e) => {
+                  // The card itself opens the transactions of the statement
+                  e.stopPropagation()
+                  navigate({ to: '/review', search: { tab: 'history', statement: statement.id } })
+                }}
+              >
+                View Fixes
+              </Button>
+            )}
 
             {/* Status indicator for completed */}
             {isCompleted && statusConfig && (

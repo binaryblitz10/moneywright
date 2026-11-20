@@ -14,4 +14,8 @@ export interface ReviewPanelProps {
   formatAmount: (amount: number, currency: string) => string
   /** A shorter empty state, for the dashboard widget */
   compact?: boolean
+  /** History only: show just the fixes made after importing this statement */
+  statementId?: string
+  /** History only: leave the single-statement view */
+  onClearBatch?: () => void
 }

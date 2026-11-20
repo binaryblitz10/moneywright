@@ -175,7 +175,10 @@ export async function insertRawTransactions(
   let mergedWithBankMessages = 0
   let possibleMatches = 0
   try {
-    const reconciled = await reconcileWithCounts(userId, [accountId])
+    const reconciled = await reconcileWithCounts(userId, [accountId], {
+      profileId,
+      statementIds: [statementId],
+    })
     mergedWithBankMessages = reconciled.matched
     possibleMatches = reconciled.possible
   } catch (error) {
