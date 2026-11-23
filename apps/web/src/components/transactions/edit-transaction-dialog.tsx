@@ -38,7 +38,9 @@ export function EditTransactionDialog({
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Edit Transaction</DialogTitle>
           <div className="flex items-center gap-1.5">
-            <DialogDescription>{transaction?.originalDescription}</DialogDescription>
+            <DialogDescription className="min-w-0 [overflow-wrap:anywhere]">
+              {transaction?.originalDescription}
+            </DialogDescription>
             {transaction && (transaction.smsSource || transaction.smsVerified) && (
               <SmsSourceInfo transactionId={transaction.id} />
             )}
