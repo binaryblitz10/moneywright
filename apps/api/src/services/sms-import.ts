@@ -10,7 +10,7 @@ import { and, eq, desc, inArray, isNotNull, like } from 'drizzle-orm'
 import { db, tables, dbType } from '../db'
 import type { Account } from '../db'
 import { decrypt, decryptOptional, encrypt } from '../lib/encryption'
-import { getLast4 } from '../lib/account-number'
+import { getLast4, normalizeAccountNumber } from '../lib/account-number'
 import { isAuthEnabled } from '../lib/startup'
 import { logger } from '../lib/logger'
 import {
@@ -216,9 +216,13 @@ async function matchAccount(
     .from(tables.accounts)
     .where(and(eq(tables.accounts.userId, userId), eq(tables.accounts.isActive, true)))
 
-  const candidates = accounts.filter(
-    (account) => getLast4(decryptOptional(account.accountNumber)) === last4
-  )
+  // An alert may show only 3 digits, so those are matched against the end of the number
+  const candidates = accounts.filter((account) => {
+    const number = decryptOptional(account.accountNumber)
+    return last4.length === 4
+      ? getLast4(number) === last4
+      : normalizeAccountNumber(number).endsWith(last4)
+  })
   if (candidates.length <= 1) return candidates[0] ?? null
 
   const text = normalizeWord(haystack)

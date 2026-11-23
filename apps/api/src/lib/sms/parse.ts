@@ -80,15 +80,18 @@ function findAmount(text: string): { amount: number; currency: string } | null {
   return hit ? { amount: hit.amount, currency: hit.currency } : null
 }
 
+/** Alerts mask the number ("XX247"), and some show only 3 digits; an unmasked number needs 4 */
 const LAST4_PATTERNS = [
-  /\b(?:ending(?:\s+(?:with|in))?|card(?:\s+no\.?)?|a\/c(?:\s+no\.?)?|acct|account)\s*[:-]?\s*(?:[xX*•.]+\s*)?(\d{4,5})\b/i,
-  /[xX*•]{2,}\s?(\d{4,5})\b/,
+  /\b(?:ending(?:\s+(?:with|in))?|card(?:\s+no\.?)?|a\/c(?:\s+no\.?)?|acct|account)\s*[:-]?\s*(?:[xX*•.]+\s*(\d{3,5})|(\d{4,5}))\b/i,
+  /[xX*•]{2,}\s?(\d{3,5})\b/,
 ]
 
+/** The trailing digits the text shows: 4, or 3 when that is all the alert gives */
 function findLast4(text: string): string | null {
   for (const pattern of LAST4_PATTERNS) {
     const m = text.match(pattern)
-    if (m) return m[1]!.slice(-4)
+    const digits = m?.[1] ?? m?.[2]
+    if (digits) return digits.slice(-4)
   }
   return null
 }

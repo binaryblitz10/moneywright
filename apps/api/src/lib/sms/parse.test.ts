@@ -61,6 +61,16 @@ describe('parseSms', () => {
   })
 })
 
+describe('parseSms card digits', () => {
+  test('reads a masked number that shows only 3 digits', () => {
+    expect(parseSms('Rs.10,000.00 debited from A/c XX247 on 23-11-26').last4).toBe('247')
+  })
+
+  test('does not read a plain 3-digit number as card digits', () => {
+    expect(parseSms('Rs.500 debited from account 123 at SHOP').last4).toBeNull()
+  })
+})
+
 describe('looksLikeTransaction', () => {
   test('rejects OTPs', () => {
     expect(looksLikeTransaction('123456 is your OTP for Rs.500 payment at AMAZON')).toBe(false)
